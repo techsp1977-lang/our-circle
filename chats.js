@@ -1,7 +1,7 @@
 // Chats list and a single conversation.
-import * as S from '../store.js';
-import { esc, icon, face, toast, fmtSize, listJoin } from '../ui.js';
-import { ago } from '../dates.js';
+import * as S from './store.js';
+import { esc, icon, face, toast, fmtSize, listJoin } from './ui.js';
+import { ago } from './dates.js';
 
 export function chatTitle(app, c) {
   if (c.kind === 'everyone') return 'Everyone';

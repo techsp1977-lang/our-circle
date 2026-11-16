@@ -1,8 +1,8 @@
 // Family hub: coming up, today's big days, weekly check-ins, the family chart.
-import * as S from '../store.js';
-import { esc, icon, face, toast, sheet, listJoin } from '../ui.js';
-import { today, monShort, dayNum, whenText, rangeText, diffDays, weekday, shortDate } from '../dates.js';
-import { upcoming, happeningToday, headline, editEvent, canEdit, isCalendarType, typeOf } from '../events.js';
+import * as S from './store.js';
+import { esc, icon, face, toast, sheet, listJoin } from './ui.js';
+import { today, monShort, dayNum, whenText, rangeText, diffDays, weekday, shortDate } from './dates.js';
+import { upcoming, happeningToday, headline, editEvent, canEdit, isCalendarType, typeOf } from './events.js';
 
 const SNOOZE = 'oc-snooze-';
 

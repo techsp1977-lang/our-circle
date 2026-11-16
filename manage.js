@@ -1,6 +1,6 @@
 // Family settings for organizers: households, people, invite links.
-import * as S from '../store.js';
-import { esc, icon, face, sheet, toast, confirmBox } from '../ui.js';
+import * as S from './store.js';
+import { esc, icon, face, sheet, toast, confirmBox } from './ui.js';
 
 export async function inviteLink(app, memberId) {
   const st = app.state;
