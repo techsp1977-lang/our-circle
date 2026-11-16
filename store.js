@@ -106,7 +106,7 @@ async function firebaseImpl() {
 
 // ───────────────────────── Demo (in this browser only) ─────────────────────────
 async function demoImpl() {
-  const KEY = 'oc-demo-db-v1';
+  const KEY = 'oc-demo-db-v2';
   let db = {};
   try { db = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { db = {}; }
   if (!Object.keys(db).length) {

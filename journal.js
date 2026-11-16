@@ -39,7 +39,7 @@ const blank = (s) => (s.list ? { title: s.title, list: Array.from({ length: type
 function page(root, app, date) {
   const st = app.state;
   const base = `journals/${st.uid}`;
-  let settings = null, entry = null, saveTimer = null, listening = null;
+  let settings = null, entry = null, saveTimer = null, listening = null, stopGoals = null;
 
   const tplOptions = () => [
     ...Object.entries(TEMPLATES).map(([k, t]) => ({ value: k, label: t.label })),
@@ -98,6 +98,7 @@ function page(root, app, date) {
               : `<label class="sr" for="s${i}">${esc(s.title)}</label><textarea id="s${i}" class="ruled" data-sec="${i}" placeholder="Tap here, then the microphone on your keyboard to speak.">${esc(s.text || '')}</textarea>`}
           </div>`).join('')}
         <div class="paper-foot"><button class="linkish" data-act="layout">${icon('edit', 15)} Edit layout</button><span id="saved" class="muted small">${entry.saved ? 'Saved' : ''}</span></div>
+        <div id="goals" class="goals"></div>
       </article>
       <div class="jr-nav">
         <a class="btn ghost sm" href="#/journal/${addDays(date, -1)}" aria-label="Previous day">${icon('back', 16)} ${shortDate(addDays(date, -1))}</a>
@@ -110,6 +111,8 @@ function page(root, app, date) {
       </div>
       ${SR ? '' : '<p class="hint center pad-x">Tip: tap a box, then the microphone on your phone keyboard to speak your entry.</p>'}`;
     root.querySelectorAll('textarea.ruled').forEach(grow);
+    if (stopGoals) stopGoals();
+    stopGoals = goalsBlock(root, base, date);
   };
 
   const onInput = (e) => { if (e.target.matches('textarea.ruled')) grow(e.target); if (e.target.dataset.sec != null) save(); };
@@ -193,7 +196,7 @@ function page(root, app, date) {
     entry = e ? { ...e } : { date, template: tpl, sections: sectionsFrom(tpl, settings).map(blank) };
     render();
   });
-  return { destroy: () => { if (dirty && entry) doSave(); listening?.stop(); root.removeEventListener('input', onInput); root.removeEventListener('change', onChange); root.removeEventListener('click', onClick); } };
+  return { destroy: () => { if (dirty && entry) doSave(); listening?.stop(); if (stopGoals) stopGoals(); root.removeEventListener('input', onInput); root.removeEventListener('change', onChange); root.removeEventListener('click', onClick); } };
 }
 
 const entryText = (e) => (e.sections || []).map((s) => [s.title, s.text || '', ...(s.list || [])].join(' ')).join(' ');
@@ -261,4 +264,76 @@ function book(root, app) {
     out.scrollIntoView({ behavior: 'smooth' });
   };
   return {};
+}
+
+// ───────── Goals (private, under journals/{you}/goals) ─────────
+const FREQ = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
+// The period a date belongs to: the day, the week (starting Sunday), or the month.
+export function periodKey(freq, date) {
+  if (freq === 'monthly') return date.slice(0, 7);
+  if (freq === 'weekly') return addDays(date, -parse(date).getDay());
+  return date;
+}
+function recentPeriods(freq, date) {
+  const out = [];
+  if (freq === 'daily') for (let i = 6; i >= 0; i--) out.push(addDays(date, -i));
+  else if (freq === 'weekly') { const w = periodKey('weekly', date); for (let i = 7; i >= 0; i--) out.push(addDays(w, -7 * i)); }
+  else { const d = parse(date); for (let i = 5; i >= 0; i--) { const x = new Date(d.getFullYear(), d.getMonth() - i, 1); out.push(`${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`); } }
+  return out;
+}
+const periodWord = { daily: 'today', weekly: 'this week', monthly: 'this month' };
+const periodSpan = { daily: 'last 7 days', weekly: 'last 8 weeks', monthly: 'last 6 months' };
+
+function goalsBlock(root, base, date) {
+  const box = root.querySelector('#goals');
+  let goals = [];
+  const draw = () => {
+    if (!box.isConnected) return;
+    const active = goals.filter((g) => !g.archived).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    box.innerHTML = `
+      <div class="goals-head"><span class="sec-title">My goals</span><button class="linkish" data-goal="add">${icon('plus', 15)} Add goal</button></div>
+      ${active.length ? ['daily', 'weekly', 'monthly'].map((f) => {
+        const gs = active.filter((g) => g.freq === f);
+        if (!gs.length) return '';
+        return `<div class="goal-group"><div class="goal-freq">${FREQ[f]}</div>${gs.map((g) => {
+          const key = periodKey(f, date);
+          const done = !!g.done?.[key];
+          const ps = recentPeriods(f, date);
+          const hits = ps.filter((p) => g.done?.[p]).length;
+          return `<div class="goal">
+            <label class="goal-check" for="g_${g.id}"><input type="checkbox" id="g_${g.id}" data-goal-check="${g.id}" ${done ? 'checked' : ''}><span class="sr">Done ${periodWord[f]}:</span></label>
+            <button class="goal-title" data-goal="edit" data-id="${g.id}">${esc(g.title)}</button>
+            <span class="goal-track" title="${hits} of ${ps.length}, ${periodSpan[f]}" aria-label="${hits} of ${ps.length} in the ${periodSpan[f]}">${ps.map((p) => `<i class="${g.done?.[p] ? 'on' : ''} ${p === key ? 'now' : ''}"></i>`).join('')}<small>${hits}/${ps.length}</small></span>
+          </div>`;
+        }).join('')}</div>`;
+      }).join('') : '<p class="goal-empty">Add something you want to keep up with, like reading scriptures daily, a date night weekly, or calling Grandma monthly.</p>'}`;
+  };
+  const onClick = async (e) => {
+    const b = e.target.closest('[data-goal]');
+    if (!b) return;
+    const g = goals.find((x) => x.id === b.dataset.id);
+    const r = await sheet({
+      title: g ? 'Edit goal' : 'Add a goal',
+      intro: 'Goals are private, like the rest of your journal.',
+      danger: g ? 'Delete goal' : null,
+      fields: [
+        { name: 'title', label: 'Goal', value: g?.title || '', placeholder: 'Read scriptures', required: true },
+        { name: 'freq', label: 'How often?', type: 'select', value: g?.freq || 'daily', options: Object.entries(FREQ).map(([value, label]) => ({ value, label })) },
+      ],
+    });
+    if (!r) return;
+    if (r.__danger) { await S.del(`${base}/goals/${g.id}`); return; }
+    if (g) await S.update(`${base}/goals/${g.id}`, { title: r.title, freq: r.freq });
+    else await S.add(`${base}/goals`, { title: r.title, freq: r.freq, done: {}, archived: false, createdAt: Date.now() });
+  };
+  const onChange = async (e) => {
+    const id = e.target.dataset.goalCheck;
+    if (!id) return;
+    const g = goals.find((x) => x.id === id);
+    await S.update(`${base}/goals/${id}`, { ['done.' + periodKey(g.freq, date)]: e.target.checked });
+  };
+  box.addEventListener('click', onClick);
+  box.addEventListener('change', onChange);
+  const unsub = S.watchColl(`${base}/goals`, {}, (rows) => { goals = rows; draw(); });
+  return () => { unsub(); };
 }

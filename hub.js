@@ -4,7 +4,6 @@ import { esc, icon, face, toast, sheet, listJoin } from './ui.js';
 import { today, monShort, dayNum, whenText, rangeText, diffDays, weekday, shortDate } from './dates.js';
 import { upcoming, happeningToday, headline, editEvent, canEdit, isCalendarType, typeOf } from './events.js';
 
-const SNOOZE = 'oc-snooze-';
 
 export function mount(root, app) {
   const st = app.state;
@@ -20,7 +19,6 @@ export function mount(root, app) {
     // Today's big days
     const todays = happeningToday(app).filter((ev) => !isCalendarType(ev) || ev.date === t);
     // Weekly check-ins
-    const nudges = checkins(app).slice(0, 3);
     // Birthdays & big days list
     const big = upcoming(app, { filter: (ev) => !isCalendarType(ev), days: 366 }).slice(0, 6);
 
@@ -45,18 +43,7 @@ export function mount(root, app) {
         : `<button class="card empty-card" data-act="add-event">Add a trip, reunion or family event so everyone can see it.</button>`}
       </section>
 
-      ${todays.length || nudges.length ? `<section class="block stack-sm">
-        ${todays.map((ev) => todayCard(app, ev)).join('')}
-        ${nudges.map((n) => `
-          <div class="card nudge">
-            <div class="nudge-text"><span class="eyebrow warm">Weekly check-in</span>
-              ${n.last ? `It's been ${n.days} days since you messaged <b>${esc(n.h.name)}</b>.` : `You haven't messaged <b>${esc(n.h.name)}</b> here yet.`}</div>
-            <div class="nudge-actions">
-              <button class="btn ghost warm sm" data-act="snooze" data-id="${n.h.id}">Later</button>
-              <button class="btn warm sm" data-act="msg-household" data-id="${n.h.id}">Message</button>
-            </div>
-          </div>`).join('')}
-      </section>` : ''}
+      ${todays.length ? `<section class="block stack-sm">${todays.map((ev) => todayCard(app, ev)).join('')}</section>` : ''}
 
       <section class="block">
         <div class="row-btns">
@@ -77,7 +64,7 @@ export function mount(root, app) {
           </div>
         </div>
         <div class="chart-others">
-          ${others.map((h) => householdCard(app, h, nudges)).join('') || `<div class="card empty-card">${app.isAdmin() ? '<a href="#/manage">Add your family members</a> to see everyone here.' : 'No one else yet.'}</div>`}
+          ${others.map((h) => householdCard(app, h)).join('') || `<div class="card empty-card">${app.isAdmin() ? '<a href="#/manage">Add your family members</a> to see everyone here.' : 'No one else yet.'}</div>`}
         </div>
       </section>
       <p class="hint center">Message goes to the whole household. Tap a photo to message one person.</p>
@@ -113,7 +100,6 @@ export function mount(root, app) {
       case 'me': app.go('#/me'); break;
       case 'msg-household': app.go('#/chat/' + (await app.chatForHousehold(id))); break;
       case 'msg-member': app.go('#/chat/' + (await app.chatFor([id]))); break;
-      case 'snooze': try { localStorage.setItem(SNOOZE + id, String(Date.now())); } catch (er) {} render(); toast('Okay, we will remind you in a couple of days.'); break;
       case 'celebrate': {
         const ev = st.events.find((x) => x.id === id);
         const ids = (ev.memberIds || []).filter((m) => m !== st.me);
@@ -149,46 +135,52 @@ function todayCard(app, ev) {
   </div>`;
 }
 
-function householdCard(app, h, nudges) {
+function householdCard(app, h) {
   const people = app.membersOf(h.id);
-  const nudged = nudges.some((n) => n.h.id === h.id);
-  const big = people.length === 1;
-  return `<div class="card hh ${nudged ? 'warm-border' : ''}">
-    <div class="hh-head">
-      <span class="hh-title"><b>${esc(h.name)}</b>${nudged ? '<small class="warm">Check in this week</small>' : people.length > 1 ? `<small>${people.length} people</small>` : ''}</span>
-      <button class="btn sm ${nudged ? 'warm' : ''}" data-act="${big ? 'msg-member' : 'msg-household'}" data-id="${big ? people[0]?.id : h.id}" aria-label="Message ${esc(h.name)}${big ? '' : ' together'}">${icon('chat', 15)} Message</button>
+  const single = people.length === 1;
+  const ci = checkin(app, h.id);
+  const target = single ? people[0]?.id : h.id;
+  const act = single ? 'msg-member' : 'msg-household';
+  let tab = '';
+  if (ci) {
+    const label = ci.overdue
+      ? (ci.last ? `Time to check in. Last messaged ${ci.days} days ago` : 'Time to check in. Not messaged yet')
+      : `Checked in ${ci.days === 0 ? 'today' : ci.days + ' day' + (ci.days === 1 ? '' : 's') + ' ago'}`;
+    tab = `<button class="ci-tab ${ci.overdue ? 'due' : 'ok'}" data-act="${act}" data-id="${target}" aria-label="${esc(label)}. Message ${esc(h.name)}" title="${esc(label)}">
+      ${icon(ci.overdue ? 'bell' : 'check', 16)}
+      <b>${ci.overdue ? (ci.last ? ci.days + 'd' : 'New') : ci.days === 0 ? 'Today' : ci.days + 'd'}</b>
+      <small>${ci.overdue ? 'Due' : 'Good'}</small>
+    </button>`;
+  }
+  return `<div class="hh-row">
+    <div class="card hh">
+      <div class="hh-head">
+        <span class="hh-title"><b>${esc(h.name)}</b>${people.length > 1 ? `<small>${people.length} people</small>` : ''}</span>
+        <button class="icon-btn sm msg-btn" data-act="${act}" data-id="${target}" aria-label="Message ${esc(h.name)}${single ? '' : ' together'}">${icon('chat', 17)}</button>
+      </div>
+      <div class="hh-tiles">${people.map((m) => `
+        <button class="tile" data-act="msg-member" data-id="${m.id}" aria-label="Message ${esc(m.name)} only">
+          ${face(m, 'tile-img')}
+          <span class="tile-name">${esc(m.name)}</span>
+        </button>`).join('')}</div>
     </div>
-    <div class="hh-tiles">${people.map((m) => `
-      <button class="tile" data-act="msg-member" data-id="${m.id}" aria-label="Message ${esc(m.name)} only">
-        ${face(m, 'tile-img')}
-        <span class="tile-name">${esc(m.name)}</span>
-      </button>`).join('')}</div>
+    ${tab}
   </div>`;
 }
 
-// Households I haven't messaged within my check-in window.
-export function checkins(app) {
+// Check-in status for one household: when I last messaged any of them (outside the
+// everyone chat), and whether that is past my check-in window. Null if nobody there has a login.
+export function checkin(app, hid) {
   const st = app.state;
-  const me = app.myMember();
-  const days = app.checkinDays();
-  const now = Date.now();
-  const out = [];
-  for (const h of st.households) {
-    if (h.id === me?.householdId) continue;
-    const ids = app.membersOf(h.id).filter((m) => m.uid).map((m) => m.id);
-    if (!ids.length) continue;
-    let snoozed = 0;
-    try { snoozed = Number(localStorage.getItem(SNOOZE + h.id) || 0); } catch (e) {}
-    if (now - snoozed < 2 * 864e5) continue;
-    let last = 0;
-    for (const c of Object.values(st.chats)) {
-      if (c.kind === 'everyone') continue;
-      if ((c.memberIds || []).some((id) => ids.includes(id))) last = Math.max(last, c.sent?.[st.me] || 0);
-    }
-    const age = Math.floor((now - last) / 864e5);
-    if (!last || age >= days) out.push({ h, last, days: age });
+  const ids = app.membersOf(hid).filter((m) => m.uid).map((m) => m.id);
+  if (!ids.length || hid === app.myMember()?.householdId) return null;
+  let last = 0;
+  for (const c of Object.values(st.chats)) {
+    if (c.kind === 'everyone') continue;
+    if ((c.memberIds || []).some((id) => ids.includes(id))) last = Math.max(last, c.sent?.[st.me] || 0);
   }
-  return out.sort((a, b) => (a.last || 0) - (b.last || 0));
+  const days = last ? Math.floor((Date.now() - last) / 864e5) : null;
+  return { last, days, overdue: !last || days >= app.checkinDays() };
 }
 
 async function newGroup(app) {

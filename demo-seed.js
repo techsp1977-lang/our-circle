@@ -91,5 +91,10 @@ export function seed() {
       { title: "Three things I'm grateful for", list: ['Jeana', 'Healthy kids', 'A good night of sleep'] },
     ],
   };
+  // sample goals (private to Spencer)
+  const done = (n, step) => Object.fromEntries(Array.from({ length: n }, (_, i) => [shift(-i * step - 1), true]));
+  db['journals/u_spencer/goals/g1'] = { title: 'Read scriptures', freq: 'daily', done: done(5, 1), archived: false, createdAt: now - 30 * DAY };
+  db['journals/u_spencer/goals/g2'] = { title: 'Date night with Jeana', freq: 'weekly', done: {}, archived: false, createdAt: now - 29 * DAY };
+  db['journals/u_spencer/goals/g3'] = { title: 'Golf with the boys', freq: 'monthly', done: {}, archived: false, createdAt: now - 28 * DAY };
   return db;
 }

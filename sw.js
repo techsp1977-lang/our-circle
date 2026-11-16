@@ -1,6 +1,6 @@
 // Lets the app install to the home screen and open quickly. Always tries the network first,
 // so updates you publish show up right away; falls back to the saved copy when offline.
-const CACHE = 'our-circle-v2';
+const CACHE = 'our-circle-v3';
 const SHELL = ['./', './index.html', './app.css', './app.js', './store.js', './ui.js', './dates.js', './events.js', './config.js',
   './hub.js', './chats.js', './album.js', './journal.js', './me.js', './manage.js', './manifest.webmanifest', './icon-192.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
