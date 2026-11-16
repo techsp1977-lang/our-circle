@@ -12,14 +12,14 @@ Plan on about 45 minutes the first time. Do the parts in order.
 
 ## Part 1 — Put the app online and try the demo (10 min)
 
-1. Unzip `our-circle.zip` on your computer. You'll see a folder with `index.html`, `css`, `js`, `icons` and a few other files.
+1. Unzip `our-circle.zip`. All the app files sit together in one folder (no subfolders), so uploading from a phone or any browser works.
 2. Go to **github.com** and sign in.
 3. Click **+** (top right) → **New repository**.
    - Repository name: `our-circle`
    - Choose **Public** (free GitHub Pages needs a public repository; your family's data is never stored here, only the app's code).
    - Click **Create repository**.
 4. On the new repository page, click **uploading an existing file**.
-5. Open the unzipped folder, select **everything inside it** (not the folder itself), and drag it into the browser window. Wait until every file is listed, then click **Commit changes**.
+5. Open the unzipped folder, select **all the files inside it**, and drag them into the browser window (or tap **choose your files** and select them all). Wait until every file is listed, then click **Commit changes**.
 6. Click **Settings** (top of the repository) → **Pages** (left side).
    - Under **Branch**, choose `main` and `/ (root)`, then click **Save**.
 7. Wait about a minute and refresh. The page shows your address, like `https://YOUR-GITHUB-NAME.github.io/our-circle/`.
@@ -57,7 +57,7 @@ Plan on about 45 minutes the first time. Do the parts in order.
 12. Click the gear (top left) → **Project settings**. Scroll to **Your apps** → click the **</>** (web) button.
     - Nickname: `Our Circle` → **Register app**. (Skip Firebase Hosting.)
 13. Firebase shows a block of code with `firebaseConfig = { apiKey: "...", ... }`. Keep that page open.
-14. On GitHub, open your `our-circle` repository → folder `js` → file `config.js` → click the **pencil** (Edit).
+14. On GitHub, open your `our-circle` repository → file `config.js` → click the **pencil** (Edit).
 15. Replace each `PASTE_...` value with the matching value from Firebase:
     `apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, `appId`.
     Keep the quotes. Click **Commit changes**.

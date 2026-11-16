@@ -80,14 +80,14 @@ window.__app = app; // handy for troubleshooting in the browser console
 
 // ───────────── views ─────────────
 const VIEWS = {
-  family: () => import('./views/hub.js'),
-  chats: () => import('./views/chats.js'),
-  chat: () => import('./views/chats.js'),
-  album: () => import('./views/album.js'),
-  journal: () => import('./views/journal.js'),
-  book: () => import('./views/journal.js'),
-  me: () => import('./views/me.js'),
-  manage: () => import('./views/manage.js'),
+  family: () => import('./hub.js'),
+  chats: () => import('./chats.js'),
+  chat: () => import('./chats.js'),
+  album: () => import('./album.js'),
+  journal: () => import('./journal.js'),
+  book: () => import('./journal.js'),
+  me: () => import('./me.js'),
+  manage: () => import('./manage.js'),
 };
 const TABS = [
   ['family', 'Family', 'family'], ['chats', 'Chats', 'chat'], ['album', 'Album', 'album'],

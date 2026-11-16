@@ -1,8 +1,8 @@
 // Lets the app install to the home screen and open quickly. Always tries the network first,
 // so updates you publish show up right away; falls back to the saved copy when offline.
-const CACHE = 'our-circle-v1';
-const SHELL = ['./', './index.html', './css/app.css', './js/app.js', './js/store.js', './js/ui.js', './js/dates.js', './js/events.js', './js/config.js',
-  './js/views/hub.js', './js/views/chats.js', './js/views/album.js', './js/views/journal.js', './js/views/me.js', './js/views/manage.js', './manifest.webmanifest', './icons/icon-192.png'];
+const CACHE = 'our-circle-v2';
+const SHELL = ['./', './index.html', './app.css', './app.js', './store.js', './ui.js', './dates.js', './events.js', './config.js',
+  './hub.js', './chats.js', './album.js', './journal.js', './me.js', './manage.js', './manifest.webmanifest', './icon-192.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {

@@ -1,8 +1,8 @@
 // My page: my photo and name, my shared dates, profiles I manage, my nudge settings.
-import * as S from '../store.js';
-import { esc, icon, face, sheet, toast, listJoin } from '../ui.js';
-import { monShort, dayNum, today, nextOccurrence } from '../dates.js';
-import { TYPES, typeOf, editEvent, headline } from '../events.js';
+import * as S from './store.js';
+import { esc, icon, face, sheet, toast, listJoin } from './ui.js';
+import { monShort, dayNum, today, nextOccurrence } from './dates.js';
+import { TYPES, typeOf, editEvent, headline } from './events.js';
 import { inviteLink } from './manage.js';
 
 export function mount(root, app) {

@@ -1,8 +1,8 @@
 // Private journal. Stored under journals/{your account}, which only you can read.
 // Also the printable book export (#/book).
-import * as S from '../store.js';
-import { esc, icon, sheet, toast } from '../ui.js';
-import { today, addDays, weekday, longDate, dayOfYear, shortDate, parse } from '../dates.js';
+import * as S from './store.js';
+import { esc, icon, sheet, toast } from './ui.js';
+import { today, addDays, weekday, longDate, dayOfYear, shortDate, parse } from './dates.js';
 
 export const TEMPLATES = {
   daily: { label: 'Daily Journal', sections: [{ title: 'How my day went' }, { title: "Three things I'm grateful for", list: 3 }] },

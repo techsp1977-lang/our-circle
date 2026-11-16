@@ -1,7 +1,7 @@
 // Family album: posts of photos and videos shared with everyone, kept at original quality.
-import * as S from '../store.js';
-import { esc, icon, sheet, toast, fmtSize, confirmBox } from '../ui.js';
-import { shortDate, toISO } from '../dates.js';
+import * as S from './store.js';
+import { esc, icon, sheet, toast, fmtSize, confirmBox } from './ui.js';
+import { shortDate, toISO } from './dates.js';
 
 export function mount(root, app, key, args) {
   return args[0] ? post(root, app, args[0]) : grid(root, app);
