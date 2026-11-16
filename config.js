@@ -7,12 +7,12 @@ export const APP_NAME = 'Our Circle';          // product name (rename any time)
 export const APP_TAGLINE = 'Stay close. Remember what matters.';
 
 export const FIREBASE = {
-  apiKey: 'PASTE_API_KEY',
-  authDomain: 'PASTE_PROJECT_ID.firebaseapp.com',
-  projectId: 'PASTE_PROJECT_ID',
-  storageBucket: 'PASTE_PROJECT_ID.firebasestorage.app',
-  messagingSenderId: 'PASTE_SENDER_ID',
-  appId: 'PASTE_APP_ID',
+  apiKey: 'AIzaSyA1_ETAFw4Z6BX133aosUXi3CBXPIIyAFI',
+  authDomain: 'our-circle-3da6a.firebaseapp.com',
+  projectId: 'our-circle-3da6a',
+  storageBucket: 'our-circle-3da6a.firebasestorage.app',
+  messagingSenderId: '753441050650',
+  appId: '1:753441050650:web:5ce803849fb0ad1cd001a3',
 };
 
 export const DEMO_MODE = FIREBASE.apiKey.startsWith('PASTE');
