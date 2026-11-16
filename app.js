@@ -219,12 +219,22 @@ function renderSignIn(msg = '') {
   };
 }
 function friendlyAuth(err) {
-  const c = String(err?.code || err?.message || '');
-  if (c.includes('invalid-credential') || c.includes('wrong-password') || c.includes('user-not-found')) return 'That email and password do not match. Try again or tap Create account.';
-  if (c.includes('email-already-in-use')) return 'That email already has an account. Tap Sign in instead.';
-  if (c.includes('weak-password')) return 'Use a password with at least 6 characters.';
-  if (c.includes('popup')) return 'The Google window was closed before finishing.';
-  return 'Something went wrong signing in. Check your connection and try again.';
+  const c = String(err?.code || err?.message || 'unknown');
+  console.warn('Sign-in error:', err);
+  const msg = (t) => `${t} (code: ${c.replace('auth/', '')})`;
+  if (c.includes('invalid-credential') || c.includes('wrong-password') || c.includes('user-not-found') || c.includes('invalid-login')) return msg('That email and password do not match. New here? Tap Create account instead.');
+  if (c.includes('email-already-in-use')) return msg('That email already has an account. Tap Sign in instead.');
+  if (c.includes('weak-password')) return msg('Use a password with at least 6 characters.');
+  if (c.includes('invalid-email')) return msg('That email address does not look right.');
+  if (c.includes('operation-not-allowed')) return msg('This sign-in method is turned off. In Firebase: Authentication → Sign-in method → turn on Email/Password (and Google).');
+  if (c.includes('configuration-not-found')) return msg('Firebase sign-in is not set up yet. In Firebase: Authentication → click Get started, then turn on Email/Password.');
+  if (c.includes('unauthorized-domain')) return msg('This web address is not approved. In Firebase: Authentication → Settings → Authorized domains → add techsp1977-lang.github.io');
+  if (c.includes('api-key') || c.includes('invalid-api-key')) return msg('The Firebase settings in config.js look wrong. Re-copy the apiKey from Firebase project settings.');
+  if (c.includes('popup-closed') || c.includes('cancelled-popup')) return msg('The Google window was closed before finishing.');
+  if (c.includes('popup-blocked')) return msg('Your browser blocked the Google window. Allow pop-ups, or use email and password.');
+  if (c.includes('network-request-failed')) return msg('Could not reach Firebase. Check your internet connection.');
+  if (c.includes('too-many-requests')) return msg('Too many tries. Wait a few minutes and try again.');
+  return msg('Sign-in did not work.');
 }
 
 async function renderOnboarding(msg = '') {
