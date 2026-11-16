@@ -314,7 +314,25 @@ export async function start() {
     view = null;
     Object.assign(state, { uid: user?.uid || null, ready: false, cid: null });
     if (!user) { S.isDemo ? S.demo().switchTo('u_spencer') : renderSignIn(); return; }
-    const u = await S.get(`users/${user.uid}`).catch(() => null);
+    // If the database can't be reached (not created yet, or rules not published), say so instead of waiting forever.
+    let u = null;
+    try {
+      u = await Promise.race([
+        S.get(`users/${user.uid}`),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
+      ]);
+    } catch (err) {
+      console.warn('Database check failed:', err);
+      const why = String(err?.code || err?.message || '');
+      document.body.innerHTML = `<div class="auth"><div class="auth-card">
+        <h1>Signed in, but the database isn't answering</h1>
+        <p class="muted">You are signed in as ${esc(user.email || 'your account')}. The app could not reach its database${why.includes('permission') ? ' because the security rules are blocking it' : ''}.</p>
+        <p class="error">In Firebase, open <b>Firestore Database</b>. If you see <b>Create database</b>, create it (nam5, production mode). Then open its <b>Rules</b> tab, paste in the contents of firestore.rules, and click <b>Publish</b>. (code: ${esc(why || 'unknown')})</p>
+        <button class="btn wide" onclick="location.reload()">Try again</button>
+        <button class="linkish" id="out2">Sign out</button></div></div>`;
+      document.getElementById('out2').onclick = () => S.auth.signOut();
+      return;
+    }
     const join = pendingJoin();
     if (join && !(u?.circles || []).includes(join.split('.')[0])) { renderOnboarding(); return; }
     if (join) clearJoin();
