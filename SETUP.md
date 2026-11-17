@@ -139,6 +139,38 @@ The old GitHub Pages address (`…github.io/our-circle`) still works. Once the n
 
 **If the deploy fails** with a permission message, add the role **Service Usage Consumer** to the same service account (IAM & Admin → IAM → pencil next to `github-deploy` → Add another role), then click **Re-run jobs**.
 
+## Face ID sign-in (one-time server setup)
+
+**Sign in with Face ID** uses a small Firebase server function (`functions/`). It checks the Face ID proof from the phone and signs you in. Set it up once, from Google's browser terminal. Nothing gets installed on your computer.
+
+1. Open **https://console.cloud.google.com/?project=our-circle-3da6a&cloudshell=true**. A terminal opens at the bottom of the page. Click **Authorize** if asked.
+2. Paste this whole block and press Enter. It takes about 5 minutes.
+
+```bash
+gcloud config set project our-circle-3da6a
+gcloud services enable cloudfunctions.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com run.googleapis.com iamcredentials.googleapis.com
+gcloud iam service-accounts create passkey-fn --display-name="Our Circle Face ID sign-in" || true
+gcloud projects add-iam-policy-binding our-circle-3da6a --member="serviceAccount:passkey-fn@our-circle-3da6a.iam.gserviceaccount.com" --role="roles/datastore.user" --condition=None
+gcloud iam service-accounts add-iam-policy-binding passkey-fn@our-circle-3da6a.iam.gserviceaccount.com --member="serviceAccount:passkey-fn@our-circle-3da6a.iam.gserviceaccount.com" --role="roles/iam.serviceAccountTokenCreator"
+rm -rf ~/our-circle && git clone https://github.com/techsp1977-lang/our-circle.git ~/our-circle && cd ~/our-circle/functions && npm ci && cd ..
+npx --yes firebase-tools@15.34.2 deploy --only functions --project our-circle-3da6a
+```
+
+3. It's done when the last lines say **Deploy complete!**
+
+**If it says you're not logged in**, run `npx --yes firebase-tools@15.34.2 login --no-localhost`, follow the link, paste the code back in, then run the last line again.
+
+**If it says the build failed because of a missing permission**, run these two lines, then the last line again:
+
+```bash
+PN=$(gcloud projects describe our-circle-3da6a --format='value(projectNumber)')
+gcloud projects add-iam-policy-binding our-circle-3da6a --member="serviceAccount:${PN}-compute@developer.gserviceaccount.com" --role="roles/cloudbuild.builds.builder" --condition=None
+```
+
+The function runs as its own account, `passkey-fn`. That account can only use Face ID records and sign people in; it can't publish the site or change settings.
+
+After a change to `functions/`, run the last two lines of step 2 again. Changes to the app itself still publish automatically.
+
 ## Updating the app later
 
 Edit or replace files in the GitHub repository. Changes are published to the app's address automatically (Actions tab) and appear within a minute or two; on phones, closing and reopening the app picks them up.

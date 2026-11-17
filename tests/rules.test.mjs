@@ -115,6 +115,15 @@ test('attack: signed-out and outsider reads are refused', async () => {
   await assertFails(getBytes(ref(st('uX'), 'circles/c1/media/existing.jpg')));
 });
 
+test('attack: app users can\'t read or plant Face ID passkeys or challenges', async () => {
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'passkeys/cred1'), { uid: 'uA', publicKey: 'x', counter: 0 }));
+  await assertFails(getDoc(doc(as('uA'), 'passkeys/cred1')));
+  await assertFails(getDocs(collection(as('uB'), 'passkeys')));
+  await assertFails(setDoc(doc(as('uC'), 'passkeys/evil'), { uid: 'uA', publicKey: 'attacker-key', counter: 0 }));
+  await assertFails(setDoc(doc(as('uC'), 'passkeyChallenges/t1'), { kind: 'signin', challenge: 'x', expiresAt: 9e15 }));
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'passkeys/cred1')));
+});
+
 // ───────── real app actions (must still work) ─────────
 test('app: start a new family circle (two batches, then users doc)', async () => {
   const db = as('uN');

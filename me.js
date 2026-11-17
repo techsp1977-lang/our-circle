@@ -1,15 +1,16 @@
 // My page: my photo and name, my shared dates, profiles I manage, my nudge settings.
 import * as S from './store.js';
-import { esc, icon, face, sheet, toast, listJoin, safeUrl } from './ui.js';
+import { esc, icon, face, sheet, toast, listJoin, safeUrl, confirmBox } from './ui.js';
 import { monShort, dayNum, today, nextOccurrence } from './dates.js';
 import { TYPES, typeOf, editEvent, headline } from './events.js';
 import { inviteLink } from './manage.js';
 import { cropFile } from './crop.js';
-import { lockAvailable, lockOn, enableLock, disableLock, lockLabel } from './lock.js';
+import { faceAvailable, faceLabel, hasPasskey, lockOn, enableLock, disableLock, setupPasskey, removePasskey, prepared, explain } from './lock.js';
 
 export function mount(root, app) {
   const st = app.state;
   let canLock = false;
+  let prep = null; // the server's half of "Set up Face ID", fetched before the tap
   const render = () => {
     const me = app.myMember();
     if (!me) return;
@@ -86,8 +87,10 @@ export function mount(root, app) {
       ${canLock ? `<section class="block">
         <div class="row-head"><h2>This phone</h2></div>
         <div class="card list">
-          <label class="li" for="facelock"><span class="li-main"><span class="li-title">Lock with ${esc(lockLabel())}</span><span class="li-sub">Asks for ${esc(lockLabel())} when you open Our Circle on this device, and after a minute away</span></span>
-            <input type="checkbox" id="facelock" ${lockOn(st.uid) ? 'checked' : ''}></label>
+          <div class="li"><span class="li-main"><span class="li-title">Sign in with ${esc(faceLabel())}</span><span class="li-sub">${hasPasskey(st.uid) ? `On. Use "Sign in with ${esc(faceLabel())}" on the sign-in screen.` : `Skip typing your password on this phone.`}</span></span>
+            <button class="btn sm ${hasPasskey(st.uid) ? 'ghost' : ''}" data-act="${hasPasskey(st.uid) ? 'pk-remove' : 'pk-setup'}">${hasPasskey(st.uid) ? 'Turn off' : 'Set up'}</button></div>
+          ${hasPasskey(st.uid) ? `<div class="li"><span class="li-main"><span class="li-title">Lock the app with ${esc(faceLabel())}</span><span class="li-sub">Asks for ${esc(faceLabel())} when you open Our Circle, and after a minute away</span></span>
+            <button class="btn sm ghost" data-act="${lockOn(st.uid) ? 'lock-off' : 'lock-on'}">${lockOn(st.uid) ? 'Turn off' : 'Turn on'}</button></div>` : ''}
         </div>
       </section>` : ''}
 
@@ -120,6 +123,21 @@ export function mount(root, app) {
       case 'invite': await inviteLink(app, b.dataset.id); break;
       case 'ics': downloadICS(root.querySelector('#jt').value || '21:00', app); break;
       case 'signout': await S.auth.signOut(); break;
+      // Each of these goes straight to Face ID from the tap (iPhone requires that).
+      case 'pk-setup': {
+        try { await setupPasskey(st.uid, prep, `${me.name} · ${navigator.platform || 'phone'}`); toast(`${faceLabel()} sign-in is on for this phone.`); }
+        catch (er) { console.warn(er); toast(explain(er), 9000); prep?.refresh(); }
+        render(); break;
+      }
+      case 'pk-remove': {
+        if (!(await confirmBox(`Turn off ${faceLabel()} sign-in?`, `You'll sign in with your password on this phone. You can set it up again any time. To remove the saved passkey completely, delete it in the iPhone Passwords app too.`, 'Turn off'))) break;
+        await removePasskey(st.uid); toast(`${faceLabel()} sign-in is off.`); render(); break;
+      }
+      case 'lock-on': case 'lock-off': {
+        try { await (b.dataset.act === 'lock-on' ? enableLock : disableLock)(st.uid); toast(b.dataset.act === 'lock-on' ? `The app now locks with ${faceLabel()}.` : 'The app lock is off.'); }
+        catch (er) { toast(explain(er), 9000); }
+        render(); break;
+      }
       case 'reset': S.demo().reset(); break;
     }
   };
@@ -135,14 +153,6 @@ export function mount(root, app) {
         toast('Photo updated.');
       } catch (er) { toast('Photo did not upload. Try again.'); }
     }
-    if (e.target.id === 'facelock') {
-      const box = e.target;
-      if (box.checked) {
-        try { await enableLock(st.uid, `${app.myMember()?.name || ''} · ${S.auth.email() || 'Our Circle'}`); toast(`${lockLabel()} lock is on for this device.`); }
-        catch (er) { box.checked = false; toast(`${lockLabel()} wasn't set up. Try again.`); }
-      } else if (!(await disableLock(st.uid))) { box.checked = true; toast(`Use ${lockLabel()} to turn the lock off.`); }
-      else toast(`${lockLabel()} lock is off.`);
-    }
     if (e.target.id === 'ci') {
       await S.set(`users/${st.uid}`, { prefs: { ...st.prefs, checkinDays: Number(e.target.value) } }, true);
       toast('Saved.');
@@ -152,7 +162,7 @@ export function mount(root, app) {
   root.addEventListener('change', onChange);
   const off = app.on(render);
   render();
-  lockAvailable().then((v) => { canLock = v; if (v) render(); });
+  faceAvailable().then((v) => { canLock = v; if (v) { prep = prepared('registerOptions'); if (!hasPasskey(st.uid)) prep.get(); render(); } });
   return { destroy: () => { off(); root.removeEventListener('click', onClick); root.removeEventListener('change', onChange); } };
 }
 
