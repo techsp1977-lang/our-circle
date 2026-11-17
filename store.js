@@ -26,6 +26,8 @@ export const auth = {
   signOut: () => impl.signOut(),
 };
 export const get = (path) => impl.get(path);
+// Start-up reads: answer from the copy saved on this device when there is one, else ask the server.
+export const getFast = (path) => (impl.getFast ? impl.getFast(path) : impl.get(path));
 export const set = (path, data, merge = false) => impl.set(path, data, merge);
 export const update = (path, data) => impl.update(path, data);
 export const add = (path, data) => impl.add(path, data);
@@ -74,6 +76,10 @@ async function firebaseImpl() {
     reset: (e) => A.sendPasswordResetEmail(a, e),
     signOut: () => A.signOut(a),
     get: async (path) => withId(await F.getDoc(F.doc(db, path))),
+    getFast: async (path) => {
+      try { const c = await F.getDocFromCache(F.doc(db, path)); if (c.exists()) return withId(c); } catch (e) { /* not saved yet */ }
+      return withId(await F.getDoc(F.doc(db, path)));
+    },
     set: (path, data, merge) => F.setDoc(F.doc(db, path), data, { merge }),
     update: (path, data) => F.updateDoc(F.doc(db, path), data),
     add: async (path, data) => (await F.addDoc(F.collection(db, path), data)).id,

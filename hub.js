@@ -1,6 +1,7 @@
 // Family hub: coming up, today's big days, weekly check-ins, the family chart.
 import * as S from './store.js';
-import { esc, icon, face, toast, sheet, listJoin } from './ui.js';
+import { esc, icon, face, toast, sheet, listJoin, names, hhColor } from './ui.js';
+import { pickAndCrop } from './crop.js';
 import { today, monShort, dayNum, whenText, rangeText, diffDays, weekday, shortDate } from './dates.js';
 import { upcoming, happeningToday, headline, editEvent, canEdit, isCalendarType, typeOf } from './events.js';
 
@@ -18,7 +19,9 @@ export function mount(root, app) {
     const coming = upcoming(app, { filter: isCalendarType, days: 730 }).slice(0, 4);
     // Today's big days
     const todays = happeningToday(app).filter((ev) => !isCalendarType(ev) || ev.date === t);
-    // Weekly check-ins
+    // Households past their check-in window
+    const due = st.households.filter((h) => checkin(app, h.id)?.overdue);
+    const alerts = due.length + todays.length;
     // Birthdays & big days list
     const big = upcoming(app, { filter: (ev) => !isCalendarType(ev), days: 366 }).slice(0, 6);
 
@@ -28,8 +31,16 @@ export function mount(root, app) {
     root.innerHTML = `
       <header class="top">
         <div><div class="eyebrow">${esc(me.name)}'s circle</div><h1 class="display">${esc(st.circle?.name || 'Our family')}</h1></div>
-        ${app.isAdmin() ? `<a class="icon-btn" href="#/manage" aria-label="Family settings">${icon('gear')}</a>` : ''}
+        <div class="top-btns">
+          <button class="icon-btn bell" data-act="alerts" aria-label="${alerts ? alerts + ' nudge' + (alerts === 1 ? '' : 's') : 'No nudges right now'}">${icon('bell')}${alerts ? `<span class="badge">${alerts}</span>` : ''}</button>
+          ${app.isAdmin() ? `<a class="icon-btn" href="#/manage" aria-label="Family settings">${icon('gear')}</a>` : ''}
+        </div>
       </header>
+      ${due.length ? `<section class="block"><div class="card checkin-strip">
+        <div class="cs-head">${icon('bell', 18)}<b>Check in this week</b><small>${due.length} household${due.length === 1 ? '' : 's'}</small></div>
+        <div class="cs-chips">${due.map((h) => { const ppl = app.membersOf(h.id); const single = ppl.length === 1;
+          return `<button class="cs-chip" style="--hh:${hhColor(h)}" data-act="${single ? 'msg-member' : 'msg-household'}" data-id="${single ? ppl[0].id : h.id}">${names(h.name)}</button>`; }).join('')}</div>
+      </div></section>` : ''}
 
       <section class="block">
         <div class="row-head"><h2>Coming up</h2><button class="linkish" data-act="add-event">${icon('plus', 16)} Add event</button></div>
@@ -46,18 +57,18 @@ export function mount(root, app) {
       ${todays.length ? `<section class="block stack-sm">${todays.map((ev) => todayCard(app, ev)).join('')}</section>` : ''}
 
       <section class="block">
-        <div class="row-btns">
-          <button class="btn dark grow" data-act="everyone">${icon('users')} Message everyone</button>
-          <button class="btn ghost" data-act="new-group">New group</button>
+        <div class="row-btns compact">
+          <button class="btn sm" data-act="everyone">${icon('users', 17)} Message everyone</button>
+          <button class="btn sm ghost" data-act="new-group">${icon('plus', 16)} New group</button>
         </div>
       </section>
 
-      <section class="block chart" aria-label="Family">
+      <section class="block chart-wrap" aria-label="Family"><div class="chart">
         <div class="chart-mine">
-          <div class="mine-card card-inverted">
-            <a href="#/me" class="mine-head"><span class="eyebrow">Your household</span><span class="mine-name">${esc(mine?.name || me.name)}</span></a>
+          <div class="mine-card" style="--hh:${hhColor(mine)}">
+            <a href="#/me" class="mine-head"><span class="eyebrow">Your household</span><span class="mine-name">${names(mine?.name || me.name)}</span></a>
             ${app.membersOf(me.householdId).map((m) => `
-              <button class="tile mine-tile" data-act="${m.id === st.me ? 'me' : 'msg-member'}" data-id="${m.id}" aria-label="${m.id === st.me ? 'My page' : 'Message ' + esc(m.name) + ' only'}">
+              <button class="tile mine-tile" data-act="${m.id === st.me ? 'photo' : 'msg-member'}" data-id="${m.id}" aria-label="${m.id === st.me ? (m.photo ? 'Change my photo' : 'Add my photo') : 'Message ' + esc(m.name) + ' only'}">
                 ${m.photo || m.id !== st.me ? face(m, 'tile-img') : `<span class="tile-img add">${icon('camera', 20)}<small>Add photo</small></span>`}
                 <span class="tile-name">${esc(m.name)}</span>
               </button>`).join('')}
@@ -66,7 +77,7 @@ export function mount(root, app) {
         <div class="chart-others">
           ${others.map((h) => householdCard(app, h)).join('') || `<div class="card empty-card">${app.isAdmin() ? '<a href="#/manage">Add your family members</a> to see everyone here.' : 'No one else yet.'}</div>`}
         </div>
-      </section>
+      </div></section>
       <p class="hint center">Message goes to the whole household. Tap a photo to message one person.</p>
 
       <section class="block">
@@ -98,6 +109,15 @@ export function mount(root, app) {
       case 'edit-event': { const ev = st.events.find((x) => x.id === id); if (ev) editEvent(app, ev); break; }
       case 'everyone': app.go('#/chat/everyone'); break;
       case 'me': app.go('#/me'); break;
+      case 'photo': {
+        const f = await pickAndCrop('Your photo');
+        if (!f) break;
+        toast('Saving photo…');
+        try { const [m] = await app.uploadFiles([f]); await S.update(app.path('members/' + st.me), { photo: m.url }); toast('Photo saved.'); }
+        catch (er) { toast('The photo did not save. Check your connection and try again.'); }
+        break;
+      }
+      case 'alerts': showAlerts(app); break;
       case 'msg-household': app.go('#/chat/' + (await app.chatForHousehold(id))); break;
       case 'msg-member': app.go('#/chat/' + (await app.chatFor([id]))); break;
       case 'celebrate': {
@@ -120,18 +140,19 @@ export function mount(root, app) {
 
 function todayCard(app, ev) {
   const mine = (ev.memberIds || []).includes(app.state.me);
-  const names = listJoin((ev.memberIds || []).filter((m) => m !== app.state.me).map((m) => app.member(m)?.name).filter(Boolean));
+  const names_ = listJoin((ev.memberIds || []).filter((m) => m !== app.state.me).map((m) => app.member(m)?.name).filter(Boolean));
   const ic = typeOf(ev.type).icon;
   let line, btn, text;
-  if (ev.type === 'birthday') { line = mine ? 'Happy birthday to you!' : `It's ${names}'s birthday.`; btn = 'Wish happy birthday'; text = 'Happy birthday! '; }
-  else if (ev.type === 'anniversary') { line = mine ? 'Happy anniversary!' : `It's ${names}'s anniversary.`; btn = 'Send congratulations'; text = 'Happy anniversary! '; }
-  else if (ev.type === 'graduation') { line = mine ? 'Congratulations, graduate!' : `It's ${names}'s graduation day.`; btn = 'Send congratulations'; text = 'Congratulations! '; }
+  const who = names(names_ || '');
+  if (ev.type === 'birthday') { line = mine ? 'Happy birthday to you!' : `It's ${who}'s birthday.`; btn = 'Wish happy birthday'; text = 'Happy birthday! '; }
+  else if (ev.type === 'anniversary') { line = mine ? 'Happy anniversary!' : `It's ${who}'s anniversary.`; btn = 'Send congratulations'; text = 'Happy anniversary! '; }
+  else if (ev.type === 'graduation') { line = mine ? 'Congratulations, graduate!' : `It's ${who}'s graduation day.`; btn = 'Send congratulations'; text = 'Congratulations! '; }
   else { line = esc(ev.title); btn = 'Send a message'; text = ''; }
   const by = app.member(ev.createdBy);
   return `<div class="card card-inverted today">
-    <div class="today-row">${icon(ic, 22)}<div><span class="eyebrow">Today</span><div class="today-line">${esc(line)}</div>
+    <div class="today-row">${icon(ic, 22)}<div><span class="eyebrow">Today</span><div class="today-line">${line}</div>
     <div class="today-sub">${by ? `Added by ${esc(by.name)} · ` : ''}everyone in the family sees this today</div></div></div>
-    ${mine && !names ? '' : `<div class="right"><button class="btn light sm" data-act="celebrate" data-id="${ev.id}" data-text="${esc(text)}">${esc(btn)}</button></div>`}
+    ${mine && !names_ ? '' : `<div class="right"><button class="btn light sm" data-act="celebrate" data-id="${ev.id}" data-text="${esc(text)}">${esc(btn)}</button></div>`}
   </div>`;
 }
 
@@ -152,10 +173,10 @@ function householdCard(app, h) {
       <small>${ci.overdue ? 'Due' : 'Good'}</small>
     </button>`;
   }
-  return `<div class="hh-row">
+  return `<div class="hh-row" style="--hh:${hhColor(h)}">
     <div class="card hh">
       <div class="hh-head">
-        <span class="hh-title"><b>${esc(h.name)}</b>${people.length > 1 ? `<small>${people.length} people</small>` : ''}</span>
+        <span class="hh-title"><b>${names(h.name)}</b>${people.length > 1 ? `<small>${people.length} people</small>` : ''}</span>
         <button class="icon-btn sm msg-btn" data-act="${act}" data-id="${target}" aria-label="Message ${esc(h.name)}${single ? '' : ' together'}">${icon('chat', 17)}</button>
       </div>
       <div class="hh-tiles">${people.map((m) => `
@@ -197,4 +218,20 @@ async function newGroup(app) {
   });
   if (!r || !r.ids.length) return;
   app.go('#/chat/' + (await app.chatFor(r.ids, { name: r.name, kind: 'group' })));
+}
+
+function showAlerts(app) {
+  const st = app.state;
+  const due = st.households.map((h) => ({ h, ci: checkin(app, h.id) })).filter((x) => x.ci?.overdue);
+  const todays = happeningToday(app);
+  const rows = [
+    ...todays.map((ev) => `<li>${icon(typeOf(ev.type).icon, 18)}<span>Today: ${esc(headline(app, ev))}</span></li>`),
+    ...due.map(({ h, ci }) => `<li>${icon('bell', 18)}<span>Check in with ${names(h.name)}${ci.last ? ` · last messaged ${ci.days} days ago` : ' · not messaged yet'}</span></li>`),
+  ];
+  sheet({
+    title: 'Nudges',
+    submit: 'Done',
+    body: rows.length ? `<ul class="alert-list">${rows.join('')}</ul>` : '<p class="muted">You are all caught up. Nice work staying in touch.</p>',
+    fields: [],
+  });
 }

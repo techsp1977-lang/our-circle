@@ -147,7 +147,7 @@ function stopSubs() { subs.forEach((u) => u && u()); subs = []; }
 async function openCircle(cid) {
   stopSubs();
   Object.assign(state, { cid, circle: null, members: {}, households: [], events: [], chats: {}, ready: false });
-  const access = await S.get(`circles/${cid}/access/${state.uid}`);
+  const access = await S.getFast(`circles/${cid}/access/${state.uid}`);
   if (!access) { renderOnboarding('That family circle is not available on this account.'); return; }
   state.access = access;
   state.me = access.memberId;
@@ -321,7 +321,7 @@ export async function start() {
     let u = null;
     try {
       u = await Promise.race([
-        S.get(`users/${user.uid}`),
+        S.getFast(`users/${user.uid}`),
         new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
       ]);
     } catch (err) {
