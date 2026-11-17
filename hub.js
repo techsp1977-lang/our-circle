@@ -54,8 +54,8 @@ export function mount(root, app) {
 
       <section class="block chart" aria-label="Family">
         <div class="chart-mine">
-          <div class="mine-card">
-            <a href="#/me" class="mine-head"><span class="eyebrow light">Your household</span><span class="mine-name">${esc(mine?.name || me.name)}</span></a>
+          <div class="mine-card card-inverted">
+            <a href="#/me" class="mine-head"><span class="eyebrow">Your household</span><span class="mine-name">${esc(mine?.name || me.name)}</span></a>
             ${app.membersOf(me.householdId).map((m) => `
               <button class="tile mine-tile" data-act="${m.id === st.me ? 'me' : 'msg-member'}" data-id="${m.id}" aria-label="${m.id === st.me ? 'My page' : 'Message ' + esc(m.name) + ' only'}">
                 ${m.photo || m.id !== st.me ? face(m, 'tile-img') : `<span class="tile-img add">${icon('camera', 20)}<small>Add photo</small></span>`}
@@ -128,10 +128,10 @@ function todayCard(app, ev) {
   else if (ev.type === 'graduation') { line = mine ? 'Congratulations, graduate!' : `It's ${names}'s graduation day.`; btn = 'Send congratulations'; text = 'Congratulations! '; }
   else { line = esc(ev.title); btn = 'Send a message'; text = ''; }
   const by = app.member(ev.createdBy);
-  return `<div class="card today">
-    <div class="today-row">${icon(ic, 22)}<div><span class="eyebrow gold">Today</span><div class="today-line">${esc(line)}</div>
+  return `<div class="card card-inverted today">
+    <div class="today-row">${icon(ic, 22)}<div><span class="eyebrow">Today</span><div class="today-line">${esc(line)}</div>
     <div class="today-sub">${by ? `Added by ${esc(by.name)} · ` : ''}everyone in the family sees this today</div></div></div>
-    ${mine && !names ? '' : `<div class="right"><button class="btn gold sm" data-act="celebrate" data-id="${ev.id}" data-text="${esc(text)}">${esc(btn)}</button></div>`}
+    ${mine && !names ? '' : `<div class="right"><button class="btn light sm" data-act="celebrate" data-id="${ev.id}" data-text="${esc(text)}">${esc(btn)}</button></div>`}
   </div>`;
 }
 

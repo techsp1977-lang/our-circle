@@ -1,6 +1,6 @@
 // Sample data for demo mode only. Real use starts empty and you add your family.
 const DAY = 86400000;
-const iso = (d) => new Date(d).toISOString().slice(0, 10);
+const iso = (d) => { const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
 const shift = (days) => iso(Date.now() + days * DAY);
 const mmdd = (days) => shift(days).slice(5); // month-day, any year
 

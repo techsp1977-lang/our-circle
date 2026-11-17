@@ -1,0 +1,419 @@
+/*
+ * apple-tokens.css: Apple HIG design tokens for the web.
+ *
+ * Sources: HIG Color / Typography / Layout / Materials pages (synced Sept 2026,
+ * iOS 27 values). Values marked [UIKit] aren't published in the HIG; they're the
+ * long-standing UIKit dynamic-color values. Verify against the iOS 27 Figma kit
+ * if pixel-exactness matters.
+ *
+ * Drop into a project, import once at the root, then build with the semantic
+ * tokens (--label, --bg, --tint, ...), never with raw palette values.
+ * Theme switching: follows the OS by default; set data-theme="light|dark"
+ * on <html> to force one.
+ */
+
+/* ---------- 1. Palette (light) + semantic tokens ---------- */
+:root {
+  color-scheme: light dark;
+
+  /* System colors (HIG, iOS 27, default light) */
+  --red: rgb(255 56 60);
+  --orange: rgb(255 141 40);
+  --yellow: rgb(255 204 0);
+  --green: rgb(52 199 89);
+  --mint: rgb(0 200 179);
+  --teal: rgb(0 195 208);
+  --cyan: rgb(0 192 232);
+  --blue: rgb(0 136 255);
+  --indigo: rgb(97 85 245);
+  --purple: rgb(203 48 224);
+  --pink: rgb(255 45 85);
+  --brown: rgb(172 127 94);
+
+  --gray: rgb(142 142 147);
+  --gray2: rgb(174 174 178);
+  --gray3: rgb(199 199 204);
+  --gray4: rgb(209 209 214);
+  --gray5: rgb(229 229 234);
+  --gray6: rgb(242 242 247);
+
+  /* Accent: ONE app tint. Swap for the brand color if it passes 4.5:1 on --bg. */
+  --tint: var(--blue);
+  --on-tint: #fff;
+  /* The iOS 27 blue is 3.5:1 on white: fine for fills, icons and bold/large text,
+     too light for small text. Links and small tinted text use --tint-text
+     (#0066CC, the link color apple.com itself uses: 5.6:1 on white). White text
+     on a --tint fill is also 3.5:1, so filled buttons need semibold 17px+ labels. */
+  --tint-text: rgb(0 102 204);
+
+  /* Foreground [UIKit] */
+  --label: rgb(21 23 26);                   /* near-black, not UIKit's pure black: his default */
+  --label-secondary: rgb(90 94 102);        /* one grey, 6.5:1 on white (UIKit's 60% is 3.4:1) */
+  --label-tertiary: rgb(60 60 67 / 0.3);
+  --label-quaternary: rgb(60 60 67 / 0.18);
+  --placeholder: rgb(60 60 67 / 0.3);
+  --separator: rgb(60 60 67 / 0.29);
+  --separator-opaque: rgb(198 198 200);
+  --link: var(--tint-text);
+
+  /* Backgrounds [UIKit]: plain set vs grouped set (inset-grouped lists/settings) */
+  --bg: rgb(255 255 255);
+  --bg-secondary: rgb(242 242 247);
+  --bg-tertiary: rgb(255 255 255);
+  --bg-grouped: rgb(242 242 247);
+  --bg-grouped-secondary: rgb(255 255 255);
+  --bg-grouped-tertiary: rgb(242 242 247);
+
+  /* Fills for controls (segmented track, search field, toggles off) [UIKit] */
+  --fill: rgb(120 120 128 / 0.2);
+  --fill-secondary: rgb(120 120 128 / 0.16);
+  --fill-tertiary: rgb(118 118 128 / 0.12);
+  --fill-quaternary: rgb(116 116 128 / 0.08);
+
+  /* Material (web approximation of Liquid Glass / standard materials) */
+  --glass-bg: rgb(255 255 255 / 0.72);
+  --glass-bg-thick: rgb(255 255 255 / 0.86);
+  --glass-border: rgb(255 255 255 / 0.6);
+  --glass-edge: rgb(0 0 0 / 0.06);
+  --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.04);
+  --glass-blur: 24px;
+  --glass-saturate: 180%;
+
+  /* Elevation: Apple uses few, soft, large-radius shadows */
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.04), 0 2px 8px rgb(0 0 0 / 0.04);
+  --shadow-2: 0 4px 16px rgb(0 0 0 / 0.08);
+  --shadow-3: 0 12px 40px rgb(0 0 0 / 0.12);
+
+  /* Cards: every card sits on a soft shadow (his default, from Sawyer's cards, Nov 2026) */
+  --card-bg: rgb(255 255 255);
+  --shadow-card: inset 0 0 0 1px rgb(0 0 0 / 0.05), 0 1px 2px rgb(0 0 0 / 0.04), 0 14px 34px rgb(0 0 0 / 0.08);
+
+  /* Inverted card, for what matters most: dark on a light page, light on a dark page */
+  --card-inverted-bg: rgb(28 29 33);
+  --card-inverted-label: rgb(243 244 246);
+  --card-inverted-label-secondary: rgb(167 171 178);
+  --card-inverted-separator: rgb(255 255 255 / 0.12);
+  --shadow-card-inverted: inset 0 1px 0 rgb(255 255 255 / 0.1), 0 18px 40px rgb(0 0 0 / 0.22);
+
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--tint) 45%, transparent);
+}
+
+/* ---------- 2. Dark ---------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --red: rgb(255 66 69);
+    --orange: rgb(255 146 48);
+    --yellow: rgb(255 214 0);
+    --green: rgb(48 209 88);
+    --mint: rgb(0 218 195);
+    --teal: rgb(0 210 224);
+    --cyan: rgb(60 211 254);
+    --blue: rgb(0 145 255);
+    --tint-text: rgb(0 145 255);  /* 6.5:1 on black, 5.3:1 on #1C1C1E */
+    --indigo: rgb(109 124 255);
+    --purple: rgb(219 52 242);
+    --pink: rgb(255 55 95);
+    --brown: rgb(183 138 102);
+    --gray: rgb(142 142 147);
+    --gray2: rgb(99 99 102);
+    --gray3: rgb(72 72 74);
+    --gray4: rgb(58 58 60);
+    --gray5: rgb(44 44 46);
+    --gray6: rgb(28 28 30);
+
+    --label: rgb(241 242 244);
+    --label-secondary: rgb(163 168 175);
+    --label-tertiary: rgb(235 235 245 / 0.3);
+    --label-quaternary: rgb(235 235 245 / 0.16);
+    --placeholder: rgb(235 235 245 / 0.3);
+    --separator: rgb(84 84 88 / 0.6);
+    --separator-opaque: rgb(56 56 58);
+
+    /* Dark mode is not "invert": base is true black, raised surfaces get lighter */
+    --bg: rgb(0 0 0);
+    --bg-secondary: rgb(28 28 30);
+    --bg-tertiary: rgb(44 44 46);
+    --bg-grouped: rgb(0 0 0);
+    --bg-grouped-secondary: rgb(28 28 30);
+    --bg-grouped-tertiary: rgb(44 44 46);
+
+    --fill: rgb(120 120 128 / 0.36);
+    --fill-secondary: rgb(120 120 128 / 0.32);
+    --fill-tertiary: rgb(118 118 128 / 0.24);
+    --fill-quaternary: rgb(118 118 128 / 0.18);
+
+    --glass-bg: rgb(30 30 32 / 0.62);
+    --glass-bg-thick: rgb(30 30 32 / 0.82);
+    --glass-border: rgb(255 255 255 / 0.12);
+    --glass-edge: rgb(0 0 0 / 0.4);
+    --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.4);
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow-2: 0 4px 16px rgb(0 0 0 / 0.4);
+    --shadow-3: 0 12px 40px rgb(0 0 0 / 0.5);
+
+    --card-bg: rgb(28 28 30);
+    --shadow-card: inset 0 1px 0 rgb(255 255 255 / 0.1), 0 14px 34px rgb(0 0 0 / 0.35);
+    --card-inverted-bg: rgb(241 242 244);
+    --card-inverted-label: rgb(21 23 26);
+    --card-inverted-label-secondary: rgb(90 94 102);
+    --card-inverted-separator: rgb(0 0 0 / 0.12);
+    --shadow-card-inverted: 0 18px 40px rgb(0 0 0 / 0.5);
+  }
+}
+/* Forced dark: the same values as the block above. Keep the two in sync. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --red: rgb(255 66 69); --orange: rgb(255 146 48); --yellow: rgb(255 214 0);
+  --green: rgb(48 209 88); --mint: rgb(0 218 195); --teal: rgb(0 210 224);
+  --cyan: rgb(60 211 254); --blue: rgb(0 145 255); --tint-text: rgb(0 145 255); --indigo: rgb(109 124 255);
+  --purple: rgb(219 52 242); --pink: rgb(255 55 95); --brown: rgb(183 138 102);
+  --gray: rgb(142 142 147); --gray2: rgb(99 99 102); --gray3: rgb(72 72 74);
+  --gray4: rgb(58 58 60); --gray5: rgb(44 44 46); --gray6: rgb(28 28 30);
+  --label: rgb(241 242 244); --label-secondary: rgb(163 168 175);
+  --label-tertiary: rgb(235 235 245 / 0.3); --label-quaternary: rgb(235 235 245 / 0.16);
+  --placeholder: rgb(235 235 245 / 0.3); --separator: rgb(84 84 88 / 0.6);
+  --separator-opaque: rgb(56 56 58);
+  --bg: rgb(0 0 0); --bg-secondary: rgb(28 28 30); --bg-tertiary: rgb(44 44 46);
+  --bg-grouped: rgb(0 0 0); --bg-grouped-secondary: rgb(28 28 30); --bg-grouped-tertiary: rgb(44 44 46);
+  --fill: rgb(120 120 128 / 0.36); --fill-secondary: rgb(120 120 128 / 0.32);
+  --fill-tertiary: rgb(118 118 128 / 0.24); --fill-quaternary: rgb(118 118 128 / 0.18);
+  --glass-bg: rgb(30 30 32 / 0.62); --glass-bg-thick: rgb(30 30 32 / 0.82);
+  --glass-border: rgb(255 255 255 / 0.12); --glass-edge: rgb(0 0 0 / 0.4);
+  --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.4);
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.3); --shadow-2: 0 4px 16px rgb(0 0 0 / 0.4);
+  --shadow-3: 0 12px 40px rgb(0 0 0 / 0.5);
+  --card-bg: rgb(28 28 30);
+  --shadow-card: inset 0 1px 0 rgb(255 255 255 / 0.1), 0 14px 34px rgb(0 0 0 / 0.35);
+  --card-inverted-bg: rgb(241 242 244); --card-inverted-label: rgb(21 23 26);
+  --card-inverted-label-secondary: rgb(90 94 102); --card-inverted-separator: rgb(0 0 0 / 0.12);
+  --shadow-card-inverted: 0 18px 40px rgb(0 0 0 / 0.5);
+}
+:root[data-theme="light"] { color-scheme: light; }
+
+/* ---------- 3. Increased contrast (HIG "Increased contrast" columns) ---------- */
+@media (prefers-contrast: more) {
+  :root {
+    --red: rgb(233 21 45); --orange: rgb(197 83 0); --yellow: rgb(161 106 0);
+    --green: rgb(0 137 50); --mint: rgb(0 133 117); --teal: rgb(0 129 152);
+    --cyan: rgb(0 126 174); --blue: rgb(30 110 244); --indigo: rgb(86 74 222);
+    --purple: rgb(176 47 194); --pink: rgb(231 18 77); --brown: rgb(149 109 81);
+    --gray: rgb(108 108 112);
+    --tint-text: rgb(0 82 170);
+    --label-secondary: rgb(63 66 73);
+    --card-inverted-label-secondary: rgb(214 216 220);
+    --separator: rgb(60 60 67 / 0.5);
+    --glass-bg: var(--glass-bg-thick);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --red: rgb(255 97 101); --orange: rgb(255 160 86); --yellow: rgb(254 223 67);
+      --green: rgb(74 217 104); --mint: rgb(84 223 203); --teal: rgb(59 221 236);
+      --cyan: rgb(109 217 255); --blue: rgb(92 184 255); --indigo: rgb(167 170 255);
+      --purple: rgb(234 141 255); --pink: rgb(255 138 196); --brown: rgb(219 166 121);
+      --gray: rgb(174 174 178);
+      --label-secondary: rgb(214 216 220);
+      --card-inverted-label-secondary: rgb(63 66 73);
+      --separator: rgb(84 84 88 / 0.9);
+    }
+  }
+}
+
+/* ---------- 4. Typography ---------- */
+/*
+ * The system stack renders SF Pro on Apple devices (and switches Text/Display
+ * optical sizes automatically in Safari). Never @font-face SF Pro: Apple's
+ * license only allows it for mockups of Apple-platform software.
+ * Sizes: Jamo's compact web scale (he picked it on 2026-11-09, from Hub's Astryx demo):
+ * body 14px on a computer, 16px on a touch phone or tablet (the block after this one);
+ * titles 24 / 20 / 17. 1px = 1/16rem on a 100% root; rem keeps browser text-size
+ * settings working. These replace iOS "Large" Dynamic Type (34/28/22/20/17/17/16/15/13/12/11)
+ * on the web only; native apps keep the system text styles.
+ * Tracking: HIG SF Pro tracking table converted to em. Only meaningful with SF;
+ * drop the letter-spacing if you switch to a custom font.
+ */
+:root {
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-rounded: ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  --font-serif: ui-serif, "New York", Georgia, serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  /*                    size        line-height   tracking   weight (emphasized) */
+  --text-large-title: 1.5rem;     --lh-large-title: 2rem;      --tr-large-title: 0.003em;  /* 24/32 regular (bold) */
+  --text-title1: 1.5rem;          --lh-title1: 2rem;           --tr-title1: 0.003em;       /* 24/32 regular (bold) */
+  --text-title2: 1.25rem;         --lh-title2: 1.75rem;        --tr-title2: -0.023em;      /* 20/28 regular (bold) */
+  --text-title3: 1.0625rem;       --lh-title3: 1.5rem;         --tr-title3: -0.025em;      /* 17/24 regular (semibold) */
+  --text-headline: 1.0625rem;     --lh-headline: 1.5rem;       --tr-headline: -0.025em;    /* 17/24 semibold */
+  --text-body: 0.875rem;          --lh-body: 1.25rem;          --tr-body: -0.011em;        /* 14/20 regular (semibold) */
+  --text-callout: 0.875rem;       --lh-callout: 1.25rem;       --tr-callout: -0.011em;     /* 14/20 regular (semibold) */
+  --text-subhead: 0.875rem;       --lh-subhead: 1.25rem;       --tr-subhead: -0.011em;     /* 14/20 regular (semibold) */
+  --text-footnote: 0.75rem;       --lh-footnote: 1.125rem;     --tr-footnote: 0em;         /* 12/18 regular (semibold) */
+  --text-caption1: 0.75rem;       --lh-caption1: 1rem;         --tr-caption1: 0em;         /* 12/16 regular (semibold) */
+  --text-caption2: 0.6875rem;     --lh-caption2: 0.875rem;     --tr-caption2: 0.006em;     /* 11/14 regular (semibold) */
+
+  /* Weights: SF has 9; UI lives in 400/590/700. 590 = SF "semibold" feel; */
+  /* browsers without variable SF round to 600. Avoid ultralight/thin for text. */
+  --weight-regular: 400;
+  --weight-medium: 510;
+  --weight-semibold: 590;
+  --weight-bold: 700;
+}
+
+/* Touch phones and tablets: body 16 (which also stops iOS zooming into fields), small text 14,
+   headline 19. Titles stay as above. */
+@media (pointer: coarse) and (max-width: 1023px) {
+  :root {
+    --text-body: 1rem;          --lh-body: 1.5rem;        --tr-body: -0.019em;      /* 16/24 */
+    --text-callout: 1rem;       --lh-callout: 1.5rem;     --tr-callout: -0.019em;   /* 16/24 */
+    --text-subhead: 1rem;       --lh-subhead: 1.5rem;     --tr-subhead: -0.019em;   /* 16/24 */
+    --text-footnote: 0.875rem;  --lh-footnote: 1.25rem;   --tr-footnote: -0.011em;  /* 14/20 */
+    --text-caption1: 0.875rem;  --lh-caption1: 1.25rem;   --tr-caption1: -0.011em;  /* 14/20 */
+    --text-caption2: 0.75rem;   --lh-caption2: 1rem;      --tr-caption2: 0em;       /* 12/16 */
+    --text-headline: 1.1875rem; --lh-headline: 1.625rem;  --tr-headline: -0.024em;  /* 19/26 semibold */
+    --text-title3: 1.1875rem;   --lh-title3: 1.625rem;    --tr-title3: -0.024em;    /* 19/26 */
+  }
+}
+
+/* ---------- 5. Layout, shape, motion ---------- */
+:root {
+  /* 4pt grid; iOS standard content margin is 16 (20 on larger widths) */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px; --space-12: 48px;
+  --margin: 16px;
+  --margin-wide: 20px;
+  --readable-width: 42rem;    /* keep long text to a comfortable measure */
+
+  /* Hit targets: 44x44pt minimum on touch (28 minimum on pointer-only). */
+  --hit: 44px;
+  --control-height: 44px;     /* rows, text fields, standard buttons */
+  --control-height-sm: 34px;  /* compact buttons/segmented (keep a 44px hit area) */
+  --tab-bar-height: 49px;     /* + safe-area-inset-bottom */
+  --nav-bar-height: 44px;     /* + safe-area-inset-top; large title adds ~52px */
+
+  /* Radii. Concentric rule: inner radius = outer radius - padding between them. */
+  --radius-xs: 6px;
+  --radius-sm: 10px;          /* text fields, small buttons, segmented items */
+  --radius-md: 14px;          /* inset-grouped list sections, cards */
+  --radius-lg: 22px;          /* large cards, popovers */
+  --radius-sheet: 34px;       /* sheets, full-width glass panels */
+  --radius-full: 9999px;      /* capsules: glass buttons, pills, tab bar */
+
+  /* Motion. Apple motion is spring-based and brief. These cubic-beziers are
+     rough stand-ins; for real Apple springs use templates/react/springs.ts
+     (Motion) or the --spring-* linear() easings in glass-motion.css. */
+  --ease: cubic-bezier(0.25, 0.1, 0.25, 1);          /* Core Animation default */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);        /* entering */
+  --ease-in: cubic-bezier(0.55, 0, 0.75, 0.06);      /* leaving */
+  --ease-spring: cubic-bezier(0.34, 1.36, 0.64, 1);  /* small overshoot, approximation: use rarely */
+  --dur-fast: 150ms;          /* press states, toggles */
+  --dur: 250ms;               /* most transitions */
+  --dur-slow: 400ms;          /* sheets, large surfaces */
+}
+
+/* ---------- 6. Base ---------- */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--label);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--lh-body);
+  letter-spacing: var(--tr-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+}
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+::selection { background: color-mix(in srgb, var(--tint) 30%, transparent); }
+
+/* ---------- 7. Material utility (web Liquid Glass approximation) ---------- */
+/* Use ONLY for the navigation layer floating above content (tab bars, toolbars,
+   floating buttons, sheets). Never for content cards or stacked on other glass. */
+.glass {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), inset 0 0.5px 0 rgb(255 255 255 / 0.4);
+}
+
+/* ---------- 8. Cards ---------- */
+/* Every card sits on a soft shadow. Rows inside a card don't get their own. For a card
+   you style yourself, use box-shadow: var(--shadow-card). */
+.card {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: clamp(var(--space-5), 12px + 1.5vw, var(--space-6));
+  border-radius: var(--radius-lg);
+  background: var(--card-bg);
+  color: var(--label);
+  box-shadow: var(--shadow-card);
+}
+/* The one or two things that matter most on a page. Goes with .card. Anything inside
+   built with --label, --label-secondary and --separator follows it automatically. */
+.card-inverted {
+  --label: var(--card-inverted-label);
+  --label-secondary: var(--card-inverted-label-secondary);
+  --separator: var(--card-inverted-separator);
+  background: var(--card-inverted-bg);
+  color: var(--label);
+  box-shadow: var(--shadow-card-inverted);
+}
+/* Facts: a grey name and its value, side by side once there's room */
+.facts {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+.facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-4);
+}
+.facts dt {
+  flex: 0 0 10rem;
+  font-size: var(--text-footnote);
+  line-height: 1.5rem;
+  letter-spacing: var(--tr-footnote);
+  font-weight: 600;
+  color: var(--label-secondary);
+}
+.facts dd {
+  flex: 1 1 16rem;
+  min-width: 0;
+  max-width: var(--readable-width);
+  margin: 0;
+  font-size: var(--text-subhead);
+  line-height: 1.5rem;
+  letter-spacing: var(--tr-subhead);
+  color: var(--label);
+}
+@media (forced-colors: active) {
+  .card { border: 1px solid CanvasText; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background: var(--glass-bg-thick); }
+}
+
+/* ---------- 8. Accessibility preferences ---------- */
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    background: var(--bg-secondary);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
