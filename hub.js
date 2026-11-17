@@ -2,8 +2,8 @@
 import * as S from './store.js';
 import { esc, icon, face, toast, sheet, listJoin, names, hhColor } from './ui.js';
 import { pickAndCrop } from './crop.js';
-import { today, monShort, dayNum, whenText, rangeText, diffDays, weekday, shortDate } from './dates.js';
-import { upcoming, happeningToday, headline, editEvent, canEdit, isCalendarType, typeOf } from './events.js';
+import { today, monShort, dayNum, whenText, rangeText, diffDays, weekday, shortDate, monthName, agoText } from './dates.js';
+import { upcoming, happeningToday, headline, editEvent, canEdit, isCalendarType, typeOf, byMonth } from './events.js';
 
 
 export function mount(root, app) {
@@ -22,8 +22,8 @@ export function mount(root, app) {
     // Households past their check-in window
     const due = st.households.filter((h) => checkin(app, h.id)?.overdue);
     const alerts = due.length + todays.length;
-    // Birthdays & big days list
-    const big = upcoming(app, { filter: (ev) => !isCalendarType(ev), days: 366 }).slice(0, 6);
+    // Birthdays & big days: this month and next month only
+    const big = byMonth(app, { filter: (ev) => !isCalendarType(ev), months: 2 });
 
     const others = st.households.filter((h) => h.id !== me.householdId);
     const mine = app.household(me.householdId);
@@ -82,13 +82,18 @@ export function mount(root, app) {
 
       <section class="block">
         <div class="row-head"><h2>Birthdays &amp; big days</h2><a class="linkish" href="#/me">My dates</a></div>
-        ${big.length ? `<div class="card list">${big.map(({ ev, occ }) => `
-          <button class="li" data-act="${canEdit(app, ev) ? 'edit-event' : 'noop'}" data-id="${esc(ev.id)}">
-            <span class="datechip ${occ.start === t ? 'gold' : ''}"><b>${monShort(occ.start)}</b><span>${dayNum(occ.start)}</span></span>
+        ${big.map(({ ym, items }) => `
+          <div class="month-head">${esc(monthName(ym))}</div>
+          ${items.length ? `<div class="card list">${items.map(({ ev, occ }) => {
+            const past = occ.start < t, now = occ.start === t;
+            return `
+          <button class="li ${past ? 'past' : ''}" data-act="${canEdit(app, ev) ? 'edit-event' : 'noop'}" data-id="${esc(ev.id)}">
+            <span class="datechip ${now ? 'gold' : ''}"><b>${monShort(occ.start)}</b><span>${dayNum(occ.start)}</span></span>
             <span class="li-main"><span class="li-title">${esc(headline(app, ev, occ.start))}</span><span class="li-sub">${esc(typeOf(ev.type).label)}${ev.createdBy && app.member(ev.createdBy) ? ' · added by ' + esc(app.member(ev.createdBy).name) : ''}</span></span>
-            <span class="li-when ${occ.start === t ? 'warm' : ''}">${esc(whenText(occ.start))}</span>
-          </button>`).join('')}</div>`
-        : `<div class="card empty-card">Add birthdays and anniversaries on <a href="#/me">My page</a>.</div>`}
+            <span class="li-when ${now ? 'warm' : ''}">${esc(past ? agoText(occ.start) : whenText(occ.start))}</span>
+          </button>`; }).join('')}</div>`
+          : `<div class="card empty-card muted">No birthdays or big days in ${esc(monthName(ym))}.</div>`}`).join('')}
+        ${st.events.some((ev) => !isCalendarType(ev)) ? '' : `<p class="hint">Add birthdays and anniversaries on <a href="#/me">My page</a>.</p>`}
       </section>
 
       <section class="block">

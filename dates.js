@@ -32,6 +32,25 @@ export function nextOccurrence(ev, from = today()) {
   if (start < from) start = fixLeap(`${y + 1}-${md}`);
   return { start, end: start };
 }
+// The date this event falls on within one calendar month ("YYYY-MM"), or null if it doesn't.
+// Yearly events land on their day in that month's year; one-time events only in their own month.
+export function occurrenceInMonth(ev, ym) {
+  if (!ev.date) return null;
+  if (!ev.recurring) return ev.date.slice(0, 7) === ym ? ev.date : null;
+  return ev.date.slice(5, 7) === ym.slice(5, 7) ? fixLeap(`${ym.slice(0, 4)}-${ev.date.slice(5)}`) : null;
+}
+// "YYYY-MM" for this month and the next n-1 months.
+export function monthsFrom(date, n) {
+  const d = parse(date);
+  return Array.from({ length: n }, (_, i) => { const x = new Date(d.getFullYear(), d.getMonth() + i, 1); return `${x.getFullYear()}-${pad(x.getMonth() + 1)}`; });
+}
+export const monthName = (ym) => MONTH[Number(ym.slice(5, 7)) - 1];
+// "Yesterday", "3 days ago" for a date before today.
+export function agoText(start, from = today()) {
+  const n = diffDays(start, from);
+  return n === 1 ? 'Yesterday' : `${n} days ago`;
+}
+
 function fixLeap(s) { return s.endsWith('-02-29') && parse(s).getMonth() !== 1 ? s.replace('-02-29', '-02-28') : s; }
 
 export function yearsSince(ev, onDate) {
