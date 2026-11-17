@@ -4,6 +4,9 @@ rules_version = '2';
 // Every family is a separate "circle". Nobody can read a circle unless they
 // have an access record in it. Journals live outside circles and only their
 // owner can ever read or write them.
+//
+// After changing this file, paste it into Firebase → Firestore Database → Rules → Publish.
+// Committing it to GitHub alone does not change what Firebase enforces.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -12,7 +15,12 @@ service cloud.firestore {
     function isMember(cid) { return signedIn() && exists(accessPath(cid)); }
     function me(cid) { return get(accessPath(cid)).data.memberId; }
     function isAdmin(cid) { return isMember(cid) && get(accessPath(cid)).data.role == 'admin'; }
-    function onlyChanges(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    function onlyChanges(keys) { return changed().hasOnly(keys); }
+    // Document ids end up inside the page's HTML, so only plain letters, digits, _ and - are allowed.
+    function okId(id) { return id.matches('^[A-Za-z0-9_-]{1,64}$'); }
+    function memberDoc(cid, mid) { return get(/databases/$(database)/documents/circles/$(cid)/members/$(mid)).data; }
+    function invitePath(cid, code) { return /databases/$(database)/documents/circles/$(cid)/invites/$(code); }
 
     // Personal settings (circle list, check-in preferences). Owner only.
     match /users/{uid} {
@@ -29,7 +37,7 @@ service cloud.firestore {
 
     match /circles/{cid} {
       allow read: if isMember(cid);
-      allow create: if signedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow create: if signedIn() && okId(cid) && request.resource.data.createdBy == request.auth.uid;
       allow update: if isAdmin(cid);
       allow delete: if false;
 
@@ -42,12 +50,18 @@ service cloud.firestore {
              && getAfter(/databases/$(database)/documents/circles/$(cid)).data.createdBy == request.auth.uid
              && !exists(/databases/$(database)/documents/circles/$(cid)))
           ||
-          // Everyone else joins with a one-time invite for a specific family member.
+          // Everyone else joins with a one-time invite for a specific family member who has no login yet,
+          // and must mark the invite used in the same batch (so one link can't let several accounts in).
           (request.resource.data.role == 'member'
-             && get(/databases/$(database)/documents/circles/$(cid)/invites/$(request.resource.data.invite)).data.memberId == request.resource.data.memberId
-             && get(/databases/$(database)/documents/circles/$(cid)/invites/$(request.resource.data.invite)).data.used == false)
+             && request.resource.data.keys().hasOnly(['memberId', 'role', 'invite'])
+             && get(invitePath(cid, request.resource.data.invite)).data.memberId == request.resource.data.memberId
+             && get(invitePath(cid, request.resource.data.invite)).data.used == false
+             && getAfter(invitePath(cid, request.resource.data.invite)).data.used == true
+             && getAfter(invitePath(cid, request.resource.data.invite)).data.usedBy == request.auth.uid
+             && memberDoc(cid, request.resource.data.memberId).uid == null)
         );
-        allow update: if isAdmin(cid);
+        // Organizers can change someone's role, never which family member a login belongs to.
+        allow update: if isAdmin(cid) && onlyChanges(['role']) && request.resource.data.role in ['admin', 'member'];
         allow delete: if isAdmin(cid) || (signedIn() && request.auth.uid == uid);
       }
 
@@ -55,9 +69,11 @@ service cloud.firestore {
       match /invites/{code} {
         allow get: if signedIn();
         allow list, delete: if isAdmin(cid);
-        // Organizers can invite anyone; parents can invite a child whose profile they manage.
-        allow create: if isAdmin(cid) || (isMember(cid)
-          && me(cid) in get(/databases/$(database)/documents/circles/$(cid)/members/$(request.resource.data.memberId)).data.managedBy);
+        // Organizers can invite anyone without a login; parents can invite a child whose profile they manage.
+        allow create: if okId(code)
+          && request.resource.data.used == false
+          && memberDoc(cid, request.resource.data.memberId).uid == null
+          && (isAdmin(cid) || (isMember(cid) && me(cid) in memberDoc(cid, request.resource.data.memberId).managedBy));
         allow update: if isAdmin(cid) || (
           signedIn() && resource.data.used == false
           && onlyChanges(['used', 'usedBy'])
@@ -70,50 +86,84 @@ service cloud.firestore {
       // Family members, including managed profiles for young kids.
       match /members/{mid} {
         allow read: if isMember(cid);
-        allow create: if isAdmin(cid) || (isMember(cid) && me(cid) in request.resource.data.managedBy);
+        allow create: if okId(mid) && (isAdmin(cid) || (isMember(cid)
+          && me(cid) in request.resource.data.managedBy
+          && request.resource.data.uid == null
+          && request.resource.data.claimed == false
+          && request.resource.data.householdId == memberDoc(cid, me(cid)).householdId));
         allow update: if isAdmin(cid)
-          || (isMember(cid) && (mid == me(cid) || me(cid) in resource.data.managedBy))
+          // People edit their own name and photo, and parents edit the profiles they manage.
+          || (isMember(cid) && (mid == me(cid) || me(cid) in resource.data.managedBy) && onlyChanges(['name', 'photo']))
           || (signedIn() && getAfter(accessPath(cid)).data.memberId == mid
                 && onlyChanges(['uid', 'claimed'])
                 && request.resource.data.uid == request.auth.uid);
         allow delete: if isAdmin(cid) || (isMember(cid) && me(cid) in resource.data.managedBy);
       }
 
+      // Households are set up by organizers.
       match /households/{hid} {
         allow read: if isMember(cid);
-        allow create, update: if isMember(cid);
-        allow delete: if isAdmin(cid);
+        allow create: if isAdmin(cid) && okId(hid);
+        allow update, delete: if isAdmin(cid);
       }
 
       // Shared dates and events (birthdays, anniversaries, graduations, trips).
       match /events/{eid} {
         allow read: if isMember(cid);
-        allow create: if isMember(cid) && request.resource.data.createdBy == me(cid);
-        allow update, delete: if isMember(cid) && (
+        allow create: if isMember(cid) && okId(eid) && request.resource.data.createdBy == me(cid);
+        allow update: if isMember(cid) && !changed().hasAny(['createdBy']) && (
+          resource.data.createdBy == me(cid) || isAdmin(cid) || me(cid) in resource.data.memberIds);
+        allow delete: if isMember(cid) && (
           resource.data.createdBy == me(cid) || isAdmin(cid) || me(cid) in resource.data.memberIds);
       }
 
       // Family album posts.
       match /album/{pid} {
         allow read: if isMember(cid);
-        allow create: if isMember(cid) && request.resource.data.by == me(cid);
-        // Anyone in the family can add photos to an album; only its creator or an organizer can rename or delete it.
-        allow update: if isMember(cid) && (resource.data.by == me(cid) || isAdmin(cid) || onlyChanges(['media']));
+        allow create: if isMember(cid) && okId(pid) && request.resource.data.by == me(cid);
+        // Anyone in the family can add photos to an album (never remove them);
+        // only its creator or an organizer can rename, remove photos or delete it.
+        allow update: if isMember(cid) && (resource.data.by == me(cid) || isAdmin(cid) || (
+          onlyChanges(['media'])
+          && request.resource.data.media.size() > resource.data.media.size()
+          && request.resource.data.media.hasAll(resource.data.media)));
         allow delete: if isMember(cid) && (resource.data.by == me(cid) || isAdmin(cid));
       }
 
       // Conversations: the whole family, a household, one person, or a custom group.
       match /chats/{chatId} {
         function canSeeChat(data) { return data.kind == 'everyone' || me(cid) in data.memberIds; }
-        allow read: if isMember(cid) && (resource == null || canSeeChat(resource.data));
-        allow create: if isMember(cid) && canSeeChat(request.resource.data);
-        allow update: if isMember(cid) && canSeeChat(resource.data)
-          && onlyChanges(['lastText', 'lastAt', 'lastBy', 'name', 'reads', 'sent']);
+        // A chat that doesn't follow the naming rule below (one planted before it existed) is unusable.
+        function chatOk(d) {
+          return (chatId == 'everyone' && d.kind == 'everyone') || (d.kind != 'everyone' && chatId == 'p_' + d.memberIds.join('_'));
+        }
+        // Each person may only move their own read and sent times.
+        function onlyMine(f) {
+          return !changed().hasAny([f])
+            || request.resource.data.get(f, {}).diff(resource.data.get(f, {})).affectedKeys().hasOnly([me(cid)]);
+        }
+        allow get: if isMember(cid) && (resource == null || (canSeeChat(resource.data) && chatOk(resource.data)));
+        // The chat list query can only be checked by who is in the chat; messages stay guarded by chatOk.
+        allow list: if isMember(cid) && canSeeChat(resource.data);
+        // A chat's id is fixed by who is in it ("p_" + the member ids in order), and only the
+        // family-wide chat may be readable by everyone. This stops anyone setting up a chat
+        // ahead of time that other people's private messages would land in.
+        allow create: if isMember(cid) && (
+          (chatId == 'everyone' && request.resource.data.kind == 'everyone' && request.resource.data.memberIds.size() == 0)
+          || (request.resource.data.kind in ['direct', 'household', 'group']
+              && me(cid) in request.resource.data.memberIds
+              && chatId == 'p_' + request.resource.data.memberIds.join('_')
+              && (request.resource.data.kind != 'direct' || request.resource.data.memberIds.size() == 2))
+        );
+        allow update: if isMember(cid) && canSeeChat(resource.data) && chatOk(resource.data)
+          && onlyChanges(['lastText', 'lastAt', 'lastBy', 'name', 'reads', 'sent'])
+          && onlyMine('reads') && onlyMine('sent')
+          && (!changed().hasAny(['lastText', 'lastAt', 'lastBy']) || request.resource.data.lastBy == me(cid));
 
         match /messages/{msgId} {
           function chatData() { return get(/databases/$(database)/documents/circles/$(cid)/chats/$(chatId)).data; }
-          allow read: if isMember(cid) && canSeeChat(chatData());
-          allow create: if isMember(cid) && canSeeChat(chatData()) && request.resource.data.by == me(cid);
+          allow read: if isMember(cid) && canSeeChat(chatData()) && chatOk(chatData());
+          allow create: if isMember(cid) && canSeeChat(chatData()) && chatOk(chatData()) && request.resource.data.by == me(cid);
           allow update, delete: if isMember(cid) && resource.data.by == me(cid);
         }
       }

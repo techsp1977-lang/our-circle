@@ -106,8 +106,21 @@ export function face(member, cls = '') {
   if (!member) return '';
   const ini = esc((member.name || '?').trim().charAt(0).toUpperCase());
   return member.photo
-    ? `<span class="face ${cls}"><img src="${esc(member.photo)}" alt="" loading="lazy"></span>`
+    ? `<span class="face ${cls}"><img src="${esc(safeUrl(member.photo))}" alt="" loading="lazy"></span>`
     : `<span class="face ${cls}" data-ini="${ini}">${ini}</span>`;
+}
+
+// Only web addresses that can't run code are put into src/href. Family members can write any text into
+// the database, so a "photo" saved as javascript:… or similar becomes a harmless blank instead.
+// https: is real use; blob: and data:image/ are demo mode (files kept in this browser).
+export function safeUrl(u) {
+  const s = String(u ?? '').trim();
+  return /^(https:\/\/|blob:|data:image\/(png|jpeg|gif|webp|svg\+xml|heic|heif|avif)[;,])/i.test(s) ? s : '';
+}
+// 'image', 'video' or 'file', without trusting the saved type to be text.
+export function mediaKind(m) {
+  const t = String(m?.type ?? '');
+  return t.startsWith('image') ? 'image' : t.startsWith('video') ? 'video' : 'file';
 }
 
 export const fmtSize = (b) => (b > 1e9 ? (b / 1e9).toFixed(1) + ' GB' : b > 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB');

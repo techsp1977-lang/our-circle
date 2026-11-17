@@ -1,6 +1,6 @@
 // Chats list and a single conversation.
 import * as S from './store.js';
-import { esc, icon, face, toast, fmtSize, listJoin, names } from './ui.js';
+import { esc, icon, face, toast, fmtSize, listJoin, names, safeUrl, mediaKind } from './ui.js';
 import { ago } from './dates.js';
 
 export function chatTitle(app, c) {
@@ -77,12 +77,13 @@ function conversation(root, app, chatId) {
   };
 
   const media = (m) => (m.media || []).map((f) => {
-    const isImg = f.type.startsWith('image'), isVid = f.type.startsWith('video');
+    const kind = mediaKind(f), isImg = kind === 'image', isVid = kind === 'video';
+    const url = safeUrl(f.url);
     return `<div class="media">
-      ${isImg ? `<a href="${esc(f.url)}" target="_blank" rel="noopener"><img src="${esc(f.url)}" alt="${esc(f.name)}" loading="lazy"></a>` : ''}
-      ${isVid ? `<video src="${esc(f.url)}" controls playsinline preload="metadata"></video>` : ''}
+      ${isImg ? `<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" alt="${esc(f.name)}" loading="lazy"></a>` : ''}
+      ${isVid ? `<video src="${esc(url)}" controls playsinline preload="metadata"></video>` : ''}
       ${!isImg && !isVid ? `<span class="file">${esc(f.name)}</span>` : ''}
-      <a class="dl" href="${esc(f.url)}" download="${esc(f.name)}" target="_blank" rel="noopener">${icon('download', 14)} Original · ${fmtSize(f.size)}</a>
+      <a class="dl" href="${esc(url)}" download="${esc(f.name)}" target="_blank" rel="noopener">${icon('download', 14)} Original · ${fmtSize(f.size)}</a>
     </div>`;
   }).join('');
 

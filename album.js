@@ -1,6 +1,6 @@
 // Family album: posts of photos and videos shared with everyone, kept at original quality.
 import * as S from './store.js';
-import { esc, icon, sheet, toast, fmtSize, confirmBox } from './ui.js';
+import { esc, icon, sheet, toast, fmtSize, confirmBox, safeUrl, mediaKind } from './ui.js';
 import { shortDate, toISO } from './dates.js';
 
 export function mount(root, app, key, args) {
@@ -9,8 +9,9 @@ export function mount(root, app, key, args) {
 
 function cover(m) {
   if (!m) return `<span class="cover empty">${icon('image', 28)}</span>`;
-  if (m.type.startsWith('video')) return `<span class="cover"><video src="${esc(m.url)}#t=0.5" muted playsinline preload="metadata"></video><i class="play">▶</i></span>`;
-  return `<span class="cover"><img src="${esc(m.url)}" alt="" loading="lazy"></span>`;
+  const url = safeUrl(m.url);
+  if (mediaKind(m) === 'video') return `<span class="cover"><video src="${esc(url)}#t=0.5" muted playsinline preload="metadata"></video><i class="play">▶</i></span>`;
+  return `<span class="cover"><img src="${esc(url)}" alt="" loading="lazy"></span>`;
 }
 
 function grid(root, app) {
@@ -22,7 +23,7 @@ function grid(root, app) {
         <button class="btn sm" data-act="share">${icon('plus', 16)} Share</button></header>
       <p class="hint pad-x">Photos and videos shared here go to the whole family and stay at full original quality.</p>
       <section class="block album-grid">
-        ${posts.map((p) => `<a class="album-card" href="#/album/${p.id}">
+        ${posts.map((p) => `<a class="album-card" href="#/album/${encodeURIComponent(p.id)}">
           ${cover(p.media?.[0])}
           <span class="album-meta"><b>${esc(p.title || 'Untitled')}</b><small>${(p.media || []).length} item${(p.media || []).length === 1 ? '' : 's'} · ${esc(app.member(p.by)?.name || '')} · ${shortDate(toISO(new Date(p.at)))}</small></span>
         </a>`).join('') || `<button class="card empty-card" data-act="share">Share the first photos, like a birthday party or a trip.</button>`}
@@ -68,10 +69,10 @@ function post(root, app, id) {
         ${can ? `<button class="icon-btn" data-act="edit" aria-label="Edit">${icon('edit')}</button>` : ''}</header>
       ${p.caption ? `<p class="pad-x">${esc(p.caption)}</p>` : ''}
       <section class="block stack-sm">
-        ${(p.media || []).map((m) => `<figure class="full">
-          ${m.type.startsWith('video') ? `<video src="${esc(m.url)}" controls playsinline preload="metadata"></video>` : `<img src="${esc(m.url)}" alt="${esc(m.name)}" loading="lazy">`}
-          <figcaption><a class="dl" href="${esc(m.url)}" download="${esc(m.name)}" target="_blank" rel="noopener">${icon('download', 14)} Download original · ${fmtSize(m.size)}</a></figcaption>
-        </figure>`).join('')}
+        ${(p.media || []).map((m) => { const url = safeUrl(m.url); return `<figure class="full">
+          ${mediaKind(m) === 'video' ? `<video src="${esc(url)}" controls playsinline preload="metadata"></video>` : `<img src="${esc(url)}" alt="${esc(m.name)}" loading="lazy">`}
+          <figcaption><a class="dl" href="${esc(url)}" download="${esc(m.name)}" target="_blank" rel="noopener">${icon('download', 14)} Download original · ${fmtSize(m.size)}</a></figcaption>
+        </figure>`; }).join('')}
         <button class="btn ghost" data-act="add">${icon('plus', 16)} Add more</button>
       </section>`;
   };

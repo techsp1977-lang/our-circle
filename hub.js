@@ -39,7 +39,7 @@ export function mount(root, app) {
       ${due.length ? `<section class="block"><div class="card checkin-strip">
         <div class="cs-head">${icon('bell', 18)}<b>Check in this week</b><small>${due.length} household${due.length === 1 ? '' : 's'}</small></div>
         <div class="cs-chips">${due.map((h) => { const ppl = app.membersOf(h.id); const single = ppl.length === 1;
-          return `<button class="cs-chip" style="--hh:${hhColor(h)}" data-act="${single ? 'msg-member' : 'msg-household'}" data-id="${single ? ppl[0].id : h.id}">${names(h.name)}</button>`; }).join('')}</div>
+          return `<button class="cs-chip" style="--hh:${hhColor(h)}" data-act="${single ? 'msg-member' : 'msg-household'}" data-id="${esc(single ? ppl[0].id : h.id)}">${names(h.name)}</button>`; }).join('')}</div>
       </div></section>` : ''}
 
       <section class="block">
@@ -49,7 +49,7 @@ export function mount(root, app) {
             <span class="datechip trip"><b>${monShort(occ.start)}</b><span>${ev.endDate && ev.endDate !== ev.date ? rangeText(ev).replace(/^[A-Za-z]+ /, '') : dayNum(occ.start)}</span></span>
             <span class="li-main"><span class="li-title">${esc(ev.title)}</span><span class="li-sub">${esc(ev.note || (ev.memberIds?.length ? listJoin(ev.memberIds.map((id) => app.member(id)?.name).filter(Boolean)) : 'Everyone'))}${ev.endDate ? ` · ${diffDays(ev.date, ev.endDate) + 1} days` : ''}</span></span>
             <span class="li-when">${occ.start <= t ? 'Now' : esc(whenText(occ.start))}</span>
-            ${canEdit(app, ev) ? `<button class="icon-btn sm" data-act="edit-event" data-id="${ev.id}" aria-label="Edit ${esc(ev.title)}">${icon('edit', 16)}</button>` : ''}
+            ${canEdit(app, ev) ? `<button class="icon-btn sm" data-act="edit-event" data-id="${esc(ev.id)}" aria-label="Edit ${esc(ev.title)}">${icon('edit', 16)}</button>` : ''}
           </div>`).join('')}</div>`
         : `<button class="card empty-card" data-act="add-event">Add a trip, reunion or family event so everyone can see it.</button>`}
       </section>
@@ -68,7 +68,7 @@ export function mount(root, app) {
           <div class="mine-card" style="--hh:${hhColor(mine)}">
             <a href="#/me" class="mine-head"><span class="eyebrow">Your household</span><span class="mine-name">${names(mine?.name || me.name)}</span></a>
             ${app.membersOf(me.householdId).map((m) => `
-              <button class="tile mine-tile" data-act="${m.id === st.me ? 'photo' : 'msg-member'}" data-id="${m.id}" aria-label="${m.id === st.me ? (m.photo ? 'Change my photo' : 'Add my photo') : 'Message ' + esc(m.name) + ' only'}">
+              <button class="tile mine-tile" data-act="${m.id === st.me ? 'photo' : 'msg-member'}" data-id="${esc(m.id)}" aria-label="${m.id === st.me ? (m.photo ? 'Change my photo' : 'Add my photo') : 'Message ' + esc(m.name) + ' only'}">
                 ${m.photo || m.id !== st.me ? face(m, 'tile-img') : `<span class="tile-img add">${icon('camera', 20)}<small>Add photo</small></span>`}
                 <span class="tile-name">${esc(m.name)}</span>
               </button>`).join('')}
@@ -83,7 +83,7 @@ export function mount(root, app) {
       <section class="block">
         <div class="row-head"><h2>Birthdays &amp; big days</h2><a class="linkish" href="#/me">My dates</a></div>
         ${big.length ? `<div class="card list">${big.map(({ ev, occ }) => `
-          <button class="li" data-act="${canEdit(app, ev) ? 'edit-event' : 'noop'}" data-id="${ev.id}">
+          <button class="li" data-act="${canEdit(app, ev) ? 'edit-event' : 'noop'}" data-id="${esc(ev.id)}">
             <span class="datechip ${occ.start === t ? 'gold' : ''}"><b>${monShort(occ.start)}</b><span>${dayNum(occ.start)}</span></span>
             <span class="li-main"><span class="li-title">${esc(headline(app, ev, occ.start))}</span><span class="li-sub">${esc(typeOf(ev.type).label)}${ev.createdBy && app.member(ev.createdBy) ? ' · added by ' + esc(app.member(ev.createdBy).name) : ''}</span></span>
             <span class="li-when ${occ.start === t ? 'warm' : ''}">${esc(whenText(occ.start))}</span>
@@ -152,7 +152,7 @@ function todayCard(app, ev) {
   return `<div class="card card-inverted today">
     <div class="today-row">${icon(ic, 22)}<div><span class="eyebrow">Today</span><div class="today-line">${line}</div>
     <div class="today-sub">${by ? `Added by ${esc(by.name)} · ` : ''}everyone in the family sees this today</div></div></div>
-    ${mine && !names_ ? '' : `<div class="right"><button class="btn light sm" data-act="celebrate" data-id="${ev.id}" data-text="${esc(text)}">${esc(btn)}</button></div>`}
+    ${mine && !names_ ? '' : `<div class="right"><button class="btn light sm" data-act="celebrate" data-id="${esc(ev.id)}" data-text="${esc(text)}">${esc(btn)}</button></div>`}
   </div>`;
 }
 
@@ -167,7 +167,7 @@ function householdCard(app, h) {
     const label = ci.overdue
       ? (ci.last ? `Time to check in. Last messaged ${ci.days} days ago` : 'Time to check in. Not messaged yet')
       : `Checked in ${ci.days === 0 ? 'today' : ci.days + ' day' + (ci.days === 1 ? '' : 's') + ' ago'}`;
-    tab = `<button class="ci-tab ${ci.overdue ? 'due' : 'ok'}" data-act="${act}" data-id="${target}" aria-label="${esc(label)}. Message ${esc(h.name)}" title="${esc(label)}">
+    tab = `<button class="ci-tab ${ci.overdue ? 'due' : 'ok'}" data-act="${act}" data-id="${esc(target)}" aria-label="${esc(label)}. Message ${esc(h.name)}" title="${esc(label)}">
       ${icon(ci.overdue ? 'bell' : 'check', 16)}
       <b>${ci.overdue ? (ci.last ? ci.days + 'd' : 'New') : ci.days === 0 ? 'Today' : ci.days + 'd'}</b>
       <small>${ci.overdue ? 'Due' : 'Good'}</small>
@@ -177,10 +177,10 @@ function householdCard(app, h) {
     <div class="card hh">
       <div class="hh-head">
         <span class="hh-title"><b>${names(h.name)}</b>${people.length > 1 ? `<small>${people.length} people</small>` : ''}</span>
-        <button class="icon-btn sm msg-btn" data-act="${act}" data-id="${target}" aria-label="Message ${esc(h.name)}${single ? '' : ' together'}">${icon('chat', 17)}</button>
+        <button class="icon-btn sm msg-btn" data-act="${act}" data-id="${esc(target)}" aria-label="Message ${esc(h.name)}${single ? '' : ' together'}">${icon('chat', 17)}</button>
       </div>
       <div class="hh-tiles">${people.map((m) => `
-        <button class="tile" data-act="msg-member" data-id="${m.id}" aria-label="Message ${esc(m.name)} only">
+        <button class="tile" data-act="msg-member" data-id="${esc(m.id)}" aria-label="Message ${esc(m.name)} only">
           ${face(m, 'tile-img')}
           <span class="tile-name">${esc(m.name)}</span>
         </button>`).join('')}</div>

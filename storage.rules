@@ -1,19 +1,25 @@
 rules_version = '2';
 
 // Photos and videos are stored at full original quality under each circle.
-// Only people in that circle can view or upload them.
+// Only people in that circle can view or upload them; only organizers can delete them.
+// After changing this file, paste it into Firebase → Storage → Rules → Publish.
 service firebase.storage {
   match /b/{bucket}/o {
+    function accessDoc(cid) {
+      return /databases/(default)/documents/circles/$(cid)/access/$(request.auth.uid);
+    }
     function isMember(cid) {
-      return request.auth != null &&
-        firestore.exists(/databases/(default)/documents/circles/$(cid)/access/$(request.auth.uid));
+      return request.auth != null && firestore.exists(accessDoc(cid));
+    }
+    function isAdmin(cid) {
+      return isMember(cid) && firestore.get(accessDoc(cid)).data.role == 'admin';
     }
 
-    match /circles/{cid}/{allPaths=**} {
+    match /circles/{cid}/media/{file} {
       allow read: if isMember(cid);
       // Up to 2 GB per file so long phone videos fit.
       allow create: if isMember(cid) && request.resource.size < 2 * 1024 * 1024 * 1024;
-      allow delete: if isMember(cid);
+      allow delete: if isAdmin(cid);
       allow update: if false;
     }
   }
