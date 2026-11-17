@@ -6,7 +6,7 @@ import { pickAndCrop } from './crop.js';
 export async function inviteLink(app, memberId) {
   const st = app.state;
   const m = app.member(memberId);
-  const code = S.newId() + S.newId();
+  const code = S.newSecret();
   await S.set(app.path('invites/' + code), {
     memberId, memberName: m.name, circleName: st.circle?.name || '', used: false, createdBy: st.me, createdAt: Date.now(),
   });
@@ -47,15 +47,15 @@ export function mount(root, app) {
         ${st.households.map((h) => `
           <div class="card list mb">
             <div class="li"><span class="hh-swatch" style="--hh:${hhColor(h)}" aria-hidden="true"></span><span class="li-main"><span class="li-title">${names(h.name)}</span></span>
-              <button class="icon-btn sm" data-act="edit-hh" data-id="${h.id}" aria-label="Edit ${esc(h.name)}">${icon('edit', 16)}</button></div>
+              <button class="icon-btn sm" data-act="edit-hh" data-id="${esc(h.id)}" aria-label="Edit ${esc(h.name)}">${icon('edit', 16)}</button></div>
             ${app.membersOf(h.id).map((m) => {
               const acc = accessRows.find((a) => a.memberId === m.id);
               const status = m.uid ? (acc?.role === 'admin' ? 'Organizer · has login' : 'Has login') : (m.managedBy?.length ? 'Managed by parents' : 'Not joined yet');
-              return `<div class="li"><button class="face-btn" data-act="photo" data-id="${m.id}" aria-label="${m.photo ? 'Change' : 'Add'} ${esc(m.name)}'s photo">${face(m)}<span class="face-cam">${icon('camera', 12)}</span></button><span class="li-main"><span class="li-title">${esc(m.name)}</span><span class="li-sub">${status}</span></span>
-                ${!m.uid ? `<button class="btn sm" data-act="invite" data-id="${m.id}">${icon('link', 14)} Invite</button>` : ''}
-                <button class="icon-btn sm" data-act="edit-m" data-id="${m.id}" aria-label="Edit ${esc(m.name)}">${icon('edit', 16)}</button></div>`;
+              return `<div class="li"><button class="face-btn" data-act="photo" data-id="${esc(m.id)}" aria-label="${m.photo ? 'Change' : 'Add'} ${esc(m.name)}'s photo">${face(m)}<span class="face-cam">${icon('camera', 12)}</span></button><span class="li-main"><span class="li-title">${esc(m.name)}</span><span class="li-sub">${status}</span></span>
+                ${!m.uid ? `<button class="btn sm" data-act="invite" data-id="${esc(m.id)}">${icon('link', 14)} Invite</button>` : ''}
+                <button class="icon-btn sm" data-act="edit-m" data-id="${esc(m.id)}" aria-label="Edit ${esc(m.name)}">${icon('edit', 16)}</button></div>`;
             }).join('')}
-            <button class="li add-row" data-act="add-m" data-id="${h.id}">${icon('plus', 16)} Add a person to ${esc(h.name)}</button>
+            <button class="li add-row" data-act="add-m" data-id="${esc(h.id)}">${icon('plus', 16)} Add a person to ${esc(h.name)}</button>
           </div>`).join('')}
       </section>
       <p class="hint pad-x">Tip: add everyone first, with birthdays, then send each person their own invite link. Young kids don't need a link; their parents manage them from My page.</p>`;

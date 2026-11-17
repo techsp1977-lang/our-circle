@@ -31,6 +31,10 @@ const app = {
     const id = 'p_' + ids.join('_');
     if (!state.chats[id]) {
       const existing = await S.get(app.path('chats/' + id));
+      // Never reuse a chat that doesn't match exactly these people (one set up ahead of time by someone else).
+      if (existing && (existing.kind === 'everyone' || [...(existing.memberIds || [])].sort().join('_') !== ids.join('_'))) {
+        throw new Error('This conversation looks wrong. Ask a family organizer to check it.');
+      }
       if (!existing) {
         await S.set(app.path('chats/' + id), {
           kind: ids.length === 2 ? 'direct' : kind, name, memberIds: ids, householdId,
@@ -231,7 +235,7 @@ function friendlyAuth(err) {
   if (c.includes('invalid-email')) return msg('That email address does not look right.');
   if (c.includes('operation-not-allowed')) return msg('This sign-in method is turned off. In Firebase: Authentication → Sign-in method → turn on Email/Password (and Google).');
   if (c.includes('configuration-not-found')) return msg('Firebase sign-in is not set up yet. In Firebase: Authentication → click Get started, then turn on Email/Password.');
-  if (c.includes('unauthorized-domain')) return msg('This web address is not approved. In Firebase: Authentication → Settings → Authorized domains → add techsp1977-lang.github.io');
+  if (c.includes('unauthorized-domain')) return msg('This web address is not approved. In Firebase: Authentication → Settings → Authorized domains → add ' + location.hostname);
   if (c.includes('api-key') || c.includes('invalid-api-key')) return msg('The Firebase settings in config.js look wrong. Re-copy the apiKey from Firebase project settings.');
   if (c.includes('popup-closed') || c.includes('cancelled-popup')) return msg('The Google window was closed before finishing.');
   if (c.includes('popup-blocked')) return msg('Your browser blocked the Google window. Allow pop-ups, or use email and password.');

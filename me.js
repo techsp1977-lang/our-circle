@@ -1,6 +1,6 @@
 // My page: my photo and name, my shared dates, profiles I manage, my nudge settings.
 import * as S from './store.js';
-import { esc, icon, face, sheet, toast, listJoin } from './ui.js';
+import { esc, icon, face, sheet, toast, listJoin, safeUrl } from './ui.js';
 import { monShort, dayNum, today, nextOccurrence } from './dates.js';
 import { TYPES, typeOf, editEvent, headline } from './events.js';
 import { inviteLink } from './manage.js';
@@ -27,7 +27,7 @@ export function mount(root, app) {
 
       <section class="block profile">
         <label class="photo-pick" for="photo" aria-label="Change my photo">
-          ${me.photo ? `<img src="${esc(me.photo)}" alt="">` : `${icon('camera', 28)}<span>Add your photo</span>`}
+          ${me.photo ? `<img src="${esc(safeUrl(me.photo))}" alt="">` : `${icon('camera', 28)}<span>Add your photo</span>`}
         </label>
         <input id="photo" type="file" accept="image/*" hidden>
         <div class="profile-text">
@@ -43,7 +43,7 @@ export function mount(root, app) {
         <div class="card list">
           ${!hasBday ? `<button class="li" data-act="add" data-type="birthday"><span class="sq soft">${icon('gift')}</span><span class="li-main"><span class="li-title">My birthday</span><span class="li-sub">Add it so the family remembers</span></span><span class="btn sm ghost">Add date</span></button>` : ''}
           ${myDates.map((ev) => { const o = nextOccurrence(ev); return `
-            <button class="li" data-act="edit" data-id="${ev.id}">
+            <button class="li" data-act="edit" data-id="${esc(ev.id)}">
               <span class="datechip"><b>${o ? monShort(o.start) : '—'}</b><span>${o ? dayNum(o.start) : ''}</span></span>
               <span class="li-main"><span class="li-title">${esc(ev.type === 'birthday' && (ev.memberIds || []).length === 1 ? 'My birthday' : headline(app, ev, o?.start || today()))} <span class="tag">Shared</span></span>
               <span class="li-sub">${esc(typeOf(ev.type).label)}${(ev.memberIds || []).length > 1 ? ' · with ' + esc(listJoin(ev.memberIds.filter((x) => x !== st.me).map((x) => app.member(x)?.name).filter(Boolean))) : ''}${o ? '' : ' · past'}</span></span>
@@ -62,8 +62,8 @@ export function mount(root, app) {
           ${managed.map((m) => `<div class="li">
             ${face(m)}
             <span class="li-main"><span class="li-title">${esc(m.name)}</span><span class="li-sub">${m.uid ? 'Has their own login now' : 'Managed by you'}</span></span>
-            <button class="btn sm ghost" data-act="kid" data-id="${m.id}">Edit</button>
-            ${!m.uid ? `<button class="btn sm ghost" data-act="invite" data-id="${m.id}">${icon('link', 14)} Invite</button>` : ''}
+            <button class="btn sm ghost" data-act="kid" data-id="${esc(m.id)}">Edit</button>
+            ${!m.uid ? `<button class="btn sm ghost" data-act="invite" data-id="${esc(m.id)}">${icon('link', 14)} Invite</button>` : ''}
           </div>`).join('')}
           <button class="li" data-act="add-kid"><span class="sq soft">${icon('plus')}</span><span class="li-main"><span class="li-title">Add a child's profile</span><span class="li-sub">Name, photo and birthday. When they get a phone, send an invite and the profile becomes theirs.</span></span></button>
         </div>

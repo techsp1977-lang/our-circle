@@ -6,8 +6,15 @@ const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 let impl = null;
 
 export const isDemo = DEMO_MODE;
-export const newId = () =>
-  Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+// Ids use the browser's secure random generator (invite codes are built from these, so they must be unguessable).
+const randomChars = (n) => {
+  const abc = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const bytes = crypto.getRandomValues(new Uint8Array(n));
+  return Array.from(bytes, (b) => abc[b % 36]).join('');
+};
+export const newId = () => Date.now().toString(36) + randomChars(8);
+// About 124 bits of randomness: a one-time invite link that can't be guessed.
+export const newSecret = () => randomChars(24);
 
 export async function initStore() {
   impl = DEMO_MODE ? await demoImpl() : await firebaseImpl();
@@ -74,7 +81,14 @@ async function firebaseImpl() {
     signUp: (e, p) => A.createUserWithEmailAndPassword(a, e, p),
     google: () => A.signInWithPopup(a, new A.GoogleAuthProvider()),
     reset: (e) => A.sendPasswordResetEmail(a, e),
-    signOut: () => A.signOut(a),
+    // Sign out, then wipe the family data this browser saved for offline use (chats, journal pages),
+    // so the next person on a shared phone or computer can't dig it out. Reloads to start clean.
+    signOut: async () => {
+      await A.signOut(a);
+      try { await F.terminate(db); await F.clearIndexedDbPersistence(db); } catch (e) { console.warn('Could not clear saved data', e); }
+      try { localStorage.removeItem('oc-join'); sessionStorage.clear(); } catch (e) {}
+      location.replace(location.pathname);
+    },
     get: async (path) => withId(await F.getDoc(F.doc(db, path))),
     getFast: async (path) => {
       try { const c = await F.getDocFromCache(F.doc(db, path)); if (c.exists()) return withId(c); } catch (e) { /* not saved yet */ }

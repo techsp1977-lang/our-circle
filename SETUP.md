@@ -121,3 +121,7 @@ It then opens full-screen like a regular app.
 ## Updating the app later
 
 Edit or replace files in the GitHub repository. Changes appear for everyone within a minute or two; on phones, closing and reopening the app picks them up.
+
+**If `firestore.rules` or `storage.rules` change**, GitHub alone doesn't apply them. Open each one, copy all of it, and paste it into Firebase (**Firestore Database → Rules**, and **Storage → Rules**), then click **Publish**.
+
+The `tests` folder checks those rules on a computer before you publish them. With Node and Java installed, open that folder in a terminal and run `npm install`, then `npm test`. Every line should be a ✔. The tests run a copy of Firebase on the computer and never touch your real family data.
