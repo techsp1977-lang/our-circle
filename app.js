@@ -1,7 +1,7 @@
 import { APP_NAME, APP_TAGLINE, DEFAULT_CHECKIN_DAYS } from './config.js';
 import * as S from './store.js';
 import { esc, icon, toast, $, sheet } from './ui.js';
-import { lockGate } from './lock.js';
+import { lockGate, webauthnSupported, prepared, passkeySignIn, explain, faceLabel } from './lock.js';
 
 // ───────────── shared app state ─────────────
 const state = {
@@ -193,6 +193,7 @@ function clearJoin() {
   if (location.search) history.replaceState(null, '', location.pathname + location.hash);
 }
 
+let signInPrep = null;
 function renderSignIn(msg = '') {
   const joining = pendingJoin();
   document.body.innerHTML = `<div class="auth">
@@ -201,7 +202,8 @@ function renderSignIn(msg = '') {
       <h1>${joining ? 'You have been invited' : 'Welcome'}</h1>
       <p class="muted">${joining ? 'Create an account or sign in to join your family.' : esc(APP_TAGLINE)}</p>
       ${msg ? `<p class="error" role="alert">${esc(msg)}</p>` : ''}
-      <button class="btn wide" id="google">Continue with Google</button>
+      ${webauthnSupported() ? `<button class="btn wide" id="faceid">${icon('lock', 18)} Sign in with ${esc(faceLabel())}</button>` : ''}
+      <button class="btn wide ${webauthnSupported() ? 'ghost' : ''}" id="google">Continue with Google</button>
       <div class="or"><span>or use email</span></div>
       <form id="auth-form" class="stack">
         <label class="field" for="email"><span>Email</span><input id="email" type="email" autocomplete="email" required></label>
@@ -220,6 +222,16 @@ function renderSignIn(msg = '') {
     try { mode === 'up' ? await S.auth.signUp(email, pw) : await S.auth.signIn(email, pw); }
     catch (err) { renderSignIn(friendlyAuth(err)); }
   };
+  // Face ID: the server's half is fetched now, so the tap goes straight to Face ID (iPhone requires that).
+  if (webauthnSupported()) {
+    signInPrep ||= prepared('signInOptions');
+    signInPrep.get();
+    $('#faceid').onclick = async () => {
+      markFreshSignIn();
+      try { await S.auth.withToken(await passkeySignIn(signInPrep)); }
+      catch (err) { console.warn(err); renderSignIn(err?.name === 'NotAllowedError' ? `${faceLabel()} sign-in was cancelled, or this phone has no Our Circle passkey yet. Sign in with your password once, then go to My page → This phone → Set up.` : explain(err)); }
+    };
+  }
   $('#google').onclick = async () => { markFreshSignIn(); try { await S.auth.google(); } catch (err) { renderSignIn(friendlyAuth(err)); } };
   $('#forgot').onclick = async () => {
     const email = $('#email').value.trim();

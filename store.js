@@ -31,7 +31,10 @@ export const auth = {
   google: () => impl.google(),
   reset: (e) => impl.reset(e),
   signOut: () => impl.signOut(),
+  withToken: (t) => impl.withToken(t),
 };
+// Call a server function (Face ID sign-in). Resolves with what the function returned.
+export const callFn = (name, data) => impl.callFn(name, data);
 export const get = (path) => impl.get(path);
 // Start-up reads: answer from the copy saved on this device when there is one, else ask the server.
 export const getFast = (path) => (impl.getFast ? impl.getFast(path) : impl.get(path));
@@ -83,6 +86,11 @@ async function firebaseImpl() {
     reset: (e) => A.sendPasswordResetEmail(a, e),
     // Sign out, then wipe the family data this browser saved for offline use (chats, journal pages),
     // so the next person on a shared phone or computer can't dig it out. Reloads to start clean.
+    withToken: (t) => A.signInWithCustomToken(a, t),
+    callFn: async (name, data) => {
+      const Fn = await import(FB + 'firebase-functions.js');
+      return (await Fn.httpsCallable(Fn.getFunctions(app, 'us-central1'), name)(data)).data;
+    },
     signOut: async () => {
       await A.signOut(a);
       try { await F.terminate(db); await F.clearIndexedDbPersistence(db); } catch (e) { console.warn('Could not clear saved data', e); }
@@ -195,6 +203,8 @@ async function demoImpl() {
     signUp: async () => api.demo.switchTo('u_spencer'),
     google: async () => api.demo.switchTo('u_spencer'),
     reset: async () => {},
+    withToken: async () => { throw new Error('Not available in demo mode'); },
+    callFn: async () => { throw new Error('Not available in demo mode'); },
     signOut: async () => { uid = null; try { localStorage.removeItem('oc-demo-uid'); } catch (e) {} authCbs.forEach((cb) => cb(null)); },
     get: async (path) => api.getSync(path),
     set: async (path, data, merge) => { db[path] = merge ? applyUpdate(db[path], data) : clone(data); notify(path); },

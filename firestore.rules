@@ -22,6 +22,10 @@ service cloud.firestore {
     function memberDoc(cid, mid) { return get(/databases/$(database)/documents/circles/$(cid)/members/$(mid)).data; }
     function invitePath(cid, code) { return /databases/$(database)/documents/circles/$(cid)/invites/$(code); }
 
+    // Face ID passkeys and their one-time challenges: only the passkey server function touches these.
+    match /passkeys/{id} { allow read, write: if false; }
+    match /passkeyChallenges/{id} { allow read, write: if false; }
+
     // Personal settings (circle list, check-in preferences). Owner only.
     match /users/{uid} {
       allow read, write: if signedIn() && request.auth.uid == uid;
