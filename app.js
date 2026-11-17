@@ -1,6 +1,7 @@
 import { APP_NAME, APP_TAGLINE, DEFAULT_CHECKIN_DAYS } from './config.js';
 import * as S from './store.js';
 import { esc, icon, toast, $, sheet } from './ui.js';
+import { lockGate } from './lock.js';
 
 // ───────────── shared app state ─────────────
 const state = {
@@ -215,16 +216,20 @@ function renderSignIn(msg = '') {
     e.preventDefault();
     const mode = e.submitter?.value || 'in';
     const email = $('#email').value.trim(), pw = $('#pw').value;
+    markFreshSignIn();
     try { mode === 'up' ? await S.auth.signUp(email, pw) : await S.auth.signIn(email, pw); }
     catch (err) { renderSignIn(friendlyAuth(err)); }
   };
-  $('#google').onclick = async () => { try { await S.auth.google(); } catch (err) { renderSignIn(friendlyAuth(err)); } };
+  $('#google').onclick = async () => { markFreshSignIn(); try { await S.auth.google(); } catch (err) { renderSignIn(friendlyAuth(err)); } };
   $('#forgot').onclick = async () => {
     const email = $('#email').value.trim();
     if (!email) { renderSignIn('Type your email first, then tap Forgot password.'); return; }
     try { await S.auth.reset(email); toast('Password reset email sent.'); } catch (err) { renderSignIn(friendlyAuth(err)); }
   };
 }
+// A sign-in with the password counts as unlocking, so the Face ID lock doesn't ask again right after it.
+function markFreshSignIn() { try { sessionStorage.setItem('oc-fresh-signin', '1'); } catch (e) {} }
+
 function friendlyAuth(err) {
   const c = String(err?.code || err?.message || 'unknown');
   console.warn('Sign-in error:', err);
@@ -321,6 +326,8 @@ export async function start() {
     view = null;
     Object.assign(state, { uid: user?.uid || null, ready: false, cid: null });
     if (!user) { S.isDemo ? S.demo().switchTo('u_spencer') : renderSignIn(); return; }
+    // Face ID lock for this phone, when it's turned on (My page → This phone).
+    if (!(await lockGate(user.uid, () => S.auth.signOut()))) return;
     // If the database can't be reached (not created yet, or rules not published), say so instead of waiting forever.
     let u = null;
     try {

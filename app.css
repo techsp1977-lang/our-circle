@@ -435,3 +435,6 @@ body[data-view="chat"] .demo-bar { display: none; }
 .hh-tiles { flex-wrap: wrap; }
 .hh-tiles .tile { min-width: 4.2rem; }
 .tile-name { font-size: clamp(11px, 0.72rem, 14px); }
+
+/* ---------- Face ID lock: covers everything until unlocked ---------- */
+.lock-screen { position: fixed; inset: 0; z-index: 2000; }

@@ -5,9 +5,11 @@ import { monShort, dayNum, today, nextOccurrence } from './dates.js';
 import { TYPES, typeOf, editEvent, headline } from './events.js';
 import { inviteLink } from './manage.js';
 import { cropFile } from './crop.js';
+import { lockAvailable, lockOn, enableLock, disableLock, lockLabel } from './lock.js';
 
 export function mount(root, app) {
   const st = app.state;
+  let canLock = false;
   const render = () => {
     const me = app.myMember();
     if (!me) return;
@@ -81,6 +83,14 @@ export function mount(root, app) {
         </div>
       </section>
 
+      ${canLock ? `<section class="block">
+        <div class="row-head"><h2>This phone</h2></div>
+        <div class="card list">
+          <label class="li" for="facelock"><span class="li-main"><span class="li-title">Lock with ${esc(lockLabel())}</span><span class="li-sub">Asks for ${esc(lockLabel())} when you open Our Circle on this device, and after a minute away</span></span>
+            <input type="checkbox" id="facelock" ${lockOn(st.uid) ? 'checked' : ''}></label>
+        </div>
+      </section>` : ''}
+
       <section class="block row-btns">
         <button class="btn ghost grow" data-act="signout">Sign out</button>
         ${S.isDemo ? '<button class="btn ghost" data-act="reset">Reset demo</button>' : ''}
@@ -125,6 +135,14 @@ export function mount(root, app) {
         toast('Photo updated.');
       } catch (er) { toast('Photo did not upload. Try again.'); }
     }
+    if (e.target.id === 'facelock') {
+      const box = e.target;
+      if (box.checked) {
+        try { await enableLock(st.uid, `${app.myMember()?.name || ''} · ${S.auth.email() || 'Our Circle'}`); toast(`${lockLabel()} lock is on for this device.`); }
+        catch (er) { box.checked = false; toast(`${lockLabel()} wasn't set up. Try again.`); }
+      } else if (!(await disableLock(st.uid))) { box.checked = true; toast(`Use ${lockLabel()} to turn the lock off.`); }
+      else toast(`${lockLabel()} lock is off.`);
+    }
     if (e.target.id === 'ci') {
       await S.set(`users/${st.uid}`, { prefs: { ...st.prefs, checkinDays: Number(e.target.value) } }, true);
       toast('Saved.');
@@ -134,6 +152,7 @@ export function mount(root, app) {
   root.addEventListener('change', onChange);
   const off = app.on(render);
   render();
+  lockAvailable().then((v) => { canLock = v; if (v) render(); });
   return { destroy: () => { off(); root.removeEventListener('click', onClick); root.removeEventListener('change', onChange); } };
 }
 
