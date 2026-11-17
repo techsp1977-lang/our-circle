@@ -37,7 +37,11 @@ export async function faceAvailable() {
 // Plain-words reason when the phone refuses.
 export function explain(e) {
   const name = e?.name || '', msg = e?.message || String(e || '');
-  if (e?.code && String(e.code).startsWith('functions/')) return msg;
+  const code = String(e?.code || '');
+  if (code === 'functions/internal' || code === 'functions/unavailable' || code === 'functions/deadline-exceeded') {
+    return `The ${faceLabel()} service didn't answer properly. Sign in with your password for now, and try again in a few minutes. (${code.replace('functions/', '')})`;
+  }
+  if (code.startsWith('functions/')) return msg;
   if (name === 'NotAllowedError') return `${faceLabel()} was cancelled or not allowed. On iPhone, check Settings → [your name] → iCloud → Passwords & Keychain is on, then try again. (NotAllowedError)`;
   if (name === 'InvalidStateError') return `${faceLabel()} sign-in is already set up on this phone. (InvalidStateError)`;
   if (name === 'SecurityError') return `This address isn't allowed to use ${faceLabel()}. (SecurityError)`;
