@@ -150,13 +150,20 @@ The old GitHub Pages address (`…github.io/our-circle`) still works. Once the n
 gcloud config set project our-circle-3da6a
 gcloud services enable cloudfunctions.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com run.googleapis.com iamcredentials.googleapis.com
 gcloud iam service-accounts create passkey-fn --display-name="Our Circle Face ID sign-in" || true
+echo "Waiting a minute for Google to finish creating the account..."; sleep 60
 gcloud projects add-iam-policy-binding our-circle-3da6a --member="serviceAccount:passkey-fn@our-circle-3da6a.iam.gserviceaccount.com" --role="roles/datastore.user" --condition=None
 gcloud iam service-accounts add-iam-policy-binding passkey-fn@our-circle-3da6a.iam.gserviceaccount.com --member="serviceAccount:passkey-fn@our-circle-3da6a.iam.gserviceaccount.com" --role="roles/iam.serviceAccountTokenCreator"
 rm -rf ~/our-circle && git clone https://github.com/techsp1977-lang/our-circle.git ~/our-circle && cd ~/our-circle/functions && npm ci && cd ..
 npx --yes firebase-tools@15.34.2 deploy --only functions --project our-circle-3da6a
 ```
 
-3. It's done when the last lines say **Deploy complete!**
+3. It's done when the last lines say **Deploy complete!** If it asks how many days to keep container images, press Enter (1 day).
+4. Check that both roles are in place. These two lines should print `roles/datastore.user` and `roles/iam.serviceAccountTokenCreator`. If either is missing, run its line from step 2 again.
+
+```bash
+gcloud projects get-iam-policy our-circle-3da6a --flatten="bindings[].members" --filter="bindings.members:passkey-fn@" --format="value(bindings.role)"
+gcloud iam service-accounts get-iam-policy passkey-fn@our-circle-3da6a.iam.gserviceaccount.com --format="value(bindings.role)"
+```
 
 **If it says you're not logged in**, run `npx --yes firebase-tools@15.34.2 login --no-localhost`, follow the link, paste the code back in, then run the last line again.
 
