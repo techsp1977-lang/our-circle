@@ -438,3 +438,8 @@ body[data-view="chat"] .demo-bar { display: none; }
 
 /* ---------- Face ID lock: covers everything until unlocked ---------- */
 .lock-screen { position: fixed; inset: 0; z-index: 2000; }
+
+/* ---------- Birthdays & big days: grouped by month ---------- */
+.month-head { font-size: var(--text-footnote); font-weight: var(--weight-semibold, 600); color: var(--label-secondary); text-transform: uppercase; letter-spacing: .04em; margin: var(--space-3) var(--space-2) var(--space-1); }
+.li.past .li-title, .li.past .li-when { color: var(--label-secondary); }
+.li.past .datechip { opacity: .6; }

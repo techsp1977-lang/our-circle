@@ -1,7 +1,7 @@
 // Shared dates & events: birthdays, anniversaries, graduations, trips, anything.
 import * as S from './store.js';
 import { sheet, toast, listJoin } from './ui.js';
-import { nextOccurrence, today, yearsSince } from './dates.js';
+import { nextOccurrence, today, yearsSince, occurrenceInMonth, monthsFrom } from './dates.js';
 
 export const TYPES = [
   { value: 'birthday', label: 'Birthday', icon: 'gift', yearly: true },
@@ -29,6 +29,18 @@ export function upcoming(app, { filter = () => true, days = 400 } = {}) {
     .map((ev) => ({ ev, occ: nextOccurrence(ev, t) }))
     .filter((x) => x.occ && (new Date(x.occ.start) - new Date(t)) / 864e5 <= days)
     .sort((a, b) => (a.occ.start < b.occ.start ? -1 : a.occ.start > b.occ.start ? 1 : 0));
+}
+
+// Everything in this month and the next (or `months` months), grouped by month, earliest first.
+// Days earlier this month are included so a missed birthday can still get a wish.
+export function byMonth(app, { filter = () => true, months = 2, from = today() } = {}) {
+  return monthsFrom(from, months).map((ym) => ({
+    ym,
+    items: app.state.events.filter(filter)
+      .map((ev) => ({ ev, occ: { start: occurrenceInMonth(ev, ym) } }))
+      .filter((x) => x.occ.start)
+      .sort((a, b) => (a.occ.start < b.occ.start ? -1 : a.occ.start > b.occ.start ? 1 : 0)),
+  }));
 }
 
 // Events happening today (start <= today <= end).
