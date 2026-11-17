@@ -335,8 +335,9 @@ export async function start() {
         <h1>Signed in, but the database isn't answering</h1>
         <p class="muted">You are signed in as ${esc(user.email || 'your account')}. The app could not reach its database${why.includes('permission') ? ' because the security rules are blocking it' : ''}.</p>
         <p class="error">In Firebase, open <b>Firestore Database</b>. If you see <b>Create database</b>, create it (nam5, production mode). Then open its <b>Rules</b> tab, paste in the contents of firestore.rules, and click <b>Publish</b>. (code: ${esc(why || 'unknown')})</p>
-        <button class="btn wide" onclick="location.reload()">Try again</button>
+        <button class="btn wide" id="retry">Try again</button>
         <button class="linkish" id="out2">Sign out</button></div></div>`;
+      document.getElementById('retry').onclick = () => location.reload();
       document.getElementById('out2').onclick = () => S.auth.signOut();
       return;
     }

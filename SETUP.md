@@ -87,6 +87,8 @@ Plan on about 45 minutes the first time. Do the parts in order.
 
 ## Part 4 — Put it on everyone's phone
 
+Use the app's own address, **https://our-circle-3da6a.web.app**.
+
 - **iPhone:** open the app address in **Safari** → tap **Share** → **Add to Home Screen** → **Add**.
 - **Android:** open it in **Chrome** → menu (⋮) → **Install app** (or **Add to Home screen**).
 
@@ -118,9 +120,28 @@ It then opens full-screen like a regular app.
 2. **Journal encryption** (see above).
 3. **Billing and a sign-up flow** for other families. The app already keeps each family completely separate, so other families can start their own circle with the same setup today.
 
+## Hosting on Firebase (the app's own address)
+
+The app's home is **https://our-circle-3da6a.web.app**. It has its own address so no other website can read its saved sign-in, and it sends strict security settings to the browser.
+
+The old GitHub Pages address (`…github.io/our-circle`) still works. Once the new address is live, it clears its saved data and sends people (and old invite links) to the new one.
+
+**One-time setup, so GitHub publishes to Firebase automatically** (10 minutes):
+1. Go to **console.cloud.google.com**, pick project `our-circle-3da6a`, then **IAM & Admin → Service Accounts → Create service account**.
+   - Name it `github-deploy`, then **Create and continue**.
+   - Role: **Firebase Hosting Admin**, then **Continue**, then **Done**.
+2. Click the new account, open the **Keys** tab, then **Add key → Create new key → JSON → Create**. A file downloads.
+3. On GitHub, open the `our-circle` repository → **Settings → Secrets and variables → Actions → New repository secret**.
+   - Name: `FIREBASE_SERVICE_ACCOUNT`
+   - Value: open the downloaded file in TextEdit or Notepad, copy all of it, and paste it in. Click **Add secret**.
+4. Delete the downloaded file and empty the trash. GitHub keeps the only copy it needs.
+5. Every change to `main` now publishes itself. To watch it, open the **Actions** tab and look for **Deploy to Firebase Hosting**. A green check means it's live.
+
+**If the deploy fails** with a permission message, add the role **Service Usage Consumer** to the same service account (IAM & Admin → IAM → pencil next to `github-deploy` → Add another role), then click **Re-run jobs**.
+
 ## Updating the app later
 
-Edit or replace files in the GitHub repository. Changes appear for everyone within a minute or two; on phones, closing and reopening the app picks them up.
+Edit or replace files in the GitHub repository. Changes are published to the app's address automatically (Actions tab) and appear within a minute or two; on phones, closing and reopening the app picks them up.
 
 **If `firestore.rules` or `storage.rules` change**, GitHub alone doesn't apply them. Open each one, copy all of it, and paste it into Firebase (**Firestore Database → Rules**, and **Storage → Rules**), then click **Publish**.
 

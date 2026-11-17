@@ -18,6 +18,7 @@
 <link rel="preconnect" href="https://firestore.googleapis.com">
 <link rel="preconnect" href="https://identitytoolkit.googleapis.com">
 <link rel="preconnect" href="https://securetoken.googleapis.com">
+<link rel="modulepreload" href="start.js">
 <link rel="modulepreload" href="app.js">
 <link rel="modulepreload" href="config.js">
 <link rel="modulepreload" href="store.js">
@@ -31,10 +32,9 @@
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js" crossorigin>
 <link rel="stylesheet" href="apple-tokens.css">
 <link rel="stylesheet" href="app.css">
-<!-- The journal's book typeface loads in the background; nothing waits for it -->
+<!-- The journal's book typeface is loaded in the background by start.js; nothing waits for it -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,500&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" media="print" onload="this.media='all'">
 </head>
 <body>
 <!-- Shown instantly while the app starts: the shape of the Family screen -->
@@ -45,9 +45,6 @@
   <div class="boot-chart"><i class="sk sk-mine"></i><div><i class="sk sk-hh"></i><i class="sk sk-hh"></i><i class="sk sk-hh"></i></div></div>
 </div>
 <noscript>This app needs JavaScript turned on.</noscript>
-<script type="module">
-  import { start } from './app.js';
-  start();
-</script>
+<script type="module" src="start.js"></script>
 </body>
 </html>
