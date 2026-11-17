@@ -1,6 +1,7 @@
 // Family settings for organizers: households, people, invite links.
 import * as S from './store.js';
-import { esc, icon, face, sheet, toast, confirmBox } from './ui.js';
+import { esc, icon, face, sheet, toast, confirmBox, names, HH_COLORS, hhColor } from './ui.js';
+import { pickAndCrop } from './crop.js';
 
 export async function inviteLink(app, memberId) {
   const st = app.state;
@@ -45,12 +46,12 @@ export function mount(root, app) {
         <p class="hint">A household is everyone you'd message together, like a couple and their kids. Each person still gets their own login and private journal.</p>
         ${st.households.map((h) => `
           <div class="card list mb">
-            <div class="li"><span class="li-main"><span class="li-title">${esc(h.name)}</span></span>
+            <div class="li"><span class="hh-swatch" style="--hh:${hhColor(h)}" aria-hidden="true"></span><span class="li-main"><span class="li-title">${names(h.name)}</span></span>
               <button class="icon-btn sm" data-act="edit-hh" data-id="${h.id}" aria-label="Edit ${esc(h.name)}">${icon('edit', 16)}</button></div>
             ${app.membersOf(h.id).map((m) => {
               const acc = accessRows.find((a) => a.memberId === m.id);
               const status = m.uid ? (acc?.role === 'admin' ? 'Organizer · has login' : 'Has login') : (m.managedBy?.length ? 'Managed by parents' : 'Not joined yet');
-              return `<div class="li">${face(m)}<span class="li-main"><span class="li-title">${esc(m.name)}</span><span class="li-sub">${status}</span></span>
+              return `<div class="li"><button class="face-btn" data-act="photo" data-id="${m.id}" aria-label="${m.photo ? 'Change' : 'Add'} ${esc(m.name)}'s photo">${face(m)}<span class="face-cam">${icon('camera', 12)}</span></button><span class="li-main"><span class="li-title">${esc(m.name)}</span><span class="li-sub">${status}</span></span>
                 ${!m.uid ? `<button class="btn sm" data-act="invite" data-id="${m.id}">${icon('link', 14)} Invite</button>` : ''}
                 <button class="icon-btn sm" data-act="edit-m" data-id="${m.id}" aria-label="Edit ${esc(m.name)}">${icon('edit', 16)}</button></div>`;
             }).join('')}
@@ -82,10 +83,11 @@ export function mount(root, app) {
         const r = await sheet({ title: 'Edit household', danger: app.membersOf(id).length ? null : 'Delete household', fields: [
           { name: 'name', label: 'Household name', value: h.name, required: true },
           { name: 'order', label: 'Position in the list (1 = top)', type: 'number', value: String((h.order ?? 0) + 1) },
+          { name: 'color', label: 'Color', type: 'select', value: h.color || HH_COLORS.find((c) => c.value === hhColor(h))?.key, options: HH_COLORS.map((c) => ({ value: c.key, label: c.label })) },
         ] });
         if (!r) return;
         if (r.__danger) { await S.del(app.path('households/' + id)); return; }
-        await S.update(app.path('households/' + id), { name: r.name, order: Math.max(0, Number(r.order || 1) - 1) });
+        await S.update(app.path('households/' + id), { name: r.name, order: Math.max(0, Number(r.order || 1) - 1), color: r.color });
         break;
       }
       case 'add-m': {
@@ -125,6 +127,15 @@ export function mount(root, app) {
         break;
       }
       case 'invite': await inviteLink(app, id); break;
+      case 'photo': {
+        const m = app.member(id);
+        const f = await pickAndCrop(`${m.name}'s photo`);
+        if (!f) break;
+        toast('Saving photo…');
+        try { const [u] = await app.uploadFiles([f]); await S.update(app.path('members/' + id), { photo: u.url }); toast('Photo saved.'); }
+        catch (er) { toast('The photo did not save. Try again.'); }
+        break;
+      }
     }
   };
 

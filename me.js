@@ -4,6 +4,7 @@ import { esc, icon, face, sheet, toast, listJoin } from './ui.js';
 import { monShort, dayNum, today, nextOccurrence } from './dates.js';
 import { TYPES, typeOf, editEvent, headline } from './events.js';
 import { inviteLink } from './manage.js';
+import { cropFile } from './crop.js';
 
 export function mount(root, app) {
   const st = app.state;
@@ -114,9 +115,12 @@ export function mount(root, app) {
   };
   const onChange = async (e) => {
     if (e.target.id === 'photo' && e.target.files[0]) {
-      toast('Uploading photo…');
       try {
-        const [m] = await app.uploadFiles([e.target.files[0]]);
+        const cropped = await cropFile(e.target.files[0], 'Your photo');
+        e.target.value = '';
+        if (!cropped) return;
+        toast('Saving photo…');
+        const [m] = await app.uploadFiles([cropped]);
         await S.update(app.path('members/' + st.me), { photo: m.url });
         toast('Photo updated.');
       } catch (er) { toast('Photo did not upload. Try again.'); }
@@ -150,7 +154,7 @@ async function addKid(app) {
   const managers = app.membersOf(me.householdId).filter((m) => m.uid).map((m) => m.id);
   const mid = S.newId();
   let photo = null;
-  if (r.photo?.length) { try { photo = (await app.uploadFiles(r.photo))[0].url; } catch (e) {} }
+  if (r.photo?.length) { const c = await cropFile(r.photo[0], `${r.name}'s photo`); if (c) { try { photo = (await app.uploadFiles([c]))[0].url; } catch (e) {} } }
   await S.set(app.path('members/' + mid), {
     name: r.name, householdId: me.householdId, order: Object.keys(st.members).length, photo,
     uid: null, claimed: false, managedBy: [...new Set([st.me, ...managers])], createdAt: Date.now(),
@@ -171,7 +175,7 @@ async function editKid(app, id) {
   if (!r) return;
   if (r.__danger) { await S.del(app.path('members/' + id)); toast('Profile removed.'); return; }
   const data = { name: r.name };
-  if (r.photo?.length) { try { data.photo = (await app.uploadFiles(r.photo))[0].url; } catch (e) {} }
+  if (r.photo?.length) { const c = await cropFile(r.photo[0], `${r.name}'s photo`); if (c) { try { data.photo = (await app.uploadFiles([c]))[0].url; } catch (e) {} } }
   await S.update(app.path('members/' + id), data);
   toast('Saved. Add or change their birthday under Birthdays & big days.');
 }

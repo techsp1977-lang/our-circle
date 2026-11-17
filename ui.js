@@ -117,3 +117,31 @@ export function listJoin(names) {
   if (names.length === 2) return names.join(' & ');
   return names.slice(0, -1).join(', ') + ' & ' + names[names.length - 1];
 }
+
+// Each household gets its own shade of green (picked in Family settings, or by position).
+// Every shade carries white text at 4.5:1 or better.
+export const HH_COLORS = [
+  { key: 'forest', label: 'Forest', value: '#2F5D4A' },
+  { key: 'emerald', label: 'Emerald', value: '#0B7A55' },
+  { key: 'sage', label: 'Sage', value: '#4F6F58' },
+  { key: 'moss', label: 'Moss', value: '#5B6B1F' },
+  { key: 'teal', label: 'Sea green', value: '#17675F' },
+  { key: 'pine', label: 'Pine', value: '#1F4F3F' },
+  { key: 'fern', label: 'Fern', value: '#3E7A2E' },
+  { key: 'olive', label: 'Olive', value: '#6A6A2A' },
+];
+export function hhColor(h, index = 0) {
+  const pick = HH_COLORS.find((c) => c.key === h?.color);
+  return (pick || HH_COLORS[(h?.order ?? index) % HH_COLORS.length]).value;
+}
+
+// Keep each name whole on one line: "Jamison, Sophi & Jack" can wrap between names, never inside one,
+// and "&" stays with the name after it.
+export function names(label) {
+  const parts = String(label ?? '').split(/(,\s*|\s+&\s+|\s+and\s+)/);
+  return parts.map((p) => {
+    if (/^,\s*$/.test(p)) return ', ';
+    if (/^\s+(&|and)\s+$/.test(p)) return p.trim() === '&' ? ' &amp;\u00a0' : ' and\u00a0';
+    return p ? `<span class="nw">${esc(p)}</span>` : '';
+  }).join('');
+}

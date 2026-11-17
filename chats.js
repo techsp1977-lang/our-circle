@@ -1,6 +1,6 @@
 // Chats list and a single conversation.
 import * as S from './store.js';
-import { esc, icon, face, toast, fmtSize, listJoin } from './ui.js';
+import { esc, icon, face, toast, fmtSize, listJoin, names } from './ui.js';
 import { ago } from './dates.js';
 
 export function chatTitle(app, c) {
@@ -28,7 +28,7 @@ function list(root, app) {
           const who = c.lastBy ? (c.lastBy === st.me ? 'You: ' : (app.member(c.lastBy)?.name || '') + ': ') : '';
           return `<a class="li chat-row" href="#/chat/${encodeURIComponent(c.id)}">
             ${lead}
-            <span class="li-main"><span class="li-title">${esc(chatTitle(app, c))}${c.kind === 'household' || c.kind === 'group' ? `<small class="muted"> · ${(c.memberIds || []).length} people</small>` : ''}</span>
+            <span class="li-main"><span class="li-title">${names(chatTitle(app, c))}${c.kind === 'household' || c.kind === 'group' ? `<small class="muted"> · ${(c.memberIds || []).length} people</small>` : ''}</span>
             <span class="li-sub ${unread ? 'strong' : ''}">${c.lastText ? esc(who + c.lastText) : 'No messages yet'}</span></span>
             <span class="li-when">${c.lastText ? ago(c.lastAt) : ''}${unread ? '<i class="unread" aria-label="unread"></i>' : ''}</span>
           </a>`;
