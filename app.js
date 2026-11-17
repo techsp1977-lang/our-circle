@@ -100,6 +100,7 @@ async function route() {
   const key = VIEWS[name] ? name : 'family';
   const mod = await VIEWS[key]();
   if (view?.destroy) view.destroy();
+  document.querySelectorAll('.sheet-wrap').forEach((s) => s.remove());
   const main = $('#main');
   main.innerHTML = '';
   main.scrollTop = 0;
@@ -116,6 +117,7 @@ function shell() {
     <div id="demo-bar"></div>
     <main id="main" tabindex="-1"></main>
     <nav class="tabbar" aria-label="Main">
+      <div class="side-brand">${icon('family', 22)}<span>${esc(state.circle?.name || APP_NAME)}</span></div>
       ${TABS.map(([k, label, ic]) => `<a href="#/${k}" data-tab="${k}">${icon(ic, 22)}<span>${label}</span><i class="dot" hidden></i></a>`).join('')}
     </nav>`;
   renderDemoBar();
@@ -194,13 +196,14 @@ function renderSignIn(msg = '') {
       <h1>${joining ? 'You have been invited' : 'Welcome'}</h1>
       <p class="muted">${joining ? 'Create an account or sign in to join your family.' : esc(APP_TAGLINE)}</p>
       ${msg ? `<p class="error" role="alert">${esc(msg)}</p>` : ''}
+      <button class="btn wide" id="google">Continue with Google</button>
+      <div class="or"><span>or use email</span></div>
       <form id="auth-form" class="stack">
         <label class="field" for="email"><span>Email</span><input id="email" type="email" autocomplete="email" required></label>
         <label class="field" for="pw"><span>Password</span><input id="pw" type="password" autocomplete="current-password" minlength="6" required></label>
-        <button class="btn wide" type="submit" name="mode" value="in">Sign in</button>
+        <button class="btn wide ghost" type="submit" name="mode" value="in">Sign in</button>
         <button class="btn wide ghost" type="submit" name="mode" value="up">Create account</button>
       </form>
-      <button class="btn wide ghost" id="google">Continue with Google</button>
       <button class="linkish" id="forgot">Forgot password?</button>
     </div></div>`;
   const form = $('#auth-form');
