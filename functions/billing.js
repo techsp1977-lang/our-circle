@@ -26,6 +26,8 @@ const EMULATOR = process.env.FUNCTIONS_EMULATOR === 'true';
 const APP = EMULATOR ? 'http://localhost:5055' : 'https://our-circle-3da6a.web.app';
 const BUCKET = EMULATOR ? 'demo-oc.appspot.com' : 'our-circle-3da6a.firebasestorage.app';
 const SA = EMULATOR ? undefined : 'billing-fn@our-circle-3da6a.iam.gserviceaccount.com';
+// Storage-counting functions must run in the same region as the photo bucket (us-east1).
+const STORAGE_REGION = 'us-east1';
 const DAY = 864e5, GB = 1024 ** 3;
 export const TRIAL_DAYS = 30;
 export const PLANS = {
@@ -193,13 +195,13 @@ export const stripeWebhook = onRequest({ region: 'us-central1', maxInstances: 3,
 
 // ───────── storage use per circle ─────────
 const circleOf = (name) => (String(name).match(/^circles\/([A-Za-z0-9_-]{1,64})\//) || [])[1];
-export const usageAdd = onObjectFinalized({ region: 'us-central1', bucket: BUCKET, serviceAccount: SA, maxInstances: 5 }, async (e) => {
+export const usageAdd = onObjectFinalized({ region: STORAGE_REGION, bucket: BUCKET, serviceAccount: SA, maxInstances: 5 }, async (e) => {
   const cid = circleOf(e.data.name);
   if (!cid) return;
   await db().doc(`circles/${cid}`).set({ usage: { bytes: FieldValue.increment(Number(e.data.size) || 0) } }, { merge: true });
   await recompute(cid);
 });
-export const usageRemove = onObjectDeleted({ region: 'us-central1', bucket: BUCKET, serviceAccount: SA, maxInstances: 5 }, async (e) => {
+export const usageRemove = onObjectDeleted({ region: STORAGE_REGION, bucket: BUCKET, serviceAccount: SA, maxInstances: 5 }, async (e) => {
   const cid = circleOf(e.data.name);
   if (!cid) return;
   await db().doc(`circles/${cid}`).set({ usage: { bytes: FieldValue.increment(-(Number(e.data.size) || 0)) } }, { merge: true });
