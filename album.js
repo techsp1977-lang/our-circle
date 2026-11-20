@@ -3,7 +3,7 @@
 import * as S from './store.js';
 import { esc, icon, sheet, toast, fmtSize, confirmBox, safeUrl, mediaKind } from './ui.js';
 import { shortDate, toISO } from './dates.js';
-import { pickMedia, uploadMedia, progressCard, MAX_PICK } from './photos.js';
+import { pickMedia, startBatch, progressCard, MAX_PICK } from './photos.js';
 
 export function mount(root, app, key, args) {
   return args[0] ? post(root, app, args[0]) : grid(root, app);
@@ -41,65 +41,87 @@ function grid(root, app) {
   return { destroy: () => { unsub(); off(); root.removeEventListener('click', onClick); } };
 }
 
-// After picking: previews of everything chosen (remove any), a title and caption. Resolves with
-// { files, title, caption } or null.
-function compose(files, { title = '', withTitle = true } = {}) {
+// After picking: the photos are already uploading. Previews of everything chosen (each with its own progress),
+// remove any or pick more, and add a title and caption while it works. Resolves with { title, caption } or null.
+function compose(batch, setListener, { title = '', withTitle = true } = {}) {
   return new Promise((resolve) => {
-    let list = files.slice(0, MAX_PICK).map((f) => ({ f, url: URL.createObjectURL(f) }));
+    const urls = new Map();
+    const urlOf = (j) => { if (!urls.has(j)) urls.set(j, URL.createObjectURL(j.file)); return urls.get(j); };
     const wrap = document.createElement('div');
     wrap.className = 'sheet-wrap compose-sheet';
-    const finish = (v) => { list.forEach((x) => URL.revokeObjectURL(x.url)); wrap.remove(); resolve(v); };
-    const paint = () => {
-      const keepTitle = wrap.querySelector('#ct')?.value ?? title, keepCap = wrap.querySelector('#cc')?.value ?? '';
-      wrap.innerHTML = `<form class="sheet" role="dialog" aria-modal="true" aria-label="Share with the family">
-        <div class="sheet-head"><h2>${list.length} ${list.length === 1 ? 'item' : 'items'} picked</h2><button type="button" class="icon-btn" data-x aria-label="Cancel">${icon('x')}</button></div>
-        <div class="pick-grid">${list.map((x, i) => `<span class="pick">
-            ${String(x.f.type).startsWith('video') ? `<video src="${x.url}#t=0.3" muted playsinline preload="metadata"></video><i class="play" aria-hidden="true">▶</i>` : `<img src="${x.url}" alt="">`}
-            <button type="button" class="pick-x" data-rm="${i}" aria-label="Remove ${esc(x.f.name || 'this one')}">${icon('x', 14)}</button></span>`).join('')}
-          <button type="button" class="pick add" data-more aria-label="Pick more">${icon('plus', 22)}</button></div>
-        ${files.length > MAX_PICK ? `<p class="hint">Only the first ${MAX_PICK} are included. Share the rest in another album or with Add more.</p>` : ''}
-        ${withTitle ? `<label class="field" for="ct"><span>What is it?</span><input id="ct" required placeholder="Leah's birthday party" value="${esc(keepTitle)}"></label>
-        <label class="field" for="cc"><span>Caption (optional)</span><textarea id="cc" rows="2">${esc(keepCap)}</textarea></label>` : ''}
-        <div class="sheet-actions"><span></span><button class="btn" type="submit" ${list.length ? '' : 'disabled'}>${withTitle ? 'Share' : 'Add'} ${list.length}</button></div>
-      </form>`;
+    wrap.innerHTML = `<form class="sheet" role="dialog" aria-modal="true" aria-label="Share with the family">
+      <div class="sheet-head"><h2 id="ch"></h2><button type="button" class="icon-btn" data-x aria-label="Cancel">${icon('x')}</button></div>
+      <p class="muted small" id="cs" aria-live="polite"></p>
+      <div class="pick-grid" id="pg"></div>
+      ${withTitle ? `<label class="field" for="ct"><span>What is it?</span><input id="ct" required placeholder="Leah's birthday party" value="${esc(title)}"></label>
+      <label class="field" for="cc"><span>Caption (optional)</span><textarea id="cc" rows="2"></textarea></label>` : ''}
+      <div class="sheet-actions"><span></span><button class="btn" type="submit" id="go"></button></div>
+    </form>`;
+    const grid = wrap.querySelector('#pg');
+    let shown = [];
+    const paintGrid = () => {
+      shown = batch.live();
+      grid.innerHTML = shown.map((j, i) => `<span class="pick" data-i="${i}">
+          ${String(j.file.type).startsWith('video') ? `<video src="${urlOf(j)}#t=0.3" muted playsinline preload="metadata"></video><i class="play" aria-hidden="true">▶</i>` : `<img src="${urlOf(j)}" alt="" decoding="async">`}
+          <span class="pick-bar" aria-hidden="true"><i></i></span><span class="pick-ok" aria-hidden="true">${icon('check', 14)}</span><span class="pick-bad" aria-hidden="true">!</span>
+          <button type="button" class="pick-x" data-rm="${i}" aria-label="Remove ${esc(j.file.name || 'this one')}">${icon('x', 14)}</button></span>`).join('')
+        + `<button type="button" class="pick add" data-more aria-label="Pick more">${icon('plus', 22)}</button>`;
     };
-    paint();
+    const update = () => {
+      if (batch.live().length !== shown.length) paintGrid();
+      grid.querySelectorAll('.pick[data-i]').forEach((el) => {
+        const j = shown[+el.dataset.i];
+        el.querySelector('.pick-bar i').style.width = Math.round(j.progress * 100) + '%';
+        el.classList.toggle('done', j.status === 'done');
+        el.classList.toggle('failed', j.status === 'failed');
+      });
+      const p = batch.progress();
+      wrap.querySelector('#ch').textContent = `${p.total} ${p.total === 1 ? 'item' : 'items'}`;
+      wrap.querySelector('#cs').textContent = !p.total ? 'Nothing picked.' : p.done >= p.total ? 'All uploaded. Add a title and share.' : `Uploading now (${p.done} of ${p.total} done). You can add a title while it works.`;
+      const go = wrap.querySelector('#go');
+      go.textContent = `${withTitle ? 'Share' : 'Add'} ${p.total}`;
+      go.disabled = !p.total;
+    };
+    const finish = (v) => { setListener(null); urls.forEach((u) => URL.revokeObjectURL(u)); wrap.remove(); resolve(v); };
+    paintGrid(); update();
+    setListener(update);
     document.body.appendChild(wrap);
     wrap.addEventListener('click', async (e) => {
-      if (e.target === wrap || e.target.closest('[data-x]')) return finish(null);
+      if (e.target === wrap || e.target.closest('[data-x]')) { batch.cancel(); return finish(null); }
       const rm = e.target.closest('[data-rm]');
-      if (rm) { const [x] = list.splice(+rm.dataset.rm, 1); URL.revokeObjectURL(x.url); return paint(); }
-      if (e.target.closest('[data-more]')) {
-        const more = await pickMedia();
-        list = list.concat(more.map((f) => ({ f, url: URL.createObjectURL(f) }))).slice(0, MAX_PICK);
-        paint();
-      }
+      if (rm) return batch.remove(shown[+rm.dataset.rm]);
+      if (e.target.closest('[data-more]')) { const more = await pickMedia(); if (more.length) batch.add(more); }
     });
     wrap.addEventListener('submit', (e) => {
       e.preventDefault();
-      if (!list.length) return;
-      finish({ files: list.map((x) => x.f), title: wrap.querySelector('#ct')?.value.trim() || title, caption: wrap.querySelector('#cc')?.value.trim() || '' });
+      if (!batch.live().length) return;
+      finish({ title: wrap.querySelector('#ct')?.value.trim() || title, caption: wrap.querySelector('#cc')?.value.trim() || '' });
     });
   });
 }
 
-async function upload(app, files) {
+// Pick, upload straight away while the person adds a title, then wait for anything still going.
+async function pickAndUpload(app, opts) {
+  const picked = await pickMedia();
+  if (!picked.length) return null;
+  let listener = null;
+  const batch = startBatch(app, picked, () => listener?.());
+  const r = await compose(batch, (fn) => { listener = fn; }, opts);
+  if (!r) return null;
   const card = progressCard();
-  try { return await uploadMedia(app, files, (p, n, t) => card.set(p, n, t)); }
-  finally { card.close(); }
+  const tick = () => { const p = batch.progress(); card.set(p.frac, p.done, p.total); };
+  listener = tick; tick();
+  try { return { ...r, ...(await batch.finished()) }; } finally { listener = null; card.close(); }
 }
 const failedNote = (failed) => (failed.length ? ` ${failed.length} didn't upload (${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '…' : ''}). Try those again with Add more.` : '');
 
 async function sharePhotos(app) {
-  const picked = await pickMedia();
-  if (!picked.length) return;
-  const r = await compose(picked);
+  const r = await pickAndUpload(app);
   if (!r) return;
-  const { media, failed } = await upload(app, r.files);
-  if (!media.length) { toast('Nothing uploaded. Check your connection and try again.', 6000); return; }
+  if (!r.media.length) { toast('Nothing uploaded. Check your connection and try again.', 6000); return; }
   try {
-    const id = await S.add(app.path('album'), { title: r.title, caption: r.caption, by: app.state.me, at: Date.now(), media });
-    toast(`Shared ${media.length} with the family.${failedNote(failed)}`, failed.length ? 9000 : 3000);
+    const id = await S.add(app.path('album'), { title: r.title, caption: r.caption, by: app.state.me, at: Date.now(), media: r.media });
+    toast(`Shared ${r.media.length} with the family.${failedNote(r.failed)}`, r.failed.length ? 9000 : 3000);
     app.go('#/album/' + encodeURIComponent(id));
   } catch (e) { console.error(e); toast('The album could not be saved. Check your connection and try again.'); }
 }
@@ -139,15 +161,12 @@ function post(root, app, id) {
       await S.update(app.path('album/' + id), { title: r.title, caption: r.caption });
     }
     if (b.dataset.act === 'add') {
-      const picked = await pickMedia();
-      if (!picked.length) return;
-      const r = await compose(picked, { title: p.title, withTitle: false });
+      const r = await pickAndUpload(app, { title: p.title, withTitle: false });
       if (!r) return;
-      const { media, failed } = await upload(app, r.files);
-      if (!media.length) { toast('Nothing uploaded. Check your connection and try again.', 6000); return; }
+      if (!r.media.length) { toast('Nothing uploaded. Check your connection and try again.', 6000); return; }
       try {
-        await S.update(app.path('album/' + id), { media: [...(p.media || []), ...media] });
-        toast(`Added ${media.length}.${failedNote(failed)}`, failed.length ? 9000 : 3000);
+        await S.update(app.path('album/' + id), { media: [...(p.media || []), ...r.media] });
+        toast(`Added ${r.media.length}.${failedNote(r.failed)}`, r.failed.length ? 9000 : 3000);
       } catch (er) { toast('The album could not be updated. Try again.'); }
     }
   };

@@ -53,7 +53,10 @@ export const batch = (ops) => impl.batch(ops);
 export const watchDoc = (path, cb) => impl.watchDoc(path, cb);
 export const watchColl = (path, q, cb) => impl.watchColl(path, q || {}, cb);
 export const getColl = (path, q) => impl.getColl(path, q || {});
-export const upload = (path, file, onProgress) => impl.upload(path, file, onProgress);
+// opts.by: marks the file as yours (so you can delete it if you change your mind); opts.onTask(task): lets
+// the caller cancel an upload that's still going.
+export const upload = (path, file, onProgress, opts = {}) => impl.upload(path, file, onProgress, opts);
+export const removeFile = (path) => impl.removeFile(path);
 export const demo = () => impl.demo || null;
 
 // ───────────────────────── Firebase ─────────────────────────
@@ -132,14 +135,16 @@ async function firebaseImpl() {
       (s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
       (e) => { console.warn(path, e); cb([]); }),
     getColl: async (path, q) => (await F.getDocs(buildQuery(path, q))).docs.map((d) => ({ id: d.id, ...d.data() })),
-    upload: (path, file, onProgress) => new Promise((resolve, reject) => {
+    upload: (path, file, onProgress, opts = {}) => new Promise((resolve, reject) => {
       // Uploads the original file untouched (no shrinking).
-      const task = S.uploadBytesResumable(S.ref(st, path), file, { contentType: file.type || undefined });
+      const task = S.uploadBytesResumable(S.ref(st, path), file, { contentType: file.type || undefined, ...(opts.by ? { customMetadata: { by: opts.by } } : {}) });
+      opts.onTask?.(task);
       task.on('state_changed',
         (s) => onProgress && onProgress(s.bytesTransferred / Math.max(1, s.totalBytes)),
         reject,
         async () => resolve(await S.getDownloadURL(task.snapshot.ref)));
     }),
+    removeFile: (path) => S.deleteObject(S.ref(st, path)),
   };
 }
 
@@ -232,6 +237,7 @@ async function demoImpl() {
     watchDoc: (path, cb) => { const w = { kind: 'doc', path, cb }; watchers.add(w); queueMicrotask(() => cb(api.getSync(path))); return () => watchers.delete(w); },
     watchColl: (path, q, cb) => { const w = { kind: 'coll', path, q, cb }; watchers.add(w); queueMicrotask(() => cb(collDocs(path, q))); return () => watchers.delete(w); },
     getColl: async (path, q) => collDocs(path, q),
+    removeFile: async () => {},
     upload: (path, file, onProgress) => new Promise((resolve) => {
       onProgress && onProgress(1);
       // Small images are kept as data URLs so they survive a reload; bigger files last for this visit.

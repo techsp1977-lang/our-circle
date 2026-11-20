@@ -1,7 +1,7 @@
 rules_version = '2';
 
 // Photos and videos are stored at full original quality under each circle.
-// Only people in that circle can view or upload them; only organizers can delete them.
+// Only people in that circle can view or upload them. Organizers can delete any of them; people can delete their own.
 // After changing this file, paste it into Firebase → Storage → Rules → Publish.
 service firebase.storage {
   match /b/{bucket}/o {
@@ -18,8 +18,11 @@ service firebase.storage {
     match /circles/{cid}/media/{file} {
       allow read: if isMember(cid);
       // Up to 2 GB per file so long phone videos fit.
-      allow create: if isMember(cid) && request.resource.size < 2 * 1024 * 1024 * 1024;
-      allow delete: if isAdmin(cid);
+      // A file marked as uploaded by someone must really be theirs.
+      allow create: if isMember(cid) && request.resource.size < 2 * 1024 * 1024 * 1024
+        && request.resource.metadata.get('by', request.auth.uid) == request.auth.uid;
+      // Organizers can delete any file; people can delete files they uploaded (e.g. photos they decided not to share).
+      allow delete: if isAdmin(cid) || (isMember(cid) && resource.metadata.get('by', '') == request.auth.uid);
       allow update: if false;
     }
   }

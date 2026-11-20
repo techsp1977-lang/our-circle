@@ -31,6 +31,7 @@ export function mount(root, app) {
     const hasBday = myDates.some((e) => e.type === 'birthday');
     const managed = Object.values(st.members).filter((m) => (m.managedBy || []).includes(st.me));
     const days = app.checkinDays();
+    const others = st.households.filter((h) => h.id !== me.householdId && app.membersOf(h.id).some((m) => m.uid));
 
     root.innerHTML = `
       <header class="top"><div><div class="eyebrow">${esc(st.circle?.name || '')}</div><h1 class="display">My page</h1></div>
@@ -87,7 +88,9 @@ export function mount(root, app) {
         <div class="card list">
           <div class="li"><span class="li-main"><span class="li-title">Check in with each household</span><span class="li-sub">A nudge on the Family tab when it's been this long</span></span>
             <label class="sr" for="ci">Check-in frequency</label>
-            <select id="ci" class="select-pill">${[[3, 'Every 3 days'], [7, 'Weekly'], [14, 'Every 2 weeks'], [30, 'Monthly']].map(([v, l]) => `<option value="${v}" ${v === days ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+            <select id="ci" class="select-pill">${[[3, 'Every 3 days'], [7, 'Weekly'], [14, 'Every 2 weeks'], [30, 'Monthly'], [0, 'Off']].map(([v, l]) => `<option value="${v}" ${v === days ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+          ${days && others.length ? `<div class="li col"><span class="li-title">Check-in nudges for</span>
+            ${others.map((h) => `<label class="check" for="nc_${esc(h.id)}"><input type="checkbox" id="nc_${esc(h.id)}" data-checkin="${esc(h.id)}" ${app.checkinMuted(h.id) ? '' : 'checked'}> <span>${esc(h.name)}</span></label>`).join('')}</div>` : ''}
           <div class="li"><span class="li-main"><span class="li-title">Daily journal reminder</span><span class="li-sub">Adds a repeating reminder to your phone's calendar</span></span>
             <label class="sr" for="jt">Reminder time</label><input id="jt" type="time" value="${esc(st.prefs.journalTime || '21:00')}" class="select-pill">
             <button class="btn sm" data-act="ics">Add</button></div>
@@ -190,9 +193,13 @@ export function mount(root, app) {
       await S.set(`users/${st.uid}`, { prefs: { ...st.prefs, inAppAlerts: e.target.value === 'on' } }, true);
       toast(e.target.value === 'on' ? 'In-app alerts are on.' : 'In-app alerts are off.');
     }
+    if (e.target.dataset.checkin) {
+      await app.setCheckinMuted(e.target.dataset.checkin, !e.target.checked);
+      toast(e.target.checked ? 'Check-in nudges on for that household.' : 'Check-in nudges off for that household.');
+    }
     if (e.target.id === 'ci') {
       await S.set(`users/${st.uid}`, { prefs: { ...st.prefs, checkinDays: Number(e.target.value) } }, true);
-      toast('Saved.');
+      toast(Number(e.target.value) ? 'Saved.' : 'Check-in nudges are off.');
     }
   };
   root.addEventListener('click', onClick);

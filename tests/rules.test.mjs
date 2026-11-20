@@ -135,6 +135,12 @@ test('app: a person saves and removes this phone for notifications; others can\'
   await assertSucceeds(updateDoc(doc(as('uB'), 'users/uB'), { prefs: { inAppAlerts: false } }));
 });
 
+test('attack: member deletes someone else\'s upload, or labels an upload as someone else\'s', async () => {
+  await env.withSecurityRulesDisabled((ctx) => uploadBytes(ref(ctx.storage(), 'circles/c1/media/bens.jpg'), new Uint8Array([1]), { contentType: 'image/jpeg', customMetadata: { by: 'uB' } }));
+  await assertFails(deleteObject(ref(st('uC'), 'circles/c1/media/bens.jpg')));
+  await assertFails(uploadBytes(ref(st('uC'), 'circles/c1/media/fake.jpg'), new Uint8Array([1]), { contentType: 'image/jpeg', customMetadata: { by: 'uB' } }));
+});
+
 // ───────── real app actions (must still work) ─────────
 test('app: start a new family circle (two batches, then users doc)', async () => {
   const db = as('uN');
@@ -239,6 +245,10 @@ test('app: storage: members upload and view originals; organizer can delete', as
   await assertSucceeds(uploadBytes(ref(st('uC'), 'circles/c1/media/abc_photo.jpg'), new Uint8Array([1]), { contentType: 'image/jpeg' }));
   await assertSucceeds(getBytes(ref(st('uB'), 'circles/c1/media/existing.jpg')));
   await assertSucceeds(deleteObject(ref(st('uA'), 'circles/c1/media/existing.jpg')));
+});
+test('app: a member uploads a photo marked as theirs and can delete it again', async () => {
+  await assertSucceeds(uploadBytes(ref(st('uC'), 'circles/c1/media/mine.jpg'), new Uint8Array([1]), { contentType: 'image/jpeg', customMetadata: { by: 'uC' } }));
+  await assertSucceeds(deleteObject(ref(st('uC'), 'circles/c1/media/mine.jpg')));
 });
 test('app: a member can leave (delete their own access)', async () => {
   await assertSucceeds(deleteDoc(doc(as('uC'), `${C}/access/uC`)));

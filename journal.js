@@ -41,6 +41,26 @@ function page(root, app, date) {
   const st = app.state;
   const base = `journals/${st.uid}`;
   let settings = null, entry = null, saveTimer = null, listening = null, stopGoals = null;
+  // Entries already fetched (date → saved entry, or null for a blank day), so moving between days is instant.
+  const loaded = new Map();
+  const fetchDay = (d) => {
+    if (loaded.has(d)) return Promise.resolve(loaded.get(d));
+    return S.getFast(`${base}/entries/${d}`).catch(() => null).then((e) => { if (!loaded.has(d)) loaded.set(d, e); return loaded.get(d); });
+  };
+  const entryFor = (d, e) => (e ? { ...e, sections: (e.sections || []).map((s) => ({ ...s, list: s.list ? [...s.list] : undefined })) } : { date: d, template: settings.defaultTemplate || 'daily', sections: sectionsFrom(settings.defaultTemplate || 'daily', settings).map(blank) });
+  const prefetch = () => { fetchDay(addDays(date, -1)); if (addDays(date, 1) <= today()) fetchDay(addDays(date, 1)); };
+  // Move to another day in place: save this one, show the next straight away, slide it in.
+  const showDay = async (d, from) => {
+    if (d === date || d > today()) return;
+    if (dirty && entry) doSave();
+    listening?.stop();
+    const e = loaded.has(d) ? loaded.get(d) : await fetchDay(d);
+    date = d; entry = entryFor(d, e);
+    enterFrom = from;
+    history.replaceState(null, '', `#/journal/${d}`);
+    render();
+    prefetch();
+  };
 
   const tplOptions = () => [
     ...Object.entries(TEMPLATES).map(([k, t]) => ({ value: k, label: t.label })),
@@ -51,10 +71,11 @@ function page(root, app, date) {
   const doSave = async () => {
     clearTimeout(saveTimer); dirty = false;
     collect();
-    const hasText = entry.sections.some((s) => (s.text || '').trim() || (s.list || []).some((x) => x.trim()));
+    const e = entry, day = date;
+    const hasText = e.sections.some((s) => (s.text || '').trim() || (s.list || []).some((x) => x.trim()));
     const label = root.querySelector('#saved');
     try {
-      if (hasText || entry.saved) { await S.set(`${base}/entries/${date}`, { ...entry, saved: true, updatedAt: Date.now() }); entry.saved = true; }
+      if (hasText || e.saved) { const data = { ...e, saved: true, updatedAt: Date.now() }; loaded.set(day, data); await S.set(`${base}/entries/${day}`, data); e.saved = true; }
       if (label) label.textContent = hasText ? 'Saved' : '';
     } catch (e) { if (label) label.textContent = 'Not saved. Check your connection.'; }
   };
@@ -135,6 +156,9 @@ function page(root, app, date) {
     const mic = e.target.closest('[data-mic]');
     if (mic) { dictate(Number(mic.dataset.mic), mic); return; }
     if (e.target.closest('[data-act="layout"]')) editLayout();
+    const day = e.target.closest('a[href^="#/journal/"]');
+    const m = day && day.getAttribute('href').match(/^#\/journal\/(\d{4}-\d{2}-\d{2})$/);
+    if (m) { e.preventDefault(); showDay(m[1], m[1] > date ? 'right' : 'left'); }
   };
 
   function dictate(i, btn) {
@@ -197,10 +221,7 @@ function page(root, app, date) {
   const turnTo = (dir) => {
     const next = addDays(date, dir);
     if (dir > 0 && next > today()) return false;
-    enterFrom = dir > 0 ? 'right' : 'left';
-    const p = paper();
-    if (p) { p.style.transition = 'transform 180ms ease-in, opacity 180ms ease-in'; p.style.transform = `translateX(${dir > 0 ? -100 : 100}%)`; p.style.opacity = '0'; }
-    setTimeout(() => app.go(`#/journal/${next}`), 170);
+    showDay(next, dir > 0 ? 'right' : 'left');
     return true;
   };
   const onTouchStart = (e) => {
@@ -237,11 +258,11 @@ function page(root, app, date) {
   root.addEventListener('change', onChange);
   root.addEventListener('click', onClick);
   root.innerHTML = '<p class="pad muted">Opening your journal…</p>';
-  Promise.all([S.get(base).catch(() => null), S.get(`${base}/entries/${date}`).catch(() => null)]).then(([s, e]) => {
+  Promise.all([S.getFast(base).catch(() => null), fetchDay(date)]).then(([s, e]) => {
     settings = s || {};
-    const tpl = settings.defaultTemplate || 'daily';
-    entry = e ? { ...e } : { date, template: tpl, sections: sectionsFrom(tpl, settings).map(blank) };
+    entry = entryFor(date, e);
     render();
+    prefetch();
   });
   return { destroy: () => { if (dirty && entry) doSave(); listening?.stop(); if (stopGoals) stopGoals();
     root.removeEventListener('touchstart', onTouchStart); root.removeEventListener('touchmove', onTouchMove); root.removeEventListener('touchend', onTouchEnd); root.removeEventListener('touchcancel', onTouchEnd); document.removeEventListener('keydown', onKey);

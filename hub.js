@@ -159,13 +159,14 @@ function familyWords(app, t, shift) {
   if (!c.motto && !saying && !g) {
     return app.isAdmin() ? `<section class="block"><button class="card empty-card" data-act="edit-words">${icon('star', 18)} Add a family motto, favorite sayings and a family goal. They'll show here for everyone.</button></section>` : '';
   }
-  return `<section class="block"><div class="card family-words">
+  return `<section class="block">
+    ${app.isAdmin() ? `<div class="fw-bar"><button class="linkish fw-edit" data-act="edit-words" aria-label="Edit motto, sayings and goal">${icon('edit', 13)} Edit</button></div>` : ''}
+    <div class="card family-words">
     ${c.motto ? `<p class="motto">${esc(c.motto)}</p>` : ''}
     ${saying ? `<button class="saying" data-act="next-saying" ${sayings.length > 1 ? 'aria-label="Family saying. Tap for another"' : 'tabindex="-1"'}><span class="eyebrow">Family saying</span><span class="saying-text">“${esc(saying)}”</span></button>` : ''}
     ${g ? `<div class="fgoal"><span class="eyebrow">Family goal${g.due ? ' · by ' + esc(shortDate(g.due)) + (g.due.slice(0, 4) !== t.slice(0, 4) ? ', ' + g.due.slice(0, 4) : '') : ''}</span>
       <span class="fgoal-title">${esc(g.title)}</span>
       ${p != null ? `<span class="progress" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p}"><i style="width:${p}%"></i></span><small class="muted">${p}% there</small>` : ''}</div>` : ''}
-    ${app.isAdmin() ? `<button class="linkish fw-edit" data-act="edit-words">${icon('edit', 14)} Edit</button>` : ''}
   </div></section>`;
 }
 
@@ -251,6 +252,7 @@ export function checkin(app, hid) {
   const st = app.state;
   const ids = app.membersOf(hid).filter((m) => m.uid).map((m) => m.id);
   if (!ids.length || hid === app.myMember()?.householdId) return null;
+  if (!app.checkinDays() || app.checkinMuted(hid)) return null; // nudges off, or off for this household
   let last = 0;
   for (const c of Object.values(st.chats)) {
     if (c.kind === 'everyone') continue;
@@ -282,12 +284,23 @@ function showAlerts(app) {
   const todays = happeningToday(app);
   const rows = [
     ...todays.map((ev) => `<li>${icon(typeOf(ev.type).icon, 18)}<span>Today: ${esc(headline(app, ev))}</span></li>`),
-    ...due.map(({ h, ci }) => `<li>${icon('bell', 18)}<span>Check in with ${names(h.name)}${ci.last ? ` · last messaged ${ci.days} days ago` : ' · not messaged yet'}</span></li>`),
+    ...due.map(({ h, ci }) => `<li data-hh="${esc(h.id)}">${icon('bell', 18)}<span>Check in with ${names(h.name)}${ci.last ? ` · last messaged ${ci.days} days ago` : ' · not messaged yet'}</span>
+      <button type="button" class="linkish mute" data-mute="${esc(h.id)}" aria-label="Turn off check-in nudges for ${esc(h.name)}">Turn off</button></li>`),
   ];
   sheet({
     title: 'Nudges',
     submit: 'Done',
-    body: rows.length ? `<ul class="alert-list">${rows.join('')}</ul>` : '<p class="muted">You are all caught up. Nice work staying in touch.</p>',
+    body: rows.length ? `<ul class="alert-list">${rows.join('')}</ul>${due.length ? '<p class="hint">Turn off stops check-in nudges for that household. Change them all on My page → My nudges.</p>' : ''}`
+      : '<p class="muted">You are all caught up. Nice work staying in touch.</p>',
     fields: [],
+  });
+  // The sheet is on screen now: wire up its Turn off buttons.
+  [...document.querySelectorAll('.sheet-wrap')].at(-1)?.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-mute]');
+    if (!b) return;
+    b.disabled = true;
+    await app.setCheckinMuted(b.dataset.mute, true);
+    b.closest('li').remove();
+    toast('Check-in nudges turned off for that household.');
   });
 }
