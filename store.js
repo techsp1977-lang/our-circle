@@ -73,6 +73,9 @@ async function firebaseImpl() {
     });
   } catch (e) { db = F.getFirestore(app); }
   const st = S.getStorage(app);
+  // Give up on a stuck upload after a minute (the default keeps retrying for 10 minutes), so one bad
+  // photo on a weak connection doesn't freeze the progress bar; the rest still upload.
+  st.maxUploadRetryTime = 60 * 1000;
 
   const withId = (snap) => (snap.exists() ? { id: snap.id, ...snap.data() } : null);
   const buildQuery = (path, q) => {
