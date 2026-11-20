@@ -5,11 +5,22 @@ import { monShort, dayNum, today, nextOccurrence } from './dates.js';
 import { TYPES, typeOf, editEvent, headline } from './events.js';
 import { inviteLink } from './manage.js';
 import { cropFile } from './crop.js';
+import { pushState, prepareKey, turnOnPush, turnOffPush } from './push.js';
 import { faceAvailable, faceLabel, hasPasskey, lockOn, enableLock, disableLock, setupPasskey, removePasskey, prepared, explain } from './lock.js';
+
+const PUSH_TEXT = {
+  on: 'On. New messages show on this phone even when the app is closed.',
+  off: 'Show new messages on this phone, even when the app is closed.',
+  blocked: "Blocked in your phone's settings. Turn on in Settings → Notifications → Our Circle.",
+  install: 'On iPhone, add Our Circle to your Home Screen first (Share → Add to Home Screen), then open it from there.',
+  unsupported: "This browser can't show notifications.",
+};
 
 export function mount(root, app) {
   const st = app.state;
   let canLock = false;
+  let myCircles = null;
+  let pushSt = null; // phone notifications on this device: on | off | blocked | install | unsupported
   let prep = null; // the server's half of "Set up Face ID", fetched before the tap
   const render = () => {
     const me = app.myMember();
@@ -38,6 +49,18 @@ export function mount(root, app) {
           <div class="muted">${esc(hh?.name || '')}</div>
           <button class="linkish" data-act="edit-name">${icon('edit', 14)} Edit name</button>
         </div>
+      </section>
+
+      <section class="block">
+        <div class="row-head"><h2>My circles</h2></div>
+        <div class="card list">
+          ${myCircles ? myCircles.map((c) => `<button class="li" data-act="circle" data-cid="${esc(c.id)}" ${c.current ? 'aria-current="true"' : ''}>
+            <span class="sq soft">${icon('family', 20)}</span>
+            <span class="li-main"><span class="li-title">${esc(c.name)}</span><span class="li-sub">${c.current ? "You're here" : 'Tap to switch'}</span></span>
+            ${c.current ? icon('check', 18) : icon('next', 18)}</button>`).join('') : '<p class="pad muted">Loading…</p>'}
+          <button class="li" data-act="new-circle"><span class="sq soft">${icon('plus')}</span><span class="li-main"><span class="li-title">Start a new circle</span><span class="li-sub">For example, your parents and siblings, or your in-laws</span></span></button>
+        </div>
+        <p class="hint">To join someone else's family circle, open the invite link they send you while signed in. You can switch circles any time by tapping the family name at the top of the Family tab.</p>
       </section>
 
       <section class="block">
@@ -84,6 +107,17 @@ export function mount(root, app) {
         </div>
       </section>
 
+      ${pushSt ? `<section class="block">
+        <div class="row-head"><h2>Notifications</h2></div>
+        <div class="card list">
+          <div class="li"><span class="li-main"><span class="li-title">New messages on this phone</span><span class="li-sub">${esc(PUSH_TEXT[pushSt])}</span></span>
+            ${pushSt === 'on' ? '<button class="btn sm ghost" data-act="push-off">Turn off</button>' : pushSt === 'off' ? '<button class="btn sm" data-act="push-on">Turn on</button>' : ''}</div>
+          <div class="li"><span class="li-main"><span class="li-title">Alerts inside the app</span><span class="li-sub">A banner when a message arrives while you're on another screen</span></span>
+            <label class="sr" for="inapp">Alerts inside the app</label>
+            <select id="inapp" class="select-pill"><option value="on" ${st.prefs.inAppAlerts === false ? '' : 'selected'}>On</option><option value="off" ${st.prefs.inAppAlerts === false ? 'selected' : ''}>Off</option></select></div>
+        </div>
+      </section>` : ''}
+
       ${canLock ? `<section class="block">
         <div class="row-head"><h2>This phone</h2></div>
         <div class="card list">
@@ -124,6 +158,8 @@ export function mount(root, app) {
       case 'ics': downloadICS(root.querySelector('#jt').value || '21:00', app); break;
       case 'signout': await S.auth.signOut(); break;
       // Each of these goes straight to Face ID from the tap (iPhone requires that).
+      case 'circle': if (b.dataset.cid !== st.cid) await app.switchCircle(b.dataset.cid); break;
+      case 'new-circle': app.newCircle(); break;
       case 'pk-setup': {
         try { await setupPasskey(st.uid, prep, `${me.name} · ${navigator.platform || 'phone'}`); toast(`${faceLabel()} sign-in is on for this phone.`); }
         catch (er) { console.warn(er); toast(explain(er), 9000); prep?.refresh(); }
@@ -132,6 +168,18 @@ export function mount(root, app) {
       case 'pk-remove': {
         if (!(await confirmBox(`Turn off ${faceLabel()} sign-in?`, `You'll sign in with your password on this phone. You can set it up again any time. To remove the saved passkey completely, delete it in the iPhone Passwords app too.`, 'Turn off'))) break;
         await removePasskey(st.uid); toast(`${faceLabel()} sign-in is off.`); render(); break;
+      }
+      case 'push-on': {
+        try { await turnOnPush(st.uid); toast('Notifications are on for this phone.'); }
+        catch (er) {
+          console.warn(er);
+          toast(window.Notification?.permission === 'denied' ? 'Notifications are blocked. Turn them on in your phone\'s Settings → Notifications → Our Circle.' : `Notifications didn't turn on: ${er?.message || er}`, 9000);
+        }
+        pushSt = await pushState(st.uid); render(); break;
+      }
+      case 'push-off': {
+        await turnOffPush(st.uid); toast('Notifications are off for this phone.');
+        pushSt = await pushState(st.uid); render(); break;
       }
       case 'lock-on': case 'lock-off': {
         try { await (b.dataset.act === 'lock-on' ? enableLock : disableLock)(st.uid); toast(b.dataset.act === 'lock-on' ? `The app now locks with ${faceLabel()}.` : 'The app lock is off.'); }
@@ -153,6 +201,10 @@ export function mount(root, app) {
         toast('Photo updated.');
       } catch (er) { toast('Photo did not upload. Try again.'); }
     }
+    if (e.target.id === 'inapp') {
+      await S.set(`users/${st.uid}`, { prefs: { ...st.prefs, inAppAlerts: e.target.value === 'on' } }, true);
+      toast(e.target.value === 'on' ? 'In-app alerts are on.' : 'In-app alerts are off.');
+    }
     if (e.target.id === 'ci') {
       await S.set(`users/${st.uid}`, { prefs: { ...st.prefs, checkinDays: Number(e.target.value) } }, true);
       toast('Saved.');
@@ -162,6 +214,8 @@ export function mount(root, app) {
   root.addEventListener('change', onChange);
   const off = app.on(render);
   render();
+  import('./circles.js').then((m) => m.listCircles(app)).then((r) => { myCircles = r; render(); }).catch(() => {});
+  pushState(st.uid).then((s) => { pushSt = s; if (s === 'off') prepareKey(); render(); });
   faceAvailable().then((v) => { canLock = v; if (v) { prep = prepared('registerOptions'); if (!hasPasskey(st.uid)) prep.get(); render(); } });
   return { destroy: () => { off(); root.removeEventListener('click', onClick); root.removeEventListener('change', onChange); } };
 }

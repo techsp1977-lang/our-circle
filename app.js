@@ -1,6 +1,7 @@
 import { APP_NAME, APP_TAGLINE, DEFAULT_CHECKIN_DAYS } from './config.js';
 import * as S from './store.js';
-import { esc, icon, toast, $, sheet } from './ui.js';
+import { esc, icon, toast, $, sheet, face } from './ui.js';
+import { setBadge } from './push.js';
 import { lockGate, webauthnSupported, prepared, passkeySignIn, explain, faceLabel } from './lock.js';
 
 // ───────────── shared app state ─────────────
@@ -50,6 +51,14 @@ const app = {
     const ids = app.membersOf(hid).map((m) => m.id);
     return app.chatFor(ids, { name: h?.name || '', kind: 'household', householdId: hid });
   },
+  // Go to another of your circles; it's remembered as the one to open next time.
+  async switchCircle(cid) {
+    await S.set(`users/${state.uid}`, { current: cid }, true).catch(() => {});
+    location.hash = '#/family';
+    if (!(await openCircle(cid))) toast('That circle is no longer available on this account.');
+  },
+  newCircle() { renderOnboarding('', { back: state.cid, myName: app.myMember()?.name || '' }); },
+  async openSwitcher() { (await import('./circles.js')).openSwitcher(app); },
   async ensureEveryone() {
     const p = app.path('chats/everyone');
     if (!(await S.get(p))) {
@@ -73,12 +82,14 @@ const app = {
   async send(chatId, text, files = [], onProgress) {
     const media = files.length ? await app.uploadFiles(files, onProgress) : [];
     const now = Date.now();
-    await S.add(app.path(`chats/${chatId}/messages`), { by: state.me, text: text || '', media, at: now });
+    const msgId = await S.add(app.path(`chats/${chatId}/messages`), { by: state.me, text: text || '', media, at: now });
     const preview = text || (media.length ? (media[0].type.startsWith('video') ? 'Sent a video' : `Sent ${media.length > 1 ? media.length + ' photos' : 'a photo'}`) : '');
     await S.update(app.path('chats/' + chatId), {
       lastText: preview.slice(0, 140), lastAt: now, lastBy: state.me,
       ['sent.' + state.me]: now, ['reads.' + state.me]: now,
     });
+    // Phone notifications for everyone else in the chat (the server checks it's really my new message).
+    S.callFn('notify', { action: 'send', cid: state.cid, chatId, msgId }).catch(() => {});
   },
 };
 window.__app = app; // handy for troubleshooting in the browser console
@@ -93,6 +104,7 @@ const VIEWS = {
   book: () => import('./journal.js'),
   me: () => import('./me.js'),
   manage: () => import('./manage.js'),
+  calendar: () => import('./calendar.js'),
 };
 const TABS = [
   ['family', 'Family', 'family'], ['chats', 'Chats', 'chat'], ['album', 'Album', 'album'],
@@ -110,7 +122,7 @@ async function route() {
   main.innerHTML = '';
   main.scrollTop = 0;
   window.scrollTo(0, 0);
-  const tabKey = { chat: 'chats', book: 'journal', manage: 'me' }[key] || key;
+  const tabKey = { chat: 'chats', book: 'journal', manage: 'me', calendar: 'family' }[key] || key;
   document.querySelectorAll('.tabbar a').forEach((a) => a.classList.toggle('on', a.dataset.tab === tabKey));
   document.body.dataset.view = key;
   view = mod.mount(main, app, key, args) || null;
@@ -122,16 +134,44 @@ function shell() {
     <div id="demo-bar"></div>
     <main id="main" tabindex="-1"></main>
     <nav class="tabbar" aria-label="Main">
-      <div class="side-brand">${icon('family', 22)}<span>${esc(state.circle?.name || APP_NAME)}</span></div>
+      <button class="side-brand" data-switch aria-label="Switch circles">${icon('family', 22)}<span>${esc(state.circle?.name || APP_NAME)}</span></button>
       ${TABS.map(([k, label, ic]) => `<a href="#/${k}" data-tab="${k}">${icon(ic, 22)}<span>${label}</span><i class="dot" hidden></i></a>`).join('')}
     </nav>`;
   renderDemoBar();
+  document.querySelector('.tabbar [data-switch]').onclick = () => app.openSwitcher();
 }
 
+const isUnread = (c) => c.lastBy && c.lastBy !== state.me && (c.lastAt || 0) > (c.reads?.[state.me] || 0);
 function updateBadges() {
-  const unread = app.chatList().some((c) => c.lastBy && c.lastBy !== state.me && (c.lastAt || 0) > (c.reads?.[state.me] || 0));
+  const unread = app.chatList().filter(isUnread).length;
   const dot = document.querySelector('.tabbar a[data-tab="chats"] .dot');
   if (dot) dot.hidden = !unread;
+  setBadge(unread);
+}
+
+// In-app alert: a banner when a message arrives while you're somewhere other than that chat.
+let lastSeen = {}, openedAt = 0;
+function noticeNew(rows) {
+  for (const c of rows) {
+    const prev = lastSeen[c.id] ?? openedAt;
+    lastSeen[c.id] = Math.max(prev, c.lastAt || 0);
+    if (!state.ready || !isUnread(c) || (c.lastAt || 0) <= prev) continue;
+    if (state.prefs.inAppAlerts === false || document.visibilityState !== 'visible') continue;
+    if (decodeURIComponent(location.hash) === '#/chat/' + c.id) continue;
+    banner(c);
+  }
+}
+function banner(c) {
+  document.querySelectorAll('.banner').forEach((b) => b.remove());
+  const who = app.member(c.lastBy);
+  const where = c.kind === 'everyone' ? 'Everyone' : c.kind === 'direct' ? '' : (c.name || '');
+  const b = document.createElement('button');
+  b.className = 'banner';
+  b.setAttribute('role', 'status');
+  b.innerHTML = `${face(who || { name: '?' }, 'sm')}<span class="banner-text"><b>${esc(who?.name || 'New message')}${where ? ' · ' + esc(where) : ''}</b><span>${esc(c.lastText || 'New message')}</span></span>`;
+  b.onclick = () => { b.remove(); app.go('#/chat/' + encodeURIComponent(c.id)); };
+  document.body.appendChild(b);
+  setTimeout(() => b.remove(), 6000);
 }
 
 function renderDemoBar() {
@@ -150,13 +190,17 @@ function renderDemoBar() {
 function stopSubs() { subs.forEach((u) => u && u()); subs = []; }
 
 async function openCircle(cid) {
+  // Check access first, so a circle that's gone leaves you where you are.
+  const access = await S.getFast(`circles/${cid}/access/${state.uid}`).catch(() => null);
+  if (!access) return false;
   stopSubs();
+  if (view?.destroy) view.destroy();
+  view = null;
   Object.assign(state, { cid, circle: null, members: {}, households: [], events: [], chats: {}, ready: false });
-  const access = await S.getFast(`circles/${cid}/access/${state.uid}`);
-  if (!access) { renderOnboarding('That family circle is not available on this account.'); return; }
   state.access = access;
   state.me = access.memberId;
 
+  lastSeen = {}; openedAt = Date.now();
   let first = { circle: false, members: false, households: false };
   const maybeReady = async () => {
     if (state.ready || !first.circle || !first.members || !first.households) return;
@@ -176,10 +220,11 @@ async function openCircle(cid) {
   subs.push(S.watchColl(`circles/${cid}/events`, {}, (rows) => { state.events = rows; changed(); }));
   subs.push(S.watchColl(`circles/${cid}/chats`, { where: [['memberIds', 'array-contains', state.me]] }, (rows) => {
     for (const k of Object.keys(state.chats)) if (k !== 'everyone') delete state.chats[k];
-    rows.forEach((r) => (state.chats[r.id] = r)); changed();
+    rows.forEach((r) => (state.chats[r.id] = r)); changed(); noticeNew(rows);
   }));
-  subs.push(S.watchDoc(`circles/${cid}/chats/everyone`, (c) => { if (c) state.chats.everyone = c; changed(); }));
+  subs.push(S.watchDoc(`circles/${cid}/chats/everyone`, (c) => { if (c) { state.chats.everyone = c; noticeNew([c]); } changed(); }));
   subs.push(S.watchDoc(`users/${state.uid}`, (u) => { state.prefs = u?.prefs || {}; changed(); }));
+  return true;
 }
 
 // ───────────── sign in & onboarding ─────────────
@@ -261,7 +306,8 @@ function friendlyAuth(err) {
   return msg('Sign-in did not work.');
 }
 
-async function renderOnboarding(msg = '') {
+// opts.back: the circle to go back to (when starting another circle); opts.myName: prefill your name.
+async function renderOnboarding(msg = '', opts = {}) {
   const join = pendingJoin();
   let invite = null, cid = null, code = null;
   if (join) {
@@ -277,18 +323,19 @@ async function renderOnboarding(msg = '') {
       <button class="btn wide" id="join">Join ${esc(invite.circleName || 'the family')}</button>
     ` : `
       ${join ? '<p class="error">That invite link has already been used or is no longer valid. Ask for a new one.</p>' : ''}
-      <h1>Start your family circle</h1>
-      <p class="muted">You'll be the organizer. You can add everyone else next.</p>
+      <h1>${opts.back ? 'Start a new circle' : 'Start your family circle'}</h1>
+      <p class="muted">You'll be the organizer. You can add everyone else next.${opts.back ? ' Your other circles stay as they are; switch between them from the family name at the top.' : ''}</p>
       <form id="start" class="stack">
         <label class="field" for="cn"><span>Family name</span><input id="cn" required placeholder="The Proctors"></label>
-        <label class="field" for="yn"><span>Your first name</span><input id="yn" required placeholder="Spencer"></label>
+        <label class="field" for="yn"><span>Your first name</span><input id="yn" required placeholder="Spencer" value="${esc(opts.myName || '')}"></label>
         <label class="field" for="hn"><span>Your household</span><input id="hn" required placeholder="Spencer & Jeana"><small>Everyone who lives with you, as you'd write it on a card.</small></label>
         <button class="btn wide" type="submit">Create our circle</button>
       </form>
       <p class="muted small">Got an invite link from family? Open that link instead.</p>`}
-    <button class="linkish" id="out">Sign out</button>
+    ${opts.back ? '<button class="btn ghost wide" id="back">Back</button>' : '<button class="linkish" id="out">Sign out</button>'}
   </div></div>`;
-  $('#out').onclick = () => S.auth.signOut();
+  $('#out')?.addEventListener('click', () => S.auth.signOut());
+  $('#back')?.addEventListener('click', () => openCircle(opts.back));
   $('#join')?.addEventListener('click', async () => {
     try {
       const uid = state.uid;
@@ -300,6 +347,7 @@ async function renderOnboarding(msg = '') {
       const u = (await S.get(`users/${uid}`)) || {};
       await S.set(`users/${uid}`, { circles: [...new Set([...(u.circles || []), cid])], current: cid, prefs: u.prefs || { checkinDays: DEFAULT_CHECKIN_DAYS } }, true);
       clearJoin();
+      location.hash = '#/family';
       await openCircle(cid);
     } catch (e) { console.error(e); renderOnboarding('Joining did not work. The link may have been used already.'); }
   });
@@ -316,7 +364,8 @@ async function renderOnboarding(msg = '') {
         { op: 'set', path: `circles/${cid2}/households/${hid}`, data: { name: $('#hn').value.trim(), order: 0 } },
         { op: 'set', path: `circles/${cid2}/members/${mid}`, data: { name: $('#yn').value.trim(), householdId: hid, order: 0, photo: null, uid, claimed: true, managedBy: [], createdAt: Date.now() } },
       ]);
-      await S.set(`users/${uid}`, { circles: [cid2], current: cid2, prefs: { checkinDays: DEFAULT_CHECKIN_DAYS } }, true);
+      const u = (await S.get(`users/${uid}`).catch(() => null)) || {};
+      await S.set(`users/${uid}`, { circles: [...new Set([...(u.circles || []), cid2])], current: cid2, prefs: u.prefs || { checkinDays: DEFAULT_CHECKIN_DAYS } }, true);
       clearJoin();
       await openCircle(cid2);
       location.hash = '#/manage';
@@ -332,6 +381,11 @@ export async function start() {
     return;
   }
   window.addEventListener('hashchange', route);
+  // Messages from the service worker: a notification was tapped (open that chat), or a push arrived.
+  navigator.serviceWorker?.addEventListener('message', (e) => {
+    if (e.data?.type === 'open' && /^#\/chat\/[\w%-]+$/.test(e.data.hash || '')) location.hash = e.data.hash;
+    if (e.data?.type === 'push') updateBadges();
+  });
   S.auth.onChange(async (user) => {
     stopSubs();
     if (view?.destroy) view.destroy();
@@ -363,9 +417,11 @@ export async function start() {
     const join = pendingJoin();
     if (join && !(u?.circles || []).includes(join.split('.')[0])) { renderOnboarding(); return; }
     if (join) clearJoin();
-    const cid = u?.current || u?.circles?.[0];
-    if (!cid) { renderOnboarding(); return; }
-    await openCircle(cid);
+    const order = [...new Set([u?.current, ...(u?.circles || [])].filter(Boolean))];
+    for (const cid of order) {
+      if (await openCircle(cid)) { if (cid !== u?.current) S.set(`users/${user.uid}`, { current: cid }, true).catch(() => {}); return; }
+    }
+    renderOnboarding(order.length ? 'That family circle is not available on this account.' : '');
   });
   if ('serviceWorker' in navigator && !S.isDemo) navigator.serviceWorker.register('./sw.js').catch(() => {});
 }

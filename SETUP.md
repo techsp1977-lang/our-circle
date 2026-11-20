@@ -178,6 +178,24 @@ The function runs as its own account, `passkey-fn`. That account can only use Fa
 
 After a change to `functions/`, run the last two lines of step 2 again. Changes to the app itself still publish automatically.
 
+## Message notifications (one-time server setup)
+
+Phone notifications for new messages use a second server function, `notify`, which runs as its own account, `notify-fn`. That account can only use the database. In Cloud Shell (**https://console.cloud.google.com/?project=our-circle-3da6a&cloudshell=true**), paste:
+
+```bash
+gcloud config set project our-circle-3da6a
+gcloud iam service-accounts create notify-fn --display-name="Our Circle message notifications" || true
+echo "Waiting a minute for Google to finish creating the account..."; sleep 60
+gcloud projects add-iam-policy-binding our-circle-3da6a --member="serviceAccount:notify-fn@our-circle-3da6a.iam.gserviceaccount.com" --role="roles/datastore.user" --condition=None --format=none
+gcloud projects get-iam-policy our-circle-3da6a --flatten="bindings[].members" --filter="bindings.members:notify-fn@" --format="value(bindings.role)"
+rm -rf ~/our-circle && git clone https://github.com/techsp1977-lang/our-circle.git ~/our-circle && cd ~/our-circle/functions && npm ci && cd ..
+npx --yes firebase-tools@15.34.2 deploy --only functions --project our-circle-3da6a
+```
+
+The fifth line should print `roles/datastore.user`. It's done when it says **Deploy complete!**
+
+Then each person turns notifications on for each phone: **My page → Notifications → New messages on this phone → Turn on**. On iPhone this only works in the Home Screen app (iOS 16.4 or later). Signing out of a phone stops its notifications. **Alerts inside the app** turns the in-app banner on or off.
+
 ## Updating the app later
 
 Edit or replace files in the GitHub repository. Changes are published to the app's address automatically (Actions tab) and appear within a minute or two; on phones, closing and reopening the app picks them up.

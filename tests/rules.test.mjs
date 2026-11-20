@@ -124,6 +124,17 @@ test('attack: app users can\'t read or plant Face ID passkeys or challenges', as
   await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'passkeys/cred1')));
 });
 
+test('attack: app users can\'t read the notification signing keys', async () => {
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), '_server/vapid'), { publicKey: 'p', privateKey: 'secret' }));
+  await assertFails(getDoc(doc(as('uA'), '_server/vapid')));
+  await assertFails(setDoc(doc(as('uC'), '_server/vapid'), { publicKey: 'evil', privateKey: 'evil' }));
+});
+test('app: a person saves and removes this phone for notifications; others can\'t see it', async () => {
+  await assertSucceeds(setDoc(doc(as('uB'), 'users/uB'), { pushSubs: { abc: { endpoint: 'https://push.example/x', keys: { p256dh: 'k', auth: 'a' } } } }, { merge: true }));
+  await assertFails(getDoc(doc(as('uA'), 'users/uB')));
+  await assertSucceeds(updateDoc(doc(as('uB'), 'users/uB'), { prefs: { inAppAlerts: false } }));
+});
+
 // ───────── real app actions (must still work) ─────────
 test('app: start a new family circle (two batches, then users doc)', async () => {
   const db = as('uN');

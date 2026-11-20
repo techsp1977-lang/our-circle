@@ -25,6 +25,8 @@ service cloud.firestore {
     // Face ID passkeys and their one-time challenges: only the passkey server function touches these.
     match /passkeys/{id} { allow read, write: if false; }
     match /passkeyChallenges/{id} { allow read, write: if false; }
+    // Server-only settings (the notification signing keys).
+    match /_server/{rest=**} { allow read, write: if false; }
 
     // Personal settings (circle list, check-in preferences). Owner only.
     match /users/{uid} {
