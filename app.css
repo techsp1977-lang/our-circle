@@ -456,7 +456,7 @@ body[data-view="chat"] .demo-bar { display: none; }
 .circle-switch { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font: inherit; color: inherit; border-radius: 8px; }
 .circle-switch .chev svg { transform: rotate(90deg); color: var(--label-secondary); }
 .circle-switch:focus-visible { outline: 2px solid var(--tint); outline-offset: 4px; }
-button.side-brand { all: unset; cursor: pointer; display: flex; align-items: center; gap: var(--space-2); }
+button.side-brand { background: none; border: 0; font: inherit; cursor: pointer; text-align: left; } /* shown only in the computer sidebar */
 .circle-list .li[aria-current="true"] .li-title { color: var(--tint); }
 
 /* ---------- Family motto, saying, goal ---------- */
@@ -470,31 +470,16 @@ button.side-brand { all: unset; cursor: pointer; display: flex; align-items: cen
 .progress i { display: block; height: 100%; background: var(--tint); border-radius: 4px; }
 .family-words .fw-edit { position: absolute; top: var(--space-3); right: var(--space-4); }
 
-/* ---------- Calendar ---------- */
-.cal-mini { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
-.cal-mini-head { font-weight: var(--weight-semibold, 600); }
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
-.cal-wd { font-size: 11px; font-weight: 600; color: var(--label-secondary); padding: 4px 0; }
-.cal-day { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; min-height: 48px; padding: 6px 0 4px; border-radius: 10px; }
-.cal-grid.compact .cal-day { min-height: 36px; padding: 4px 0 2px; }
-.cal-day .n { width: 28px; height: 28px; line-height: 28px; border-radius: 14px; font-size: 15px; font-variant-numeric: tabular-nums; }
-.cal-day.today .n { background: var(--tint); color: #fff; font-weight: 600; }
-.cal-day.sel { background: var(--fill, rgb(120 120 128 / .16)); }
-.cal-day:focus-visible { outline: 2px solid var(--tint); outline-offset: -2px; }
-.cal-day .dots { display: flex; gap: 3px; height: 6px; }
-.cal-day .dots i, .cal-legend i { width: 6px; height: 6px; border-radius: 3px; display: inline-block; }
-i.big, .sq.big { background: var(--gold, #C8962C); }
-i.cal { background: var(--tint); }
-.sq.soft.big { background: color-mix(in srgb, var(--gold, #C8962C) 18%, transparent); color: var(--gold, #A57716); }
-.sq.soft.cal { background: color-mix(in srgb, var(--tint) 14%, transparent); color: var(--tint); }
-.cal-legend { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; font-size: var(--text-footnote, 13px); color: var(--label-secondary); margin-top: var(--space-2); }
-.cal-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.cal-legend .linkish { margin-left: auto; }
-.cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-2); }
-.cal-nav h2 { margin: 0; }
-.cal-big { padding: var(--space-3); }
-.pull-up { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: var(--space-1); padding: var(--space-2); border-top: 0.5px solid var(--separator); color: var(--tint); font-weight: 600; text-decoration: none; }
-.seg { display: inline-flex; padding: 2px; border-radius: 9px; background: var(--fill, rgb(120 120 128 / .16)); }
-.seg button { all: unset; cursor: pointer; padding: 6px 12px; border-radius: 7px; font-size: var(--text-footnote, 13px); font-weight: 600; }
-.seg button.on { background: var(--card-bg); box-shadow: 0 1px 3px rgb(0 0 0 / .12); }
-.month-head.as-link { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-footnote); font-weight: 600; color: var(--label-secondary); text-transform: uppercase; letter-spacing: .04em; margin: var(--space-3) var(--space-2) var(--space-1); }
+/* ---------- Calendar tab: the year as a list ---------- */
+.year-month .month-head { position: sticky; top: env(safe-area-inset-top); z-index: 2; background: var(--bg-grouped); margin: 0; padding: var(--space-3) var(--space-2) var(--space-1); }
+.year-empty { margin: 0 var(--space-2); color: var(--label-tertiary, var(--label-secondary)); font-size: var(--text-footnote, 13px); }
+
+/* ---------- Journal: swipe between days ---------- */
+.paper { touch-action: pan-y; will-change: transform; }
+.paper.enter-right { animation: page-in-right 240ms cubic-bezier(.2,.8,.3,1) both; }
+.paper.enter-left { animation: page-in-left 240ms cubic-bezier(.2,.8,.3,1) both; }
+@keyframes page-in-right { from { transform: translateX(40%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes page-in-left { from { transform: translateX(-40%); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (pointer: fine) { .swipe-hint { display: none; } }
+@media (prefers-reduced-motion: reduce) { .paper.enter-right, .paper.enter-left { animation: none; } }
+body[data-view="journal"] #main { overflow-x: clip; }

@@ -3,7 +3,6 @@ import * as S from './store.js';
 import { esc, icon, face, toast, sheet, listJoin, names, hhColor } from './ui.js';
 import { pickAndCrop } from './crop.js';
 import { today, monShort, dayNum, whenText, rangeText, diffDays, weekday, shortDate, monthName, agoText, dayOfYear } from './dates.js';
-import { gridHTML } from './calendar.js';
 import { upcoming, happeningToday, headline, editEvent, canEdit, isCalendarType, typeOf, byMonth } from './events.js';
 
 
@@ -106,21 +105,10 @@ export function mount(root, app) {
           <span class="li-main"><span class="li-title">Today's journal page</span><span class="li-sub">${weekday(t)}, ${shortDate(t)} · ${journalDone ? 'written' : 'not written yet'}</span></span>
           ${icon('next', 18)}
         </a>
-      </section>
-
-      <section class="block cal-section">
-        <div class="row-head"><h2>Calendar</h2><a class="linkish" href="#/calendar/year">Whole year</a></div>
-        <div class="card cal-mini">
-          <div class="cal-mini-head">${esc(monthName(t.slice(0, 7)))} ${t.slice(0, 4)}</div>
-          ${gridHTML(app, t.slice(0, 7), { compact: true })}
-          <a class="pull-up" href="#/calendar">${icon('cal', 16)} Open the full calendar</a>
-        </div>
       </section>`;
   };
 
   const onClick = async (e) => {
-    const day = e.target.closest('.cal-mini [data-day]');
-    if (day) return app.go('#/calendar/' + day.dataset.day);
     const b = e.target.closest('[data-act]');
     if (!b) return;
     const id = b.dataset.id;

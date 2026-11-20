@@ -108,7 +108,7 @@ const VIEWS = {
 };
 const TABS = [
   ['family', 'Family', 'family'], ['chats', 'Chats', 'chat'], ['album', 'Album', 'album'],
-  ['journal', 'Journal', 'book'], ['me', 'My page', 'user'],
+  ['journal', 'Journal', 'book'], ['me', 'My page', 'user'], ['calendar', 'Calendar', 'cal'],
 ];
 
 async function route() {
@@ -122,7 +122,7 @@ async function route() {
   main.innerHTML = '';
   main.scrollTop = 0;
   window.scrollTo(0, 0);
-  const tabKey = { chat: 'chats', book: 'journal', manage: 'me', calendar: 'family' }[key] || key;
+  const tabKey = { chat: 'chats', book: 'journal', manage: 'me' }[key] || key;
   document.querySelectorAll('.tabbar a').forEach((a) => a.classList.toggle('on', a.dataset.tab === tabKey));
   document.body.dataset.view = key;
   view = mod.mount(main, app, key, args) || null;
