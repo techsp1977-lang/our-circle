@@ -19,6 +19,7 @@ const PUSH_TEXT = {
 export function mount(root, app) {
   const st = app.state;
   let canLock = false;
+  let myCircles = null;
   let pushSt = null; // phone notifications on this device: on | off | blocked | install | unsupported
   let prep = null; // the server's half of "Set up Face ID", fetched before the tap
   const render = () => {
@@ -48,6 +49,18 @@ export function mount(root, app) {
           <div class="muted">${esc(hh?.name || '')}</div>
           <button class="linkish" data-act="edit-name">${icon('edit', 14)} Edit name</button>
         </div>
+      </section>
+
+      <section class="block">
+        <div class="row-head"><h2>My circles</h2></div>
+        <div class="card list">
+          ${myCircles ? myCircles.map((c) => `<button class="li" data-act="circle" data-cid="${esc(c.id)}" ${c.current ? 'aria-current="true"' : ''}>
+            <span class="sq soft">${icon('family', 20)}</span>
+            <span class="li-main"><span class="li-title">${esc(c.name)}</span><span class="li-sub">${c.current ? "You're here" : 'Tap to switch'}</span></span>
+            ${c.current ? icon('check', 18) : icon('next', 18)}</button>`).join('') : '<p class="pad muted">Loading…</p>'}
+          <button class="li" data-act="new-circle"><span class="sq soft">${icon('plus')}</span><span class="li-main"><span class="li-title">Start a new circle</span><span class="li-sub">For example, your parents and siblings, or your in-laws</span></span></button>
+        </div>
+        <p class="hint">To join someone else's family circle, open the invite link they send you while signed in. You can switch circles any time by tapping the family name at the top of the Family tab.</p>
       </section>
 
       <section class="block">
@@ -145,6 +158,8 @@ export function mount(root, app) {
       case 'ics': downloadICS(root.querySelector('#jt').value || '21:00', app); break;
       case 'signout': await S.auth.signOut(); break;
       // Each of these goes straight to Face ID from the tap (iPhone requires that).
+      case 'circle': if (b.dataset.cid !== st.cid) await app.switchCircle(b.dataset.cid); break;
+      case 'new-circle': app.newCircle(); break;
       case 'pk-setup': {
         try { await setupPasskey(st.uid, prep, `${me.name} · ${navigator.platform || 'phone'}`); toast(`${faceLabel()} sign-in is on for this phone.`); }
         catch (er) { console.warn(er); toast(explain(er), 9000); prep?.refresh(); }
@@ -199,6 +214,7 @@ export function mount(root, app) {
   root.addEventListener('change', onChange);
   const off = app.on(render);
   render();
+  import('./circles.js').then((m) => m.listCircles(app)).then((r) => { myCircles = r; render(); }).catch(() => {});
   pushState(st.uid).then((s) => { pushSt = s; if (s === 'off') prepareKey(); render(); });
   faceAvailable().then((v) => { canLock = v; if (v) { prep = prepared('registerOptions'); if (!hasPasskey(st.uid)) prep.get(); render(); } });
   return { destroy: () => { off(); root.removeEventListener('click', onClick); root.removeEventListener('change', onChange); } };

@@ -2,13 +2,15 @@
 import * as S from './store.js';
 import { esc, icon, face, toast, sheet, listJoin, names, hhColor } from './ui.js';
 import { pickAndCrop } from './crop.js';
-import { today, monShort, dayNum, whenText, rangeText, diffDays, weekday, shortDate, monthName, agoText } from './dates.js';
+import { today, monShort, dayNum, whenText, rangeText, diffDays, weekday, shortDate, monthName, agoText, dayOfYear } from './dates.js';
+import { gridHTML } from './calendar.js';
 import { upcoming, happeningToday, headline, editEvent, canEdit, isCalendarType, typeOf, byMonth } from './events.js';
 
 
 export function mount(root, app) {
   const st = app.state;
   let journalDone = false;
+  let sayingShift = 0; // tap the saying to see the next one
 
   const render = () => {
     const me = app.myMember();
@@ -30,12 +32,14 @@ export function mount(root, app) {
 
     root.innerHTML = `
       <header class="top">
-        <div><div class="eyebrow">${esc(me.name)}'s circle</div><h1 class="display">${esc(st.circle?.name || 'Our family')}</h1></div>
+        <div><div class="eyebrow">${esc(me.name)}'s circle</div>
+          <h1 class="display"><button class="circle-switch" data-act="switch" aria-label="${esc(st.circle?.name || 'Our family')}. Switch circles">${esc(st.circle?.name || 'Our family')}<span class="chev" aria-hidden="true">${icon('next', 18)}</span></button></h1></div>
         <div class="top-btns">
           <button class="icon-btn bell" data-act="alerts" aria-label="${alerts ? alerts + ' nudge' + (alerts === 1 ? '' : 's') : 'No nudges right now'}">${icon('bell')}${alerts ? `<span class="badge">${alerts}</span>` : ''}</button>
           ${app.isAdmin() ? `<a class="icon-btn" href="#/manage" aria-label="Family settings">${icon('gear')}</a>` : ''}
         </div>
       </header>
+      ${familyWords(app, t, sayingShift)}
       ${due.length ? `<section class="block"><div class="card checkin-strip">
         <div class="cs-head">${icon('bell', 18)}<b>Check in this week</b><small>${due.length} household${due.length === 1 ? '' : 's'}</small></div>
         <div class="cs-chips">${due.map((h) => { const ppl = app.membersOf(h.id); const single = ppl.length === 1;
@@ -102,15 +106,29 @@ export function mount(root, app) {
           <span class="li-main"><span class="li-title">Today's journal page</span><span class="li-sub">${weekday(t)}, ${shortDate(t)} · ${journalDone ? 'written' : 'not written yet'}</span></span>
           ${icon('next', 18)}
         </a>
+      </section>
+
+      <section class="block cal-section">
+        <div class="row-head"><h2>Calendar</h2><a class="linkish" href="#/calendar/year">Whole year</a></div>
+        <div class="card cal-mini">
+          <div class="cal-mini-head">${esc(monthName(t.slice(0, 7)))} ${t.slice(0, 4)}</div>
+          ${gridHTML(app, t.slice(0, 7), { compact: true })}
+          <a class="pull-up" href="#/calendar">${icon('cal', 16)} Open the full calendar</a>
+        </div>
       </section>`;
   };
 
   const onClick = async (e) => {
+    const day = e.target.closest('.cal-mini [data-day]');
+    if (day) return app.go('#/calendar/' + day.dataset.day);
     const b = e.target.closest('[data-act]');
     if (!b) return;
     const id = b.dataset.id;
     switch (b.dataset.act) {
       case 'add-event': editEvent(app, null, { type: 'trip' }); break;
+      case 'switch': app.openSwitcher(); break;
+      case 'edit-words': editWords(app); break;
+      case 'next-saying': sayingShift++; render(); break;
       case 'edit-event': { const ev = st.events.find((x) => x.id === id); if (ev) editEvent(app, ev); break; }
       case 'everyone': app.go('#/chat/everyone'); break;
       case 'me': app.go('#/me'); break;
@@ -141,6 +159,51 @@ export function mount(root, app) {
   render();
   S.get(`journals/${st.uid}/entries/${today()}`).then((d) => { journalDone = !!d; render(); }).catch(() => {});
   return { destroy: () => { off(); root.removeEventListener('click', onClick); } };
+}
+
+// The family's motto, a saying (a different one each day) and the family goal, at the top of the Family tab.
+function familyWords(app, t, shift) {
+  const c = app.state.circle || {};
+  const sayings = (c.sayings || []).filter(Boolean);
+  const saying = sayings.length ? sayings[(dayOfYear(t) + shift) % sayings.length] : '';
+  const g = c.goal?.title ? c.goal : null;
+  const p = g && Number.isFinite(+g.progress) && g.progress !== '' && g.progress != null ? Math.max(0, Math.min(100, Math.round(+g.progress))) : null;
+  if (!c.motto && !saying && !g) {
+    return app.isAdmin() ? `<section class="block"><button class="card empty-card" data-act="edit-words">${icon('star', 18)} Add a family motto, favorite sayings and a family goal. They'll show here for everyone.</button></section>` : '';
+  }
+  return `<section class="block"><div class="card family-words">
+    ${c.motto ? `<p class="motto">${esc(c.motto)}</p>` : ''}
+    ${saying ? `<button class="saying" data-act="next-saying" ${sayings.length > 1 ? 'aria-label="Family saying. Tap for another"' : 'tabindex="-1"'}><span class="eyebrow">Family saying</span><span class="saying-text">“${esc(saying)}”</span></button>` : ''}
+    ${g ? `<div class="fgoal"><span class="eyebrow">Family goal${g.due ? ' · by ' + esc(shortDate(g.due)) + (g.due.slice(0, 4) !== t.slice(0, 4) ? ', ' + g.due.slice(0, 4) : '') : ''}</span>
+      <span class="fgoal-title">${esc(g.title)}</span>
+      ${p != null ? `<span class="progress" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p}"><i style="width:${p}%"></i></span><small class="muted">${p}% there</small>` : ''}</div>` : ''}
+    ${app.isAdmin() ? `<button class="linkish fw-edit" data-act="edit-words">${icon('edit', 14)} Edit</button>` : ''}
+  </div></section>`;
+}
+
+async function editWords(app) {
+  const c = app.state.circle || {};
+  const r = await sheet({
+    title: 'Motto, sayings & goal',
+    intro: 'Shown at the top of the Family tab for everyone in this circle.',
+    fields: [
+      { name: 'motto', label: 'Family motto', value: c.motto || '', placeholder: 'Love one another' },
+      { name: 'sayings', label: 'Family sayings (one per line, a different one shows each day)', type: 'textarea', rows: 4, value: (c.sayings || []).join('\n'), placeholder: "Proctors don't quit\nFamilies are forever" },
+      { name: 'goal', label: 'Family goal', value: c.goal?.title || '', placeholder: 'Read the Book of Mormon together' },
+      { name: 'due', label: 'Goal date (optional)', type: 'date', value: c.goal?.due || '' },
+      { name: 'progress', label: 'How far along, 0–100% (optional)', type: 'number', value: c.goal?.progress ?? '' },
+    ],
+  });
+  if (!r) return;
+  const progress = r.progress === '' ? null : Math.max(0, Math.min(100, Math.round(Number(r.progress) || 0)));
+  try {
+    await S.update(`circles/${app.state.cid}`, {
+      motto: r.motto.slice(0, 200),
+      sayings: r.sayings.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 50).map((x) => x.slice(0, 300)),
+      goal: r.goal ? { title: r.goal.slice(0, 200), due: r.due || null, progress } : null,
+    });
+    toast('Saved for the whole family.');
+  } catch (e) { toast('Only family organizers can change these.'); }
 }
 
 function todayCard(app, ev) {
