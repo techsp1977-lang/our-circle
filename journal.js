@@ -21,6 +21,7 @@ const PROMPTS = [
   'What tender mercy did you notice?', 'What made you laugh?', 'What do you want to remember about today?',
 ];
 const promptFor = (d) => PROMPTS[dayOfYear(d) % PROMPTS.length];
+let enterFrom = null; // 'left' | 'right': which side the next page slides in from after a swipe
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 export function mount(root, app, key, args) {
@@ -109,8 +110,10 @@ function page(root, app, date) {
         ${date !== t ? `<a class="linkish" href="#/journal">Go to today</a>` : ''}
         <a class="linkish" href="#/book">${icon('print', 15)} Make a printed book</a>
       </div>
+      <p class="hint center pad-x swipe-hint">Swipe the page left or right to change days.</p>
       ${SR ? '' : '<p class="hint center pad-x">Tip: tap a box, then the microphone on your phone keyboard to speak your entry.</p>'}`;
     root.querySelectorAll('textarea.ruled').forEach(grow);
+    if (enterFrom) { root.querySelector('.paper')?.classList.add('enter-' + enterFrom); enterFrom = null; }
     if (stopGoals) stopGoals();
     stopGoals = goalsBlock(root, base, date);
   };
@@ -186,6 +189,50 @@ function page(root, app, date) {
     render(); save();
   }
 
+  // Swipe the page: right for the day before, left for the day after (not past today).
+  // The page follows your finger; off while typing so it never fights selecting text.
+  let sx = 0, sy = 0, dx = 0, tracking = false, decided = false, horizontal = false;
+  const paper = () => root.querySelector('.paper');
+  const typing = () => document.activeElement?.matches?.('input, textarea, select');
+  const turnTo = (dir) => {
+    const next = addDays(date, dir);
+    if (dir > 0 && next > today()) return false;
+    enterFrom = dir > 0 ? 'right' : 'left';
+    const p = paper();
+    if (p) { p.style.transition = 'transform 180ms ease-in, opacity 180ms ease-in'; p.style.transform = `translateX(${dir > 0 ? -100 : 100}%)`; p.style.opacity = '0'; }
+    setTimeout(() => app.go(`#/journal/${next}`), 170);
+    return true;
+  };
+  const onTouchStart = (e) => {
+    if (e.touches.length !== 1 || typing() || !e.target.closest('.paper') || e.target.closest('.goals')) { tracking = false; return; }
+    tracking = true; decided = false; horizontal = false; dx = 0;
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+  };
+  const onTouchMove = (e) => {
+    if (!tracking) return;
+    const x = e.touches[0].clientX - sx, y = e.touches[0].clientY - sy;
+    if (!decided && (Math.abs(x) > 10 || Math.abs(y) > 10)) { decided = true; horizontal = Math.abs(x) > Math.abs(y) * 1.4; }
+    if (!horizontal) return;
+    e.preventDefault();
+    const atToday = x < 0 && addDays(date, 1) > today();
+    dx = atToday ? x / 4 : x; // a little give at today, so it's clear there's no next page
+    const p = paper(); if (p) { p.style.transition = 'none'; p.style.transform = `translateX(${dx}px) rotate(${dx / 60}deg)`; }
+  };
+  const onTouchEnd = () => {
+    if (!tracking) return;
+    tracking = false;
+    const p = paper();
+    if (horizontal && Math.abs(dx) > Math.min(90, window.innerWidth * 0.22) && turnTo(dx < 0 ? 1 : -1)) return;
+    if (p) { p.style.transition = 'transform 220ms cubic-bezier(.2,.9,.3,1.2)'; p.style.transform = ''; }
+  };
+  // Left and right arrow keys do the same on a computer (when not typing).
+  const onKey = (e) => { if (!typing() && !e.metaKey && !e.ctrlKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) turnTo(e.key === 'ArrowRight' ? 1 : -1); };
+  root.addEventListener('touchstart', onTouchStart, { passive: true });
+  root.addEventListener('touchmove', onTouchMove, { passive: false });
+  root.addEventListener('touchend', onTouchEnd);
+  root.addEventListener('touchcancel', onTouchEnd);
+  document.addEventListener('keydown', onKey);
+
   root.addEventListener('input', onInput);
   root.addEventListener('change', onChange);
   root.addEventListener('click', onClick);
@@ -196,7 +243,9 @@ function page(root, app, date) {
     entry = e ? { ...e } : { date, template: tpl, sections: sectionsFrom(tpl, settings).map(blank) };
     render();
   });
-  return { destroy: () => { if (dirty && entry) doSave(); listening?.stop(); if (stopGoals) stopGoals(); root.removeEventListener('input', onInput); root.removeEventListener('change', onChange); root.removeEventListener('click', onClick); } };
+  return { destroy: () => { if (dirty && entry) doSave(); listening?.stop(); if (stopGoals) stopGoals();
+    root.removeEventListener('touchstart', onTouchStart); root.removeEventListener('touchmove', onTouchMove); root.removeEventListener('touchend', onTouchEnd); root.removeEventListener('touchcancel', onTouchEnd); document.removeEventListener('keydown', onKey);
+    root.removeEventListener('input', onInput); root.removeEventListener('change', onChange); root.removeEventListener('click', onClick); } };
 }
 
 const entryText = (e) => (e.sections || []).map((s) => [s.title, s.text || '', ...(s.list || [])].join(' ')).join(' ');

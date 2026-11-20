@@ -473,3 +473,13 @@ button.side-brand { background: none; border: 0; font: inherit; cursor: pointer;
 /* ---------- Calendar tab: the year as a list ---------- */
 .year-month .month-head { position: sticky; top: env(safe-area-inset-top); z-index: 2; background: var(--bg-grouped); margin: 0; padding: var(--space-3) var(--space-2) var(--space-1); }
 .year-empty { margin: 0 var(--space-2); color: var(--label-tertiary, var(--label-secondary)); font-size: var(--text-footnote, 13px); }
+
+/* ---------- Journal: swipe between days ---------- */
+.paper { touch-action: pan-y; will-change: transform; }
+.paper.enter-right { animation: page-in-right 240ms cubic-bezier(.2,.8,.3,1) both; }
+.paper.enter-left { animation: page-in-left 240ms cubic-bezier(.2,.8,.3,1) both; }
+@keyframes page-in-right { from { transform: translateX(40%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes page-in-left { from { transform: translateX(-40%); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (pointer: fine) { .swipe-hint { display: none; } }
+@media (prefers-reduced-motion: reduce) { .paper.enter-right, .paper.enter-left { animation: none; } }
+body[data-view="journal"] #main { overflow-x: clip; }
