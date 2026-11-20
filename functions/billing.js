@@ -64,6 +64,32 @@ async function stripe(path, params, method = 'POST') {
   if (!res.ok) { console.warn('stripe error', res.status, j?.error?.message); fail('unavailable', "The payment service didn't answer. Try again."); }
   return j;
 }
+// Our Circle's own setup for Stripe's billing page, so families see only the two Our Circle plans (the
+// account's default billing page belongs to Yardage Book, which lists its own plans). Made once, kept in
+// _server/billing, and made again if the price IDs change.
+async function portalConfig() {
+  const ref = db().doc('_server/billing');
+  const fam = PRICE_FAMILY.value(), plus = PRICE_PLUS.value();
+  const cur = (await ref.get()).data()?.portalConfig;
+  if (cur?.id && cur.family === fam && cur.plus === plus) return cur.id;
+  const [pf, pp] = await Promise.all([stripe(`/prices/${fam}`, null, 'GET'), stripe(`/prices/${plus}`, null, 'GET')]);
+  const c = await stripe('/billing_portal/configurations', {
+    business_profile: { headline: 'Our Circle family plan' },
+    features: {
+      payment_method_update: { enabled: 'true' },
+      invoice_history: { enabled: 'true' },
+      customer_update: { enabled: 'true', allowed_updates: ['email'] },
+      subscription_cancel: { enabled: 'true', mode: 'at_period_end' },
+      subscription_update: {
+        enabled: 'true', default_allowed_updates: ['price'], proration_behavior: 'create_prorations',
+        products: [{ product: pf.product, prices: [fam] }, { product: pp.product, prices: [plus] }],
+      },
+    },
+  });
+  await ref.set({ portalConfig: { id: c.id, family: fam, plus, at: Date.now() } }, { merge: true });
+  return c.id;
+}
+
 const planForPrice = (pid) => (pid && pid === PRICE_PLUS.value() ? 'plus' : pid && pid === PRICE_FAMILY.value() ? 'family' : null);
 
 // ───────── who may do what ─────────
@@ -107,7 +133,7 @@ export const billing = onCall({ region: 'us-central1', cors: EMULATOR ? true : [
       await circleAdmin(req, d.cid);
       const c = (await db().doc(`circles/${d.cid}`).get()).data() || {};
       if (!c.billing?.customer) fail('not-found', "There's no card on file for this family yet.");
-      const s = await stripe('/billing_portal/sessions', { customer: c.billing.customer, return_url: `${APP}/#/manage` });
+      const s = await stripe('/billing_portal/sessions', { customer: c.billing.customer, configuration: await portalConfig(), return_url: `${APP}/#/manage` });
       return { url: s.url };
     }
     default: fail('invalid-argument', 'Unknown action.');

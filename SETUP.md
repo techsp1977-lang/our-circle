@@ -214,11 +214,11 @@ It uses the same Stripe account as Yardage Book (same business, EIN and bank), w
    - Name: `Our Circle Family Plus`. Price: `99.00` USD, Recurring, Yearly. Save.
 3. Open each product and copy its **price ID** (starts with `price_`). You'll paste both in step 6.
 
-### 2. Stripe: the billing page families use (3 min)
-**Settings → Billing → Customer portal**:
-- Turn on **Update payment methods**, **View invoice history**, and **Cancel subscriptions** (at end of billing period).
-- Turn on **Switch plans** and add both Our Circle products, so families can move between Family and Family Plus.
-- Save.
+### 2. Stripe: turn on the billing page (1 min)
+Our Circle makes its own setup for Stripe's billing page, listing only its two plans, the first time an organizer taps **Manage billing**. The account's default billing page stays as Yardage Book has it. Stripe only needs the billing page switched on once:
+1. **Settings → Billing → Customer portal**.
+2. If there's an **Activate** (or **Activate test link**) button, click it. Otherwise it's already on.
+3. **Don't add the Our Circle products** to this default page. Our Circle handles its own.
 
 ### 3. Stripe: a key that can only do what Our Circle needs (3 min)
 1. **Developers → API keys → Create restricted key**, named `Our Circle`.
