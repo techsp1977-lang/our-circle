@@ -24,7 +24,14 @@ const app = {
   isAdmin: () => state.access?.role === 'admin',
   membersOf: (hid) => Object.values(state.members).filter((m) => m.householdId === hid).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
   household: (hid) => state.households.find((h) => h.id === hid),
-  checkinDays: () => Number(state.prefs.checkinDays) || DEFAULT_CHECKIN_DAYS,
+  // 0 means check-in nudges are off; households in prefs.noCheckin never get one.
+  checkinDays: () => (state.prefs.checkinDays === 0 ? 0 : Number(state.prefs.checkinDays) || DEFAULT_CHECKIN_DAYS),
+  checkinMuted: (hid) => (state.prefs.noCheckin || []).includes(hid),
+  async setCheckinMuted(hid, muted) {
+    const list = new Set(state.prefs.noCheckin || []);
+    muted ? list.add(hid) : list.delete(hid);
+    await S.set(`users/${state.uid}`, { prefs: { ...state.prefs, noCheckin: [...list] } }, true);
+  },
   chatList: () => Object.values(state.chats).sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0)),
 
   // Find or create the conversation for exactly these people (always includes me).
