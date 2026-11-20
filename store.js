@@ -30,7 +30,11 @@ export const auth = {
   signUp: (e, p) => impl.signUp(e, p),
   google: () => impl.google(),
   reset: (e) => impl.reset(e),
-  signOut: () => impl.signOut(),
+  // Anything registered in beforeSignOut runs first, while still signed in (e.g. stop this phone's notifications).
+  signOut: async () => {
+    for (const fn of beforeSignOut) { try { await Promise.race([fn(), new Promise((r) => setTimeout(r, 4000))]); } catch (e) {} }
+    return impl.signOut();
+  },
   withToken: (t) => impl.withToken(t),
 };
 // Call a server function (Face ID sign-in). Resolves with what the function returned.
@@ -42,6 +46,9 @@ export const set = (path, data, merge = false) => impl.set(path, data, merge);
 export const update = (path, data) => impl.update(path, data);
 export const add = (path, data) => impl.add(path, data);
 export const del = (path) => impl.del(path);
+// Remove one field (dotted path, like "pushSubs.abc") from a document.
+export const removeField = (path, field) => impl.removeField(path, field);
+export const beforeSignOut = new Set();
 export const batch = (ops) => impl.batch(ops);
 export const watchDoc = (path, cb) => impl.watchDoc(path, cb);
 export const watchColl = (path, q, cb) => impl.watchColl(path, q || {}, cb);
@@ -106,6 +113,7 @@ async function firebaseImpl() {
     update: (path, data) => F.updateDoc(F.doc(db, path), data),
     add: async (path, data) => (await F.addDoc(F.collection(db, path), data)).id,
     del: (path) => F.deleteDoc(F.doc(db, path)),
+    removeField: (path, field) => F.updateDoc(F.doc(db, path), { [field]: F.deleteField() }),
     batch: async (ops) => {
       const b = F.writeBatch(db);
       for (const o of ops) {
@@ -211,6 +219,12 @@ async function demoImpl() {
     update: async (path, data) => { if (!db[path]) throw new Error('Not found: ' + path); db[path] = applyUpdate(db[path], data); notify(path); },
     add: async (path, data) => { const id = newId(); db[path + '/' + id] = clone(data); notify(path + '/' + id); return id; },
     del: async (path) => { delete db[path]; notify(path); },
+    removeField: async (path, field) => {
+      const segs = field.split('.'); let o = db[path];
+      for (const s of segs.slice(0, -1)) o = o?.[s];
+      if (o) delete o[segs[segs.length - 1]];
+      notify(path);
+    },
     batch: async (ops) => { for (const o of ops) { if (o.op === 'delete') await api.del(o.path); else if (o.op === 'update') await api.update(o.path, o.data); else await api.set(o.path, o.data, o.merge); } },
     watchDoc: (path, cb) => { const w = { kind: 'doc', path, cb }; watchers.add(w); queueMicrotask(() => cb(api.getSync(path))); return () => watchers.delete(w); },
     watchColl: (path, q, cb) => { const w = { kind: 'coll', path, q, cb }; watchers.add(w); queueMicrotask(() => cb(collDocs(path, q))); return () => watchers.delete(w); },

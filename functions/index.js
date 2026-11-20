@@ -157,3 +157,5 @@ export const passkey = onCall({
       fail('invalid-argument', 'Unknown action.');
   }
 });
+
+export { notify } from './notify.js';

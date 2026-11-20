@@ -1,6 +1,7 @@
 import { APP_NAME, APP_TAGLINE, DEFAULT_CHECKIN_DAYS } from './config.js';
 import * as S from './store.js';
-import { esc, icon, toast, $, sheet } from './ui.js';
+import { esc, icon, toast, $, sheet, face } from './ui.js';
+import { setBadge } from './push.js';
 import { lockGate, webauthnSupported, prepared, passkeySignIn, explain, faceLabel } from './lock.js';
 
 // ───────────── shared app state ─────────────
@@ -73,12 +74,14 @@ const app = {
   async send(chatId, text, files = [], onProgress) {
     const media = files.length ? await app.uploadFiles(files, onProgress) : [];
     const now = Date.now();
-    await S.add(app.path(`chats/${chatId}/messages`), { by: state.me, text: text || '', media, at: now });
+    const msgId = await S.add(app.path(`chats/${chatId}/messages`), { by: state.me, text: text || '', media, at: now });
     const preview = text || (media.length ? (media[0].type.startsWith('video') ? 'Sent a video' : `Sent ${media.length > 1 ? media.length + ' photos' : 'a photo'}`) : '');
     await S.update(app.path('chats/' + chatId), {
       lastText: preview.slice(0, 140), lastAt: now, lastBy: state.me,
       ['sent.' + state.me]: now, ['reads.' + state.me]: now,
     });
+    // Phone notifications for everyone else in the chat (the server checks it's really my new message).
+    S.callFn('notify', { action: 'send', cid: state.cid, chatId, msgId }).catch(() => {});
   },
 };
 window.__app = app; // handy for troubleshooting in the browser console
@@ -128,10 +131,37 @@ function shell() {
   renderDemoBar();
 }
 
+const isUnread = (c) => c.lastBy && c.lastBy !== state.me && (c.lastAt || 0) > (c.reads?.[state.me] || 0);
 function updateBadges() {
-  const unread = app.chatList().some((c) => c.lastBy && c.lastBy !== state.me && (c.lastAt || 0) > (c.reads?.[state.me] || 0));
+  const unread = app.chatList().filter(isUnread).length;
   const dot = document.querySelector('.tabbar a[data-tab="chats"] .dot');
   if (dot) dot.hidden = !unread;
+  setBadge(unread);
+}
+
+// In-app alert: a banner when a message arrives while you're somewhere other than that chat.
+let lastSeen = {}, openedAt = 0;
+function noticeNew(rows) {
+  for (const c of rows) {
+    const prev = lastSeen[c.id] ?? openedAt;
+    lastSeen[c.id] = Math.max(prev, c.lastAt || 0);
+    if (!state.ready || !isUnread(c) || (c.lastAt || 0) <= prev) continue;
+    if (state.prefs.inAppAlerts === false || document.visibilityState !== 'visible') continue;
+    if (decodeURIComponent(location.hash) === '#/chat/' + c.id) continue;
+    banner(c);
+  }
+}
+function banner(c) {
+  document.querySelectorAll('.banner').forEach((b) => b.remove());
+  const who = app.member(c.lastBy);
+  const where = c.kind === 'everyone' ? 'Everyone' : c.kind === 'direct' ? '' : (c.name || '');
+  const b = document.createElement('button');
+  b.className = 'banner';
+  b.setAttribute('role', 'status');
+  b.innerHTML = `${face(who || { name: '?' }, 'sm')}<span class="banner-text"><b>${esc(who?.name || 'New message')}${where ? ' · ' + esc(where) : ''}</b><span>${esc(c.lastText || 'New message')}</span></span>`;
+  b.onclick = () => { b.remove(); app.go('#/chat/' + encodeURIComponent(c.id)); };
+  document.body.appendChild(b);
+  setTimeout(() => b.remove(), 6000);
 }
 
 function renderDemoBar() {
@@ -157,6 +187,7 @@ async function openCircle(cid) {
   state.access = access;
   state.me = access.memberId;
 
+  lastSeen = {}; openedAt = Date.now();
   let first = { circle: false, members: false, households: false };
   const maybeReady = async () => {
     if (state.ready || !first.circle || !first.members || !first.households) return;
@@ -176,9 +207,9 @@ async function openCircle(cid) {
   subs.push(S.watchColl(`circles/${cid}/events`, {}, (rows) => { state.events = rows; changed(); }));
   subs.push(S.watchColl(`circles/${cid}/chats`, { where: [['memberIds', 'array-contains', state.me]] }, (rows) => {
     for (const k of Object.keys(state.chats)) if (k !== 'everyone') delete state.chats[k];
-    rows.forEach((r) => (state.chats[r.id] = r)); changed();
+    rows.forEach((r) => (state.chats[r.id] = r)); changed(); noticeNew(rows);
   }));
-  subs.push(S.watchDoc(`circles/${cid}/chats/everyone`, (c) => { if (c) state.chats.everyone = c; changed(); }));
+  subs.push(S.watchDoc(`circles/${cid}/chats/everyone`, (c) => { if (c) { state.chats.everyone = c; noticeNew([c]); } changed(); }));
   subs.push(S.watchDoc(`users/${state.uid}`, (u) => { state.prefs = u?.prefs || {}; changed(); }));
 }
 
@@ -332,6 +363,11 @@ export async function start() {
     return;
   }
   window.addEventListener('hashchange', route);
+  // Messages from the service worker: a notification was tapped (open that chat), or a push arrived.
+  navigator.serviceWorker?.addEventListener('message', (e) => {
+    if (e.data?.type === 'open' && /^#\/chat\/[\w%-]+$/.test(e.data.hash || '')) location.hash = e.data.hash;
+    if (e.data?.type === 'push') updateBadges();
+  });
   S.auth.onChange(async (user) => {
     stopSubs();
     if (view?.destroy) view.destroy();
