@@ -11,6 +11,9 @@ service firebase.storage {
     function isMember(cid) {
       return request.auth != null && firestore.exists(accessDoc(cid));
     }
+    function circleDoc(cid) {
+      return firestore.get(/databases/(default)/documents/circles/$(cid)).data;
+    }
     function isAdmin(cid) {
       return isMember(cid) && firestore.get(accessDoc(cid)).data.role == 'admin';
     }
@@ -19,8 +22,10 @@ service firebase.storage {
       allow read: if isMember(cid);
       // Up to 2 GB per file so long phone videos fit.
       // A file marked as uploaded by someone must really be theirs.
+      // New uploads pause when the family's plan has ended or its storage is full (the server sets "paused").
       allow create: if isMember(cid) && request.resource.size < 2 * 1024 * 1024 * 1024
-        && request.resource.metadata.get('by', request.auth.uid) == request.auth.uid;
+        && request.resource.metadata.get('by', request.auth.uid) == request.auth.uid
+        && circleDoc(cid).get('paused', '') == '';
       // Organizers can delete any file; people can delete files they uploaded (e.g. photos they decided not to share).
       allow delete: if isAdmin(cid) || (isMember(cid) && resource.metadata.get('by', '') == request.auth.uid);
       allow update: if false;

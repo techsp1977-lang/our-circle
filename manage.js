@@ -2,6 +2,7 @@
 import * as S from './store.js';
 import { esc, icon, face, sheet, toast, confirmBox, names, HH_COLORS, hhColor } from './ui.js';
 import { pickAndCrop } from './crop.js';
+import { PLANS, planState, fmtGB } from './plans.js';
 
 export async function inviteLink(app, memberId) {
   const st = app.state;
@@ -26,6 +27,48 @@ export async function inviteLink(app, memberId) {
   } catch (e) { toast('Copy the link above and text it.'); }
 }
 
+// Plan & billing: what the family has, how much storage is used, and buttons to choose a plan or manage it.
+function planSection(c) {
+  const p = planState(c || {});
+  const pct = Math.min(100, Math.round((p.used / p.limit) * 100));
+  const date = (ms) => new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const line = p.plan === 'trial' ? `${p.daysLeft} day${p.daysLeft === 1 ? '' : 's'} left, ends ${date(p.until)}`
+    : p.plan === 'gift' ? 'A gift from the Our Circle team'
+    : p.active ? `${p.status === 'past_due' ? 'Payment due' : 'Renews'} ${date(p.until - 3 * 864e5)}`
+    : `${p.name}. Choose a plan to keep sharing photos and videos.`;
+  return `<section class="block">
+    <div class="row-head"><h2>Plan &amp; billing</h2></div>
+    <div class="card plan-card">
+      <div class="plan-line"><b>${esc(p.active ? p.name : 'No active plan')}</b><span class="muted small">${esc(line)}</span></div>
+      <div class="plan-usage"><span class="progress ${pct >= 90 ? 'warn' : ''}" role="progressbar" aria-label="Storage used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${Math.max(pct, 1)}%"></i></span>
+        <small class="muted">${fmtGB(p.used)} of ${fmtGB(p.limit)} used for photos and videos</small></div>
+      <div class="row-btns">
+        ${p.plan === 'gift' ? '' : p.paid && p.active ? `<button class="btn ghost grow" data-act="billing">Manage billing</button>${p.plan === 'family' ? '<button class="btn grow" data-act="billing">Get more storage</button>' : ''}`
+          : `<button class="btn grow" data-act="plans">Choose a plan</button>${p.paid ? '<button class="btn ghost grow" data-act="billing">Manage billing</button>' : ''}`}
+      </div>
+      <p class="hint">One plan covers everyone in this circle. Only organizers see this.</p>
+    </div>
+  </section>`;
+}
+
+async function choosePlan(app) {
+  let plan = 'family';
+  const pending = sheet({
+    title: 'Choose a plan',
+    intro: 'Yearly, for the whole family. Cancel any time from Manage billing.',
+    body: `<div class="plan-pick">${['family', 'plus'].map((k) => `<label class="plan-opt" for="plan_${k}"><input type="radio" name="plan" id="plan_${k}" value="${k}" ${k === 'family' ? 'checked' : ''}>
+        <span><b>${PLANS[k].name}</b> <span class="price">${PLANS[k].price}</span><small>${esc(PLANS[k].blurb)}</small></span></label>`).join('')}</div>`,
+    submit: 'Continue to payment',
+    fields: [],
+  });
+  // The sheet is on screen now; remember the choice as it's tapped (the sheet is gone by the time it resolves).
+  [...document.querySelectorAll('.sheet-wrap')].at(-1)?.addEventListener('change', (e) => { if (e.target.name === 'plan') plan = e.target.value; });
+  if (!(await pending)) return;
+  toast('Opening secure checkout…', 8000);
+  try { location.href = (await S.callFn('billing', { action: 'checkout', cid: app.state.cid, plan })).url; }
+  catch (e) { toast(e?.message || "Checkout couldn't open. Try again."); }
+}
+
 export function mount(root, app) {
   const st = app.state;
   if (!app.isAdmin()) { root.innerHTML = '<p class="pad muted">Only family organizers can change these settings.</p>'; return {}; }
@@ -40,6 +83,8 @@ export function mount(root, app) {
         <div class="li"><span class="li-main"><span class="li-sub">Family name</span><span class="li-title">${esc(st.circle?.name || '')}</span></span>
           <button class="icon-btn sm" data-act="circle" aria-label="Rename family">${icon('edit', 16)}</button></div>
       </section>
+
+      ${planSection(st.circle)}
 
       <section class="block">
         <div class="row-head"><h2>Households</h2><button class="linkish" data-act="add-hh">${icon('plus', 16)} Add household</button></div>
@@ -68,6 +113,13 @@ export function mount(root, app) {
     if (!b) return;
     const id = b.dataset.id;
     switch (b.dataset.act) {
+      case 'plans': choosePlan(app); break;
+      case 'billing': {
+        b.disabled = true;
+        try { location.href = (await S.callFn('billing', { action: 'portal', cid: st.cid })).url; }
+        catch (er) { b.disabled = false; toast(er?.message || "Billing couldn't open. Try again."); }
+        break;
+      }
       case 'circle': {
         const r = await sheet({ title: 'Family name', fields: [{ name: 'name', label: 'Name', value: st.circle?.name, required: true }] });
         if (r) await S.update(`circles/${st.cid}`, { name: r.name });

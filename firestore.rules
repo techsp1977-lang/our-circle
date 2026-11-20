@@ -25,6 +25,10 @@ service cloud.firestore {
     // Face ID passkeys and their one-time challenges: only the passkey server function touches these.
     match /passkeys/{id} { allow read, write: if false; }
     match /passkeyChallenges/{id} { allow read, write: if false; }
+    // Whether plans are switched on (the app shows trial and plan notices only then). Only the server writes it.
+    match /config/{doc} { allow read: if signedIn(); allow write: if false; }
+    // Payments (for the owner's Admin numbers): only the server touches these.
+    match /payments/{id} { allow read, write: if false; }
     // Server-only settings (the notification signing keys).
     match /_server/{rest=**} { allow read, write: if false; }
 
@@ -43,8 +47,11 @@ service cloud.firestore {
 
     match /circles/{cid} {
       allow read: if isMember(cid);
-      allow create: if signedIn() && okId(cid) && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isAdmin(cid);
+      // Plan, storage use and paused uploads are set only by the server; a new circle's trial starts now.
+      allow create: if signedIn() && okId(cid) && request.resource.data.createdBy == request.auth.uid
+        && !request.resource.data.keys().hasAny(['billing', 'usage', 'paused'])
+        && request.resource.data.createdAt is int && math.abs(request.resource.data.createdAt - request.time.toMillis()) < 86400000;
+      allow update: if isAdmin(cid) && !changed().hasAny(['billing', 'usage', 'paused', 'createdAt', 'createdBy']);
       allow delete: if false;
 
       // Who has an account in this circle, and which family member they are.

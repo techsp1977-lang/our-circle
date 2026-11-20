@@ -4,7 +4,7 @@
 // Firebase traffic (messages, photos, sign-in) is never touched here.
 const CACHE = 'our-circle-shell';
 const SHELL = ['./index.html', './start.js', './apple-tokens.css', './app.css', './app.js', './config.js', './store.js', './ui.js', './dates.js',
-  './events.js', './crop.js', './lock.js', './push.js', './photos.js', './calendar.js', './circles.js', './hub.js', './chats.js', './album.js', './journal.js', './me.js', './manage.js', './demo-seed.js',
+  './events.js', './crop.js', './lock.js', './push.js', './photos.js', './plans.js', './admin.js', './calendar.js', './circles.js', './hub.js', './chats.js', './album.js', './journal.js', './me.js', './manage.js', './demo-seed.js',
   './manifest.webmanifest', './oc-icon-192.png'];
 
 async function refreshAll() {

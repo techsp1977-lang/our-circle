@@ -528,3 +528,27 @@ body[data-view="journal"] #main { overflow-x: clip; }
 .pick.failed .pick-bar { display: none; } .pick.failed .pick-bad { display: grid; }
 
 .alert-list .mute { margin-left: auto; font-size: var(--text-footnote, 13px); }
+
+/* ---------- Plans, billing, admin ---------- */
+.plan-card { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
+.plan-line { display: flex; flex-direction: column; gap: 2px; }
+.plan-usage { display: flex; flex-direction: column; gap: 6px; }
+.progress.warn i { background: var(--due-bg, #C0392B); }
+.plan-pick { display: flex; flex-direction: column; gap: var(--space-2); }
+.plan-opt { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3); border-radius: var(--radius-md, 12px); border: 1.5px solid var(--separator); cursor: pointer; }
+.plan-opt:has(input:checked) { border-color: var(--tint); background: color-mix(in srgb, var(--tint) 7%, transparent); }
+.plan-opt > span { display: flex; flex-direction: column; gap: 2px; }
+.plan-opt .price { color: var(--tint); font-weight: 600; }
+.plan-opt small { color: var(--label-secondary); }
+.plan-notice { display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3) var(--space-4); }
+.plan-notice p { margin: 0; flex: 1; font-size: var(--text-subhead, 15px); }
+.plan-switch { display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; padding: var(--space-4); }
+.plan-switch > div { display: flex; flex-direction: column; gap: 2px; }
+.plan-switch small { color: var(--label-secondary); }
+.plan-switch.on b { color: var(--tint); }
+.stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); }
+@media (min-width: 700px) { .stats { grid-template-columns: repeat(3, 1fr); } }
+.stat { display: flex; flex-direction: column; gap: 2px; padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--card-bg); box-shadow: var(--shadow-card); }
+.stat-label { font-size: var(--text-footnote, 13px); color: var(--label-secondary); }
+.stat-value { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.stat small { color: var(--label-secondary); font-size: 12px; }

@@ -196,6 +196,101 @@ The fifth line should print `roles/datastore.user`. It's done when it says **Dep
 
 Then each person turns notifications on for each phone: **My page → Notifications → New messages on this phone → Turn on**. On iPhone this only works in the Home Screen app (iOS 16.4 or later). Signing out of a phone stops its notifications. **Alerts inside the app** turns the in-app banner on or off.
 
+## Plans and payments (Stripe)
+
+**Plans:**
+- **Family:** $49 a year, with 50 GB for photos and videos.
+- **Family Plus:** $99 a year, with 200 GB.
+- New circles get a 30-day free trial. The circle's organizer pays; everyone else joins free.
+- When a plan ends or storage is full, only new photo and video uploads pause. Everything else keeps working.
+- **Nothing is limited until you turn plans on** in Admin (`#/admin`).
+
+It uses the same Stripe account as Yardage Book (same business, EIN and bank), with its own products, webhook and key. Do everything in Stripe's **Test mode** first (the toggle at the top right of the Stripe dashboard), then repeat steps 1 to 4 in live mode when you're ready to charge.
+
+### 1. Stripe: create the two plans (5 min)
+1. Stripe → **Product catalog** → **Add product**.
+   - Name: `Our Circle Family`. Price: `49.00` USD, **Recurring**, **Yearly**. Save.
+2. Add another product.
+   - Name: `Our Circle Family Plus`. Price: `99.00` USD, Recurring, Yearly. Save.
+3. Open each product and copy its **price ID** (starts with `price_`). You'll paste both in step 6.
+
+### 2. Stripe: the billing page families use (3 min)
+**Settings → Billing → Customer portal**:
+- Turn on **Update payment methods**, **View invoice history**, and **Cancel subscriptions** (at end of billing period).
+- Turn on **Switch plans** and add both Our Circle products, so families can move between Family and Family Plus.
+- Save.
+
+### 3. Stripe: a key that can only do what Our Circle needs (3 min)
+1. **Developers → API keys → Create restricted key**, named `Our Circle`.
+2. Set these permissions to **Write**:
+   - Checkout Sessions
+   - Customer portal
+3. Set these to **Read**:
+   - Subscriptions
+   - Customers
+   - Prices
+4. Create the key. Keep the page open, because you'll paste the key (`rk_…`) in step 6. Never paste it into a chat or a file.
+5. If checkout ever says it couldn't open, change **Customers** to **Write** on this key and try again.
+
+### 4. Stripe: tell Our Circle about payments (3 min)
+1. **Developers → Webhooks → Add endpoint**.
+   - URL: `https://us-central1-our-circle-3da6a.cloudfunctions.net/stripeWebhook`
+   - Events:
+     - `checkout.session.completed`
+     - `customer.subscription.created`
+     - `customer.subscription.updated`
+     - `customer.subscription.deleted`
+     - `invoice.paid`
+     - `charge.refunded`
+2. Save, then click **Reveal** under **Signing secret** (`whsec_…`). You'll paste it in step 6.
+
+### 5. Google Cloud: the account the payment functions run as (3 min)
+In Cloud Shell (**https://console.cloud.google.com/?project=our-circle-3da6a&cloudshell=true**):
+
+```bash
+gcloud config set project our-circle-3da6a
+gcloud services enable cloudscheduler.googleapis.com eventarc.googleapis.com pubsub.googleapis.com secretmanager.googleapis.com
+gcloud iam service-accounts create billing-fn --display-name="Our Circle plans and payments" || true
+echo "Waiting a minute for Google to finish creating the account..."; sleep 60
+for r in roles/datastore.user roles/eventarc.eventReceiver roles/run.invoker roles/storage.objectViewer; do gcloud projects add-iam-policy-binding our-circle-3da6a --member="serviceAccount:billing-fn@our-circle-3da6a.iam.gserviceaccount.com" --role=$r --condition=None --format=none; done
+PN=$(gcloud projects describe our-circle-3da6a --format='value(projectNumber)')
+gcloud projects add-iam-policy-binding our-circle-3da6a --member="serviceAccount:service-${PN}@gs-project-accounts.iam.gserviceaccount.com" --role=roles/pubsub.publisher --condition=None --format=none
+gcloud projects get-iam-policy our-circle-3da6a --flatten="bindings[].members" --filter="bindings.members:billing-fn@" --format="value(bindings.role)"
+```
+
+The last line should list four roles: `datastore.user`, `eventarc.eventReceiver`, `run.invoker` and `storage.objectViewer`.
+
+### 6. Put the keys in place and deploy (about 8 min)
+Still in Cloud Shell:
+
+```bash
+rm -rf ~/our-circle && git clone https://github.com/techsp1977-lang/our-circle.git ~/our-circle && cd ~/our-circle/functions && npm ci && cd ..
+npx --yes firebase-tools@15.34.2 functions:secrets:set STRIPE_SECRET_KEY --project our-circle-3da6a
+npx --yes firebase-tools@15.34.2 functions:secrets:set STRIPE_WEBHOOK_SECRET --project our-circle-3da6a
+npx --yes firebase-tools@15.34.2 deploy --only functions --project our-circle-3da6a
+```
+
+- Each `secrets:set` asks for a value. Paste the `rk_…` key, then the `whsec_…` secret. Nothing shows as you paste; press Enter.
+- The deploy asks three questions:
+  - **STRIPE_PRICE_FAMILY:** the Family price ID.
+  - **STRIPE_PRICE_PLUS:** the Plus price ID.
+  - **OWNER_EMAILS:** the email you sign into Our Circle with. That's who can open Admin.
+- It's done at **Deploy complete!** If it asks how many days to keep container images, press Enter.
+
+### 7. Publish the rules
+Paste `firestore.rules` into Firestore → Rules and `storage.rules` into Storage → Rules, and **Publish** both.
+
+### 8. Try it (Test mode)
+1. Open **https://our-circle-3da6a.web.app/#/admin**. You'll see the numbers and the **Plans are OFF** switch. My page shows an **Admin** link from then on.
+2. Tap **Recount storage** once. It adds up the photos already stored.
+3. In **Circles**, tap **Give free plan** on your own family circles.
+4. As an organizer of a test circle: **Family settings → Plan & billing → Choose a plan**. Pay with Stripe's test card `4242 4242 4242 4242` (any future date, any 3 digits). Back in the app, the plan shows within a minute, and Admin shows the payment.
+
+### 9. Going live
+1. Switch Stripe to live mode and repeat steps 1 to 4. You'll get live price IDs, a live restricted key and a live webhook secret.
+2. Repeat step 6, entering the live values. Delete `functions/.env.our-circle-3da6a` first if you want the deploy to ask for the price IDs again.
+3. When you're ready, open **Admin → Plans → Turn on**.
+
 ## Updating the app later
 
 Edit or replace files in the GitHub repository. Changes are published to the app's address automatically (Actions tab) and appear within a minute or two; on phones, closing and reopening the app picks them up.

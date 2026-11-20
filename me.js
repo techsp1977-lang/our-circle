@@ -118,6 +118,8 @@ export function mount(root, app) {
         </div>
       </section>` : ''}
 
+      ${(() => { try { return localStorage.getItem('oc-owner') ? `<section class="block"><a class="card link-card" href="#/admin"><span class="sq">${icon('gear', 22)}</span><span class="li-main"><span class="li-title">Admin</span><span class="li-sub">Circles, payments and revenue</span></span>${icon('next', 18)}</a></section>` : ''; } catch (e) { return ''; } })()}
+
       <section class="block row-btns">
         <button class="btn ghost grow" data-act="signout">Sign out</button>
         ${S.isDemo ? '<button class="btn ghost" data-act="reset">Reset demo</button>' : ''}
