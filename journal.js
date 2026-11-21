@@ -1,7 +1,9 @@
 // Private journal. Stored under journals/{your account}, which only you can read.
+// With "Lock my journal" on, every page and goal is encrypted on the phone before it's saved (jkey.js).
 // Also the printable book export (#/book).
 import * as S from './store.js';
-import { esc, icon, sheet, toast } from './ui.js';
+import * as J from './jkey.js';
+import { esc, icon, sheet, toast, confirmBox } from './ui.js';
 import { today, addDays, weekday, longDate, dayOfYear, shortDate, parse } from './dates.js';
 
 export const TEMPLATES = {
@@ -30,6 +32,191 @@ export function mount(root, app, key, args) {
   return page(root, app, /^\d{4}-\d{2}-\d{2}$/.test(args[0] || '') ? args[0] : today());
 }
 
+// ───────── the journal lock ─────────
+const entryPath = (uid, d) => `journals/${uid}/entries/${d}`;
+const goalPath = (uid, id) => `journals/${uid}/goals/${id}`;
+
+// Journal settings, fresh from the server when online (so a lock set on another phone is seen).
+async function journalSettings(uid) {
+  try { return (await S.get(`journals/${uid}`)) || {}; } catch (e) { return (await S.getFast(`journals/${uid}`).catch(() => null)) || {}; }
+}
+
+// The key for this journal: null when it isn't locked; otherwise this phone's unlocked key, asking for the
+// journal password first if this phone hasn't been unlocked yet. Resolves { key, settings }.
+async function journalKey(root, uid) {
+  const settings = await journalSettings(uid);
+  if (!settings.lock) return { key: null, settings };
+  const k = await J.deviceKey(uid);
+  if (k) { sealLeftovers(uid, k); return { key: k, settings }; }
+  return new Promise((resolve) => unlockScreen(root, uid, async () => { const key = await J.deviceKey(uid); sealLeftovers(uid, key); resolve({ key, settings }); }));
+}
+
+function unlockScreen(root, uid, done) {
+  let recovering = false, busy = false;
+  const paint = (msg = '') => {
+    root.innerHTML = `<div class="unlock-wrap"><div class="card unlock">
+      <span class="unlock-ic">${icon('lock', 28)}</span>
+      <h1 class="h1">Your journal is locked</h1>
+      <p class="muted">${recovering ? 'Enter the recovery code you saved when you locked your journal, and choose a new journal password.' : 'Enter your journal password to open it on this phone. This phone will remember it until you sign out.'}</p>
+      ${msg ? `<p class="error" role="alert">${esc(msg)}</p>` : ''}
+      <form id="uf" class="stack">
+        ${recovering ? `<label class="field" for="rc"><span>Recovery code</span><input id="rc" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH-…" required></label>` : ''}
+        <label class="field" for="pw"><span>${recovering ? 'New journal password' : 'Journal password'}</span><input id="pw" type="password" autocomplete="${recovering ? 'new-password' : 'current-password'}" required minlength="${J.MIN_PASSWORD}"></label>
+        <button class="btn wide" type="submit">${recovering ? 'Unlock and set new password' : 'Unlock'}</button>
+      </form>
+      <button class="linkish" data-toggle>${recovering ? 'Back to journal password' : 'Forgot it? Use your recovery code'}</button>
+      ${recovering ? '<button class="linkish danger-link" data-startover>Lost the recovery code too? Start over</button>' : ''}
+    </div></div>`;
+    root.querySelector('[data-startover]')?.addEventListener('click', async () => {
+      const ok = await confirmBox('Start over with an empty journal?',
+        "Without your journal password or recovery code, no one can open your old pages, not even Our Circle. Starting over permanently erases those pages and your goals, and locks your journal again with a new password. Your family's chats, photos and calendar aren't affected.",
+        'Erase and start over');
+      if (!ok) return;
+      const r = await sheet({ title: 'New journal password', submit: 'Start over', fields: [
+        { name: 'pw', label: 'New journal password', type: 'password', required: true, hint: `At least ${J.MIN_PASSWORD} characters.` },
+        { name: 'pw2', label: 'Type it again', type: 'password', required: true },
+      ] });
+      if (!r) return;
+      if (r.pw !== r.pw2 || r.pw.length < J.MIN_PASSWORD) { toast(r.pw !== r.pw2 ? "The passwords didn't match." : `Use at least ${J.MIN_PASSWORD} characters.`); return; }
+      try {
+        toast('Starting over…', 15000);
+        const code = await J.startOver(uid, r.pw);
+        await J.unlock(uid, r.pw);
+        await showRecoveryCode(code, false);
+        toast('Your journal is ready, locked with your new password.');
+        done();
+      } catch (e) { toast(e?.message || 'That did not work. Try again.'); }
+    });
+    root.querySelector('[data-toggle]').onclick = () => { recovering = !recovering; paint(); };
+    root.querySelector('#uf').onsubmit = async (e) => {
+      e.preventDefault();
+      if (busy) return; busy = true;
+      const btn = root.querySelector('#uf button'); btn.disabled = true; btn.textContent = 'Opening…';
+      try {
+        const ok = recovering ? await J.recover(uid, root.querySelector('#rc').value, root.querySelector('#pw').value) : await J.unlock(uid, root.querySelector('#pw').value);
+        busy = false;
+        if (ok) { if (recovering) toast('Unlocked. Your new journal password is set.'); done(); }
+        else paint(recovering ? "That recovery code didn't work. Check it and try again." : "That's not the journal password. Try again, or use your recovery code.");
+      } catch (er) { busy = false; paint(er?.message || 'That did not work. Try again.'); }
+    };
+    setTimeout(() => root.querySelector(recovering ? '#rc' : '#pw')?.focus(), 50);
+  };
+  paint();
+}
+
+// Pages and goals from before the lock (or a lock that was interrupted) get encrypted the first time this
+// phone opens the locked journal in a visit.
+const sealedThisVisit = new Set();
+async function sealLeftovers(uid, key, onProgress) {
+  if (!key || sealedThisVisit.has(uid)) return 0;
+  sealedThisVisit.add(uid);
+  let n = 0;
+  try {
+    const [entries, goals] = await Promise.all([S.getColl(`journals/${uid}/entries`), S.getColl(`journals/${uid}/goals`)]);
+    const todo = entries.filter((e) => e.sections && !e.enc).length + goals.filter((g) => 'title' in g && !g.enc).length;
+    for (const e of entries.filter((x) => x.sections && !x.enc)) {
+      const { sections, id, ...rest } = e;
+      await S.set(entryPath(uid, id), { ...rest, enc: await J.seal(key, entryPath(uid, id), { sections }) });
+      onProgress?.(++n, todo);
+    }
+    for (const g of goals.filter((x) => 'title' in x && !x.enc)) {
+      const { title, id, ...rest } = g;
+      await S.set(goalPath(uid, id), { ...rest, enc: await J.seal(key, goalPath(uid, id), { title }) });
+      onProgress?.(++n, todo);
+    }
+  } catch (e) { console.warn('Some journal pages could not be encrypted yet; will try again next time.', e); sealedThisVisit.delete(uid); }
+  return n;
+}
+
+// A stored page, ready to show: decrypted when it was saved encrypted.
+async function readEntry(uid, key, e) {
+  if (!e?.enc) return e;
+  if (!key) return { ...e, sections: [], unreadable: true };
+  try { return { ...e, sections: (await J.open(key, entryPath(uid, e.id || e.date), e.enc)).sections }; }
+  catch (er) { console.warn('Could not decrypt', e.date, er); return { ...e, sections: [], unreadable: true }; }
+}
+const readEntries = (uid, key, rows) => Promise.all(rows.map((e) => readEntry(uid, key, e)));
+
+// Turn the lock on: choose a password, save the recovery code, encrypt everything already written.
+async function lockJournal(app, after) {
+  const uid = app.state.uid;
+  const r = await sheet({
+    title: 'Lock my journal',
+    intro: "Your journal and goals will be encrypted on this phone before they're saved, so no one else can read them, not even the people who run Our Circle. You'll type this password once on each phone you use.",
+    submit: 'Lock my journal',
+    fields: [
+      { name: 'pw', label: 'Journal password', type: 'password', required: true, hint: `At least ${J.MIN_PASSWORD} characters. Short is fine; a few words like "blue bike 77" are easy to remember and much harder to guess.` },
+      { name: 'pw2', label: 'Type it again', type: 'password', required: true },
+    ],
+  });
+  if (!r) return;
+  if (r.pw !== r.pw2) { toast("The two passwords didn't match. Try again."); return lockJournal(app, after); }
+  if (r.pw.length < J.MIN_PASSWORD) { toast(`Use at least ${J.MIN_PASSWORD} characters.`); return lockJournal(app, after); }
+  let code;
+  try { toast('Locking your journal…', 15000); code = await J.setUp(uid, r.pw); }
+  catch (e) { toast(e?.message || "The journal couldn't be locked. Try again."); return; }
+  await showRecoveryCode(code, true);
+  const n = await sealLeftovers(uid, await J.deviceKey(uid), (i, t) => toast(`Encrypting your pages… ${i} of ${t}`, 15000));
+  toast(n ? `Locked. ${n} page${n === 1 ? '' : 's'} and goal${n === 1 ? '' : 's'} encrypted.` : 'Your journal is locked.', 5000);
+  after?.();
+}
+
+// The one time the recovery code is shown: copy it, save it, or print it, and confirm it's kept.
+function showRecoveryCode(code, first) {
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'sheet-wrap recovery-sheet';
+    wrap.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Your recovery code">
+      <div class="sheet-head"><h2>Save your recovery code</h2></div>
+      <p class="muted">If you ever forget your journal password, this code is the only way back into your journal. No one else has a copy, not even Our Circle. Keep it somewhere safe, like your password manager or a printed page with your important papers.</p>
+      <p class="recovery-code" aria-label="Recovery code">${esc(code)}</p>
+      <div class="row-btns"><button class="btn ghost grow" data-copy>Copy</button><button class="btn ghost grow" data-save>Save as file</button><button class="btn ghost grow" data-print>Print</button></div>
+      <label class="check" for="rc_ok"><input type="checkbox" id="rc_ok"> <span>I've saved my recovery code</span></label>
+      <div class="sheet-actions"><span></span><button class="btn" data-done disabled>${first ? 'Done, encrypt my journal' : 'Done'}</button></div>
+    </div>`;
+    document.body.appendChild(wrap);
+    const text = `Our Circle journal recovery code
+
+${code}
+
+Use it if you forget your journal password: Journal → Forgot it? Use your recovery code.
+Keep it private. Anyone with this code and your account sign-in can open your journal.
+`;
+    wrap.querySelector('[data-copy]').onclick = async () => { try { await navigator.clipboard.writeText(code); toast('Copied. Paste it somewhere safe.'); } catch (e) { toast('Select the code and copy it.'); } };
+    wrap.querySelector('[data-save]').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' })); a.download = 'our-circle-journal-recovery-code.txt'; document.body.appendChild(a); a.click(); a.remove(); };
+    wrap.querySelector('[data-print]').onclick = () => { const w = window.open('', '_blank'); if (!w) return toast('Allow pop-ups to print, or use Copy.'); w.document.write(`<pre style="font:16px/1.5 -apple-system,sans-serif;white-space:pre-wrap">${esc(text)}</pre>`); w.document.close(); w.print(); };
+    wrap.querySelector('#rc_ok').onchange = (e) => { wrap.querySelector('[data-done]').disabled = !e.target.checked; };
+    wrap.querySelector('[data-done]').onclick = () => { wrap.remove(); resolve(); };
+  });
+}
+
+// Journal password menu (when locked): change it, get a new recovery code, or lock this phone now.
+async function passwordMenu(app, relock) {
+  const uid = app.state.uid;
+  const r = await sheet({
+    title: 'Journal password',
+    intro: 'Your journal is encrypted. Only your journal password or your recovery code can open it.',
+    submit: 'Done',
+    fields: [{ name: 'what', label: 'What would you like to do?', type: 'select', value: 'none', options: [
+      { value: 'none', label: 'Nothing, just checking' },
+      { value: 'change', label: 'Change my journal password' },
+      { value: 'code', label: 'Get a new recovery code' },
+      { value: 'lock', label: 'Lock this phone now (ask for the password next time)' },
+    ] }],
+  });
+  if (!r || r.what === 'none') return;
+  if (r.what === 'lock') { await J.forgetDevice(uid); toast('Locked on this phone.'); relock(); return; }
+  const p = await sheet({ title: r.what === 'change' ? 'Change journal password' : 'New recovery code', submit: 'Continue', fields: [
+    { name: 'cur', label: 'Current journal password', type: 'password', required: true },
+    ...(r.what === 'change' ? [{ name: 'next', label: 'New journal password', type: 'password', required: true, hint: `At least ${J.MIN_PASSWORD} characters.` }] : []),
+  ] });
+  if (!p) return;
+  try {
+    if (r.what === 'change') { if (await J.changePassword(uid, p.cur, p.next)) toast('Journal password changed. Use the new one on your other phones.'); else toast("That's not your current journal password."); }
+    else { const code = await J.newRecovery(uid, p.cur); if (code) { await showRecoveryCode(code, false); toast('New recovery code saved. The old one no longer works.'); } else toast("That's not your current journal password."); }
+  } catch (e) { toast(e?.message || 'That did not work. Try again.'); }
+}
+
 function sectionsFrom(tplKey, settings) {
   if (tplKey === 'custom' && settings?.custom?.length) return settings.custom.map((s) => ({ ...s }));
   return (TEMPLATES[tplKey] || TEMPLATES.daily).sections.map((s) => ({ ...s }));
@@ -40,14 +227,17 @@ const blank = (s) => (s.list ? { title: s.title, list: Array.from({ length: type
 function page(root, app, date) {
   const st = app.state;
   const base = `journals/${st.uid}`;
-  let settings = null, entry = null, saveTimer = null, listening = null, stopGoals = null;
+  let settings = null, entry = null, saveTimer = null, listening = null, stopGoals = null, key = null;
   // Entries already fetched (date → saved entry, or null for a blank day), so moving between days is instant.
   const loaded = new Map();
   const fetchDay = (d) => {
     if (loaded.has(d)) return Promise.resolve(loaded.get(d));
-    return S.getFast(`${base}/entries/${d}`).catch(() => null).then((e) => { if (!loaded.has(d)) loaded.set(d, e); return loaded.get(d); });
+    return S.getFast(`${base}/entries/${d}`).catch(() => null).then((e) => readEntry(st.uid, key, e)).then((e) => { if (!loaded.has(d)) loaded.set(d, e); return loaded.get(d); });
   };
-  const entryFor = (d, e) => (e ? { ...e, sections: (e.sections || []).map((s) => ({ ...s, list: s.list ? [...s.list] : undefined })) } : { date: d, template: settings.defaultTemplate || 'daily', sections: sectionsFrom(settings.defaultTemplate || 'daily', settings).map(blank) });
+  // A page that couldn't be decrypted on this phone is shown as such and never edited, so it can't be overwritten.
+  const entryFor = (d, e) => (e?.unreadable ? { date: d, template: e.template || 'daily', sections: [], unreadable: true }
+    : e ? { ...e, sections: (e.sections || []).map((s) => ({ ...s, list: s.list ? [...s.list] : undefined })) }
+    : { date: d, template: settings.defaultTemplate || 'daily', sections: sectionsFrom(settings.defaultTemplate || 'daily', settings).map(blank) });
   const prefetch = () => { fetchDay(addDays(date, -1)); if (addDays(date, 1) <= today()) fetchDay(addDays(date, 1)); };
   // Move to another day in place: save this one, show the next straight away, slide it in.
   const showDay = async (d, from) => {
@@ -70,12 +260,20 @@ function page(root, app, date) {
   let dirty = false;
   const doSave = async () => {
     clearTimeout(saveTimer); dirty = false;
+    if (entry?.unreadable) return;
     collect();
     const e = entry, day = date;
     const hasText = e.sections.some((s) => (s.text || '').trim() || (s.list || []).some((x) => x.trim()));
     const label = root.querySelector('#saved');
     try {
-      if (hasText || e.saved) { const data = { ...e, saved: true, updatedAt: Date.now() }; loaded.set(day, data); await S.set(`${base}/entries/${day}`, data); e.saved = true; }
+      if (hasText || e.saved) {
+        const data = { ...e, saved: true, updatedAt: Date.now() };
+        loaded.set(day, data);
+        const { sections, unreadable, id, ...rest } = data;
+        // Locked: only the date and layout name are stored readable; the writing itself is encrypted.
+        await S.set(`${base}/entries/${day}`, key ? { ...rest, date: day, enc: await J.seal(key, entryPath(st.uid, day), { sections }) } : { ...rest, date: day, sections });
+        e.saved = true;
+      }
       if (label) label.textContent = hasText ? 'Saved' : '';
     } catch (e) { if (label) label.textContent = 'Not saved. Check your connection.'; }
   };
@@ -101,7 +299,7 @@ function page(root, app, date) {
     const t = today();
     root.innerHTML = `
       <div class="jr-top">
-        <span class="pill">${icon('lock', 14)} Private · only you</span>
+        <span class="pill">${icon('lock', 14)} ${key ? 'Encrypted' : 'Private'} · only you</span>
         <label class="sr" for="tpl">Journal layout</label>
         <select id="tpl" class="select-pill">${tplOptions().map((o) => `<option value="${o.value}" ${o.value === entry.template ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>
       </div>
@@ -111,6 +309,7 @@ function page(root, app, date) {
           <div class="paper-page">Page ${dayOfYear(date)}<br>of ${date.slice(0, 4)}</div>
         </div>
         <p class="paper-prompt">${esc(promptFor(date))}</p>
+        ${entry.unreadable ? `<p class="error">This page couldn't be opened on this phone. It's still saved safely. Try "Lock this phone now" under Journal password, then unlock again with your journal password.</p>` : ''}
         ${entry.sections.map((s, i) => `
           <div class="sec">
             <div class="sec-head"><span class="sec-title">${esc(s.title)}</span>
@@ -130,13 +329,14 @@ function page(root, app, date) {
       <div class="jr-actions">
         ${date !== t ? `<a class="linkish" href="#/journal">Go to today</a>` : ''}
         <a class="linkish" href="#/book">${icon('print', 15)} Make a printed book</a>
+        ${key ? `<button class="linkish" data-act="jpw">${icon('lock', 15)} Journal password</button>` : `<button class="linkish" data-act="jlock">${icon('lock', 15)} Lock my journal</button>`}
       </div>
       <p class="hint center pad-x swipe-hint">Swipe the page left or right to change days.</p>
       ${SR ? '' : '<p class="hint center pad-x">Tip: tap a box, then the microphone on your phone keyboard to speak your entry.</p>'}`;
     root.querySelectorAll('textarea.ruled').forEach(grow);
     if (enterFrom) { root.querySelector('.paper')?.classList.add('enter-' + enterFrom); enterFrom = null; }
     if (stopGoals) stopGoals();
-    stopGoals = goalsBlock(root, base, date);
+    stopGoals = goalsBlock(root, base, date, st.uid, key);
   };
 
   const onInput = (e) => { if (e.target.matches('textarea.ruled')) grow(e.target); if (e.target.dataset.sec != null) save(); };
@@ -156,6 +356,8 @@ function page(root, app, date) {
     const mic = e.target.closest('[data-mic]');
     if (mic) { dictate(Number(mic.dataset.mic), mic); return; }
     if (e.target.closest('[data-act="layout"]')) editLayout();
+    if (e.target.closest('[data-act="jlock"]')) { collect(); if (dirty) await doSave(); lockJournal(app, start); }
+    if (e.target.closest('[data-act="jpw"]')) passwordMenu(app, start);
     const day = e.target.closest('a[href^="#/journal/"]');
     const m = day && day.getAttribute('href').match(/^#\/journal\/(\d{4}-\d{2}-\d{2})$/);
     if (m) { e.preventDefault(); showDay(m[1], m[1] > date ? 'right' : 'left'); }
@@ -257,13 +459,16 @@ function page(root, app, date) {
   root.addEventListener('input', onInput);
   root.addEventListener('change', onChange);
   root.addEventListener('click', onClick);
-  root.innerHTML = '<p class="pad muted">Opening your journal…</p>';
-  Promise.all([S.getFast(base).catch(() => null), fetchDay(date)]).then(([s, e]) => {
-    settings = s || {};
-    entry = entryFor(date, e);
+  // Open (or reopen after locking): get the key if the journal is locked, then load the day.
+  const start = async () => {
+    root.innerHTML = '<p class="pad muted">Opening your journal…</p>';
+    const k = await journalKey(root, st.uid);
+    key = k.key; settings = k.settings; loaded.clear();
+    entry = entryFor(date, await fetchDay(date));
     render();
     prefetch();
-  });
+  };
+  start();
   return { destroy: () => { if (dirty && entry) doSave(); listening?.stop(); if (stopGoals) stopGoals();
     root.removeEventListener('touchstart', onTouchStart); root.removeEventListener('touchmove', onTouchMove); root.removeEventListener('touchend', onTouchEnd); root.removeEventListener('touchcancel', onTouchEnd); document.removeEventListener('keydown', onKey);
     root.removeEventListener('input', onInput); root.removeEventListener('change', onChange); root.removeEventListener('click', onClick); } };
@@ -272,7 +477,8 @@ function page(root, app, date) {
 const entryText = (e) => (e.sections || []).map((s) => [s.title, s.text || '', ...(s.list || [])].join(' ')).join(' ');
 
 function past(root, app) {
-  const base = `journals/${app.state.uid}/entries`;
+  const uid = app.state.uid;
+  const base = `journals/${uid}/entries`;
   let all = [], q = '';
   const render = () => {
     const rows = q ? all.filter((e) => entryText(e).toLowerCase().includes(q.toLowerCase())) : all;
@@ -282,17 +488,25 @@ function past(root, app) {
         <span class="li-main"><span class="li-title">${weekday(e.date)}, ${longDate(e.date)}</span><span class="li-sub">${esc(firstText.slice(0, 90))}</span></span></a>`;
     }).join('') : `<p class="pad muted">${q ? 'No pages match that search.' : 'No pages yet. Today is a good day to start.'}</p>`;
   };
-  root.innerHTML = `
-    <header class="top"><a class="icon-btn" href="#/journal" aria-label="Back to today">${icon('back')}</a><div class="grow"><h1 class="h1">Past pages</h1><div class="muted small">${icon('lock', 12)} Private · only you</div></div></header>
-    <div class="pad-x"><label class="search" for="jq">${icon('search', 18)}<input id="jq" type="search" placeholder="Search your journal"></label></div>
-    <section class="block"><div class="card list" id="plist"><p class="pad muted">Loading…</p></div></section>`;
-  root.querySelector('#jq').addEventListener('input', (e) => { q = e.target.value.trim(); render(); });
-  S.getColl(base, { orderBy: ['date', 'desc'] }).then((rows) => { all = rows; render(); });
+  journalKey(root, uid).then(async ({ key }) => {
+    root.innerHTML = `
+      <header class="top"><a class="icon-btn" href="#/journal" aria-label="Back to today">${icon('back')}</a><div class="grow"><h1 class="h1">Past pages</h1><div class="muted small">${icon('lock', 12)} ${key ? 'Encrypted' : 'Private'} · only you</div></div></header>
+      <div class="pad-x"><label class="search" for="jq">${icon('search', 18)}<input id="jq" type="search" placeholder="Search your journal"></label></div>
+      <section class="block"><div class="card list" id="plist"><p class="pad muted">Loading…</p></div></section>`;
+    root.querySelector('#jq').addEventListener('input', (e) => { q = e.target.value.trim(); render(); });
+    // Searching happens on this phone, after decrypting, so the server never sees what you search for.
+    all = await readEntries(uid, key, await S.getColl(base, { orderBy: ['date', 'desc'] }));
+    render();
+  });
   return {};
 }
 
 // ───────── Printed book (Blurb-ready PDF via the browser's Save as PDF) ─────────
 function book(root, app) {
+  journalKey(root, app.state.uid).then(({ key }) => bookForm(root, app, key));
+  return {};
+}
+function bookForm(root, app, key) {
   const me = app.myMember();
   const t = today();
   root.innerHTML = `
@@ -312,7 +526,7 @@ function book(root, app) {
     const from = root.querySelector('#bf').value, to = root.querySelector('#bu').value;
     const size = root.querySelector('#bs').value, each = root.querySelector('#bo').checked;
     const title = root.querySelector('#bt').value.trim() || 'My Journal';
-    const rows = (await S.getColl(`journals/${app.state.uid}/entries`, { orderBy: ['date', 'asc'] }))
+    const rows = (await readEntries(app.state.uid, key, await S.getColl(`journals/${app.state.uid}/entries`, { orderBy: ['date', 'asc'] })))
       .filter((x) => x.date >= from && x.date <= to && entryText(x).replace(/\s+/g, ' ').trim().length > 0);
     let pageStyle = document.getElementById('book-page-style');
     if (!pageStyle) { pageStyle = document.createElement('style'); pageStyle.id = 'book-page-style'; document.head.appendChild(pageStyle); }
@@ -354,9 +568,16 @@ function recentPeriods(freq, date) {
 const periodWord = { daily: 'today', weekly: 'this week', monthly: 'this month' };
 const periodSpan = { daily: 'last 7 days', weekly: 'last 8 weeks', monthly: 'last 6 months' };
 
-function goalsBlock(root, base, date) {
+function goalsBlock(root, base, date, uid, key) {
   const box = root.querySelector('#goals');
   let goals = [];
+  let live = true;
+  // Locked journals store each goal's name encrypted; decrypt for showing.
+  const readGoals = (rows) => Promise.all(rows.map(async (g) => {
+    if (!g.enc) return g;
+    if (!key) return { ...g, title: '(locked)' };
+    try { return { ...g, title: (await J.open(key, goalPath(uid, g.id), g.enc)).title }; } catch (e) { return { ...g, title: '(could not open)' }; }
+  }));
   const draw = () => {
     if (!box.isConnected) return;
     const active = goals.filter((g) => !g.archived).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
@@ -393,8 +614,10 @@ function goalsBlock(root, base, date) {
     });
     if (!r) return;
     if (r.__danger) { await S.del(`${base}/goals/${g.id}`); return; }
-    if (g) await S.update(`${base}/goals/${g.id}`, { title: r.title, freq: r.freq });
-    else await S.add(`${base}/goals`, { title: r.title, freq: r.freq, done: {}, archived: false, createdAt: Date.now() });
+    const id = g?.id || S.newId();
+    const name = key ? { enc: await J.seal(key, goalPath(uid, id), { title: r.title }) } : { title: r.title };
+    if (g) await S.update(`${base}/goals/${id}`, { ...name, freq: r.freq });
+    else await S.set(`${base}/goals/${id}`, { ...name, freq: r.freq, done: {}, archived: false, createdAt: Date.now() });
   };
   const onChange = async (e) => {
     const id = e.target.dataset.goalCheck;
@@ -404,6 +627,6 @@ function goalsBlock(root, base, date) {
   };
   box.addEventListener('click', onClick);
   box.addEventListener('change', onChange);
-  const unsub = S.watchColl(`${base}/goals`, {}, (rows) => { goals = rows; draw(); });
-  return () => { unsub(); };
+  const unsub = S.watchColl(`${base}/goals`, {}, async (rows) => { const g = await readGoals(rows); if (live) { goals = g; draw(); } });
+  return () => { live = false; unsub(); };
 }

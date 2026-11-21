@@ -37,12 +37,27 @@ service cloud.firestore {
       allow read, write: if signedIn() && request.auth.uid == uid;
     }
 
-    // Private journals. Owner only, always.
-    match /journals/{uid}/{rest=**} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
+    // Private journals. Owner only, always. Once a journal is locked (journals/{uid}.lock), pages and goals
+    // may only be saved encrypted, and the lock can't be removed, so an old copy of the app on another
+    // device can't quietly save readable pages.
+    function ownsJournal(uid) { return signedIn() && request.auth.uid == uid; }
+    function journalLocked(uid) {
+      return exists(/databases/$(database)/documents/journals/$(uid))
+        && get(/databases/$(database)/documents/journals/$(uid)).data.get('lock', null) != null;
     }
     match /journals/{uid} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
+      allow read: if ownsJournal(uid);
+      allow create: if ownsJournal(uid);
+      allow update: if ownsJournal(uid) && (resource.data.get('lock', null) == null || request.resource.data.get('lock', null) != null);
+      allow delete: if ownsJournal(uid) && resource.data.get('lock', null) == null;
+      match /entries/{day} {
+        allow read, delete: if ownsJournal(uid);
+        allow create, update: if ownsJournal(uid) && (!journalLocked(uid) || !request.resource.data.keys().hasAny(['sections']));
+      }
+      match /goals/{goal} {
+        allow read, delete: if ownsJournal(uid);
+        allow create, update: if ownsJournal(uid) && (!journalLocked(uid) || !request.resource.data.keys().hasAny(['title']));
+      }
     }
 
     match /circles/{cid} {
