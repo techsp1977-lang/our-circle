@@ -166,6 +166,29 @@ test('app: uploads pause when the server marks the circle paused, and resume aft
   await assertSucceeds(uploadBytes(ref(st('uC'), 'circles/c1/media/p2.jpg'), new Uint8Array([1]), { contentType: 'image/jpeg' }));
 });
 
+test('attack: readable pages or goals saved into a locked journal, or the lock removed', async () => {
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'journals/uB'), { lock: { v: 1, salt: 's' } }));
+  await assertFails(setDoc(doc(as('uB'), 'journals/uB/entries/2026-11-21'), { date: '2026-11-21', sections: [{ title: 'Day', text: 'plain' }] }));
+  await assertFails(setDoc(doc(as('uB'), 'journals/uB/goals/g1'), { title: 'Read', freq: 'daily', done: {} }));
+  await assertFails(setDoc(doc(as('uB'), 'journals/uB'), { defaultTemplate: 'daily' }));
+  await assertFails(updateDoc(doc(as('uB'), 'journals/uB'), { lock: null }));
+  await assertFails(deleteDoc(doc(as('uB'), 'journals/uB')));
+  await assertFails(getDoc(doc(as('uA'), 'journals/uB')));
+});
+test('app: a locked journal saves encrypted pages and goals, and keeps its settings', async () => {
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'journals/uB'), { lock: { v: 1, salt: 's' } }));
+  await assertSucceeds(setDoc(doc(as('uB'), 'journals/uB/entries/2026-11-21'), { date: '2026-11-21', template: 'daily', saved: true, enc: { v: 1, iv: 'x', ct: 'y' } }));
+  await assertSucceeds(setDoc(doc(as('uB'), 'journals/uB/goals/g1'), { enc: { v: 1, iv: 'x', ct: 'y' }, freq: 'daily', done: {}, archived: false }));
+  await assertSucceeds(updateDoc(doc(as('uB'), 'journals/uB/goals/g1'), { 'done.2026-11-21': true }));
+  await assertSucceeds(setDoc(doc(as('uB'), 'journals/uB'), { defaultTemplate: 'gratitude' }, { merge: true }));
+  await assertSucceeds(getDocs(collection(as('uB'), 'journals/uB/entries')));
+});
+test('app: locking a journal (and unlocked journals still save as before)', async () => {
+  await assertSucceeds(setDoc(doc(as('uC'), 'journals/uC/entries/2026-11-20'), { date: '2026-11-20', sections: [] }));
+  await assertSucceeds(setDoc(doc(as('uC'), 'journals/uC'), { lock: { v: 1, salt: 's' } }, { merge: true }));
+  await assertSucceeds(setDoc(doc(as('uC'), 'journals/uC/entries/2026-11-20'), { date: '2026-11-20', enc: { v: 1, iv: 'x', ct: 'y' } }));
+});
+
 // ───────── real app actions (must still work) ─────────
 test('app: start a new family circle (two batches, then users doc)', async () => {
   const db = as('uN');

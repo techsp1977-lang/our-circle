@@ -552,3 +552,11 @@ body[data-view="journal"] #main { overflow-x: clip; }
 .stat-label { font-size: var(--text-footnote, 13px); color: var(--label-secondary); }
 .stat-value { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
 .stat small { color: var(--label-secondary); font-size: 12px; }
+
+/* ---------- Journal lock ---------- */
+.unlock-wrap { min-height: 60vh; display: grid; place-items: center; padding: var(--space-5) var(--margin, 16px); }
+.unlock { max-width: 420px; width: 100%; padding: var(--space-6) var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); text-align: center; }
+.unlock .stack { text-align: left; }
+.unlock-ic { display: inline-grid; place-items: center; width: 56px; height: 56px; margin: 0 auto; border-radius: 28px; background: var(--tint-soft, rgba(47,93,74,.12)); color: var(--tint); }
+.recovery-code { font: 600 1.35rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .04em; text-align: center; padding: var(--space-4); border-radius: var(--radius-md, 12px); background: var(--fill); user-select: all; -webkit-user-select: all; word-break: break-all; margin: 0; }
+.danger-link { color: var(--due-bg, #C0392B) !important; font-size: var(--text-footnote, 13px); }
