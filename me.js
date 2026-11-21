@@ -209,6 +209,13 @@ export function mount(root, app) {
   const off = app.on(render);
   render();
   pushState(st.uid).then((s) => { pushSt = s; if (s === 'off') prepareKey(); render(); });
+  // Show the Admin link to the app owner: ask the server once per visit (it checks the owner's email).
+  let checked = false;
+  try { checked = !!localStorage.getItem('oc-owner') || !!sessionStorage.getItem('oc-owner-checked'); } catch (e) {}
+  if (!checked && !S.isDemo) {
+    try { sessionStorage.setItem('oc-owner-checked', '1'); } catch (e) {}
+    S.callFn('admin', { action: 'whoami' }).then(() => { try { localStorage.setItem('oc-owner', '1'); } catch (e) {} render(); }).catch(() => {});
+  }
   faceAvailable().then((v) => { canLock = v; if (v) { prep = prepared('registerOptions'); if (!hasPasskey(st.uid)) prep.get(); render(); } });
   return { destroy: () => { off(); root.removeEventListener('click', onClick); root.removeEventListener('change', onChange); } };
 }

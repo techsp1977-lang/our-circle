@@ -239,6 +239,7 @@ export const billingDaily = onSchedule({ schedule: 'every day 03:17', timeZone: 
 export const admin = onCall({ region: 'us-central1', cors: EMULATOR ? true : [APP], maxInstances: 2, memory: '512MiB', serviceAccount: SA }, async (req) => {
   if (!isOwner(req)) fail('permission-denied', 'Only the app owner can see this.');
   const d = req.data || {};
+  if (d.action === 'whoami') return { owner: true }; // lets My page show the Admin link
   if (d.action === 'gift' || d.action === 'ungift') {
     if (typeof d.cid !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(d.cid)) fail('invalid-argument', 'Missing circle.');
     const ref = db().doc(`circles/${d.cid}`);
