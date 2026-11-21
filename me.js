@@ -118,6 +118,8 @@ export function mount(root, app) {
         </div>
       </section>` : ''}
 
+      ${(() => { try { return localStorage.getItem('oc-owner') ? `<section class="block"><a class="card link-card" href="#/admin"><span class="sq">${icon('gear', 22)}</span><span class="li-main"><span class="li-title">Admin</span><span class="li-sub">Circles, payments and revenue</span></span>${icon('next', 18)}</a></section>` : ''; } catch (e) { return ''; } })()}
+
       <section class="block row-btns">
         <button class="btn ghost grow" data-act="signout">Sign out</button>
         ${S.isDemo ? '<button class="btn ghost" data-act="reset">Reset demo</button>' : ''}
@@ -207,6 +209,13 @@ export function mount(root, app) {
   const off = app.on(render);
   render();
   pushState(st.uid).then((s) => { pushSt = s; if (s === 'off') prepareKey(); render(); });
+  // Show the Admin link to the app owner: ask the server once per visit (it checks the owner's email).
+  let checked = false;
+  try { checked = !!localStorage.getItem('oc-owner') || !!sessionStorage.getItem('oc-owner-checked'); } catch (e) {}
+  if (!checked && !S.isDemo) {
+    try { sessionStorage.setItem('oc-owner-checked', '1'); } catch (e) {}
+    S.callFn('admin', { action: 'whoami' }).then(() => { try { localStorage.setItem('oc-owner', '1'); } catch (e) {} render(); }).catch(() => {});
+  }
   faceAvailable().then((v) => { canLock = v; if (v) { prep = prepared('registerOptions'); if (!hasPasskey(st.uid)) prep.get(); render(); } });
   return { destroy: () => { off(); root.removeEventListener('click', onClick); root.removeEventListener('change', onChange); } };
 }

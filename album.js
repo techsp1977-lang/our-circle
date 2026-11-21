@@ -4,6 +4,7 @@ import * as S from './store.js';
 import { esc, icon, sheet, toast, fmtSize, confirmBox, safeUrl, mediaKind } from './ui.js';
 import { shortDate, toISO } from './dates.js';
 import { pickMedia, startBatch, progressCard, MAX_PICK } from './photos.js';
+import { pausedText } from './plans.js';
 
 export function mount(root, app, key, args) {
   return args[0] ? post(root, app, args[0]) : grid(root, app);
@@ -102,6 +103,7 @@ function compose(batch, setListener, { title = '', withTitle = true } = {}) {
 
 // Pick, upload straight away while the person adds a title, then wait for anything still going.
 async function pickAndUpload(app, opts) {
+  if (app.state.circle?.paused) { toast(pausedText(app.state.circle, app.isAdmin()), 9000); return null; }
   const picked = await pickMedia();
   if (!picked.length) return null;
   let listener = null;

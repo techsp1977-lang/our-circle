@@ -8,6 +8,7 @@ import { lockGate, webauthnSupported, prepared, passkeySignIn, explain, faceLabe
 const state = {
   uid: null, cid: null, circle: null, access: null, me: null,
   members: {}, households: [], events: [], chats: {}, prefs: {}, ready: false,
+  billingOn: false, // plans switched on by the owner (config/billing)
 };
 const listeners = new Set();
 let subs = [];
@@ -112,6 +113,7 @@ const VIEWS = {
   me: () => import('./me.js'),
   manage: () => import('./manage.js'),
   calendar: () => import('./calendar.js'),
+  admin: () => import('./admin.js'),
 };
 const TABS = [
   ['family', 'Family', 'family'], ['chats', 'Chats', 'chat'], ['album', 'Album', 'album'],
@@ -129,7 +131,7 @@ async function route() {
   main.innerHTML = '';
   main.scrollTop = 0;
   window.scrollTo(0, 0);
-  const tabKey = { chat: 'chats', book: 'journal', manage: 'me' }[key] || key;
+  const tabKey = { chat: 'chats', book: 'journal', manage: 'me', admin: 'me' }[key] || key;
   document.querySelectorAll('.tabbar a').forEach((a) => a.classList.toggle('on', a.dataset.tab === tabKey));
   document.body.dataset.view = key;
   view = mod.mount(main, app, key, args) || null;
@@ -231,6 +233,7 @@ async function openCircle(cid) {
   }));
   subs.push(S.watchDoc(`circles/${cid}/chats/everyone`, (c) => { if (c) { state.chats.everyone = c; noticeNew([c]); } changed(); }));
   subs.push(S.watchDoc(`users/${state.uid}`, (u) => { state.prefs = u?.prefs || {}; changed(); }));
+  subs.push(S.watchDoc('config/billing', (b) => { state.billingOn = !!b?.on; changed(); }));
   return true;
 }
 
@@ -388,6 +391,12 @@ export async function start() {
     return;
   }
   window.addEventListener('hashchange', route);
+  // Back from Stripe's checkout page.
+  const paid = new URLSearchParams(location.search).get('paid');
+  if (paid) {
+    history.replaceState(null, '', location.pathname + location.hash);
+    setTimeout(() => toast(paid === '1' ? 'Thank you! Your family plan is starting. It can take a minute to show here.' : 'Checkout was cancelled. Nothing was charged.', 7000), 1500);
+  }
   // Messages from the service worker: a notification was tapped (open that chat), or a push arrived.
   navigator.serviceWorker?.addEventListener('message', (e) => {
     if (e.data?.type === 'open' && /^#\/chat\/[\w%-]+$/.test(e.data.hash || '')) location.hash = e.data.hash;

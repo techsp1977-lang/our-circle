@@ -2,6 +2,7 @@
 import * as S from './store.js';
 import { esc, icon, face, toast, fmtSize, listJoin, names, safeUrl, mediaKind } from './ui.js';
 import { ago } from './dates.js';
+import { pausedText } from './plans.js';
 
 export function chatTitle(app, c) {
   if (c.kind === 'everyone') return 'Everyone';
@@ -119,7 +120,10 @@ function conversation(root, app, chatId) {
     pending.querySelector('#clear')?.addEventListener('click', () => { files = []; showPending(); });
   };
 
-  root.querySelector('#att').onchange = (e) => { files = [...e.target.files]; e.target.value = ''; showPending(); };
+  root.querySelector('#att').onchange = (e) => {
+    if (st.circle?.paused) { e.target.value = ''; toast(pausedText(st.circle, app.isAdmin()), 9000); return; }
+    files = [...e.target.files]; e.target.value = ''; showPending();
+  };
   ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 140) + 'px'; });
   ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && window.matchMedia('(pointer: fine)').matches) { e.preventDefault(); root.querySelector('#composer').requestSubmit(); } });
   root.querySelector('#composer').onsubmit = async (e) => {

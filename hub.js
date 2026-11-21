@@ -1,5 +1,6 @@
 // Family hub: coming up, today's big days, weekly check-ins, the family chart.
 import * as S from './store.js';
+import { planState, fmtGB, pausedText } from './plans.js';
 import { esc, icon, face, toast, sheet, listJoin, names, hhColor } from './ui.js';
 import { pickAndCrop } from './crop.js';
 import { today, monShort, dayNum, whenText, rangeText, diffDays, weekday, shortDate, monthName, agoText, dayOfYear } from './dates.js';
@@ -38,6 +39,7 @@ export function mount(root, app) {
           ${app.isAdmin() ? `<a class="icon-btn" href="#/manage" aria-label="Family settings">${icon('gear')}</a>` : ''}
         </div>
       </header>
+      ${planNotice(app)}
       ${familyWords(app, t, sayingShift)}
       ${due.length ? `<section class="block"><div class="card checkin-strip">
         <div class="cs-head">${icon('bell', 18)}<b>Check in this week</b><small>${due.length} household${due.length === 1 ? '' : 's'}</small></div>
@@ -147,6 +149,19 @@ export function mount(root, app) {
   render();
   S.get(`journals/${st.uid}/entries/${today()}`).then((d) => { journalDone = !!d; render(); }).catch(() => {});
   return { destroy: () => { off(); root.removeEventListener('click', onClick); } };
+}
+
+// Plan notices (only once the owner has switched plans on): uploads paused, trial ending, storage nearly full.
+function planNotice(app) {
+  const st = app.state, c = st.circle || {};
+  if (!st.billingOn) return '';
+  const admin = app.isAdmin(), p = planState(c);
+  let text = '', btn = '';
+  if (c.paused) { text = pausedText(c, admin); btn = admin ? (c.paused === 'storage' ? 'Get more storage' : 'Choose a plan') : ''; }
+  else if (admin && p.plan === 'trial' && p.daysLeft <= 7) { text = `Your family's free trial ends in ${p.daysLeft} day${p.daysLeft === 1 ? '' : 's'}. Choose a plan to keep sharing photos and videos.`; btn = 'Choose a plan'; }
+  else if (admin && p.active && p.used >= p.limit * 0.9) { text = `Storage is almost full: ${fmtGB(p.used)} of ${fmtGB(p.limit)} used.`; btn = p.plan === 'family' ? 'Get more storage' : ''; }
+  if (!text) return '';
+  return `<section class="block"><div class="card plan-notice"><span>${icon('bell', 18)}</span><p>${esc(text)}</p>${btn ? `<a class="btn sm" href="#/manage">${esc(btn)}</a>` : ''}</div></section>`;
 }
 
 // The family's motto, a saying (a different one each day) and the family goal, at the top of the Family tab.

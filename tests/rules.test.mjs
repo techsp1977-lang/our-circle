@@ -5,7 +5,7 @@ import { test, before, after, beforeEach } from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, collection, addDoc, getDocs, query, where } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, collection, addDoc, getDocs, query, where, deleteField } from 'firebase/firestore';
 import { ref, uploadBytes, getBytes, deleteObject } from 'firebase/storage';
 
 const DIR = process.env.RULES_DIR || path.join(path.dirname(new URL(import.meta.url).pathname), '..');
@@ -141,11 +141,36 @@ test('attack: member deletes someone else\'s upload, or labels an upload as some
   await assertFails(uploadBytes(ref(st('uC'), 'circles/c1/media/fake.jpg'), new Uint8Array([1]), { contentType: 'image/jpeg', customMetadata: { by: 'uB' } }));
 });
 
+test('attack: an organizer gives their family a plan, unpauses uploads or shrinks their storage use', async () => {
+  await assertFails(updateDoc(doc(as('uA'), C), { billing: { plan: 'plus', until: null } }));
+  await assertFails(updateDoc(doc(as('uA'), C), { paused: null }));
+  await assertFails(updateDoc(doc(as('uA'), C), { usage: { bytes: 0 } }));
+  await assertFails(updateDoc(doc(as('uA'), C), { createdAt: Date.now() + 9e10 }));
+});
+test('attack: a new circle starts with a plan, or backdated/forward-dated to stretch the trial', async () => {
+  const mk = (data) => { const db = as('uN'); const b = writeBatch(db); b.set(doc(db, 'circles/c9'), { name: 'X', createdBy: 'uN', ...data }); b.set(doc(db, 'circles/c9/access/uN'), { memberId: 'm9', role: 'admin' }); return b.commit(); };
+  await assertFails(mk({ createdAt: Date.now(), billing: { plan: 'gift' } }));
+  await assertFails(mk({ createdAt: Date.now() + 365 * 864e5 }));
+  await assertFails(mk({}));
+});
+test('attack: reading payment records', async () => {
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'payments/in_1'), { cid: 'c1', amount: 4900 }));
+  await assertFails(getDoc(doc(as('uA'), 'payments/in_1')));
+  await assertFails(getDocs(collection(as('uA'), 'payments')));
+});
+test('app: uploads pause when the server marks the circle paused, and resume after', async () => {
+  await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), C), { paused: 'plan' }));
+  await assertFails(uploadBytes(ref(st('uC'), 'circles/c1/media/p1.jpg'), new Uint8Array([1]), { contentType: 'image/jpeg' }));
+  await assertSucceeds(getBytes(ref(st('uB'), 'circles/c1/media/existing.jpg')));
+  await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), C), { paused: deleteField() }));
+  await assertSucceeds(uploadBytes(ref(st('uC'), 'circles/c1/media/p2.jpg'), new Uint8Array([1]), { contentType: 'image/jpeg' }));
+});
+
 // ───────── real app actions (must still work) ─────────
 test('app: start a new family circle (two batches, then users doc)', async () => {
   const db = as('uN');
   const b1 = writeBatch(db);
-  b1.set(doc(db, 'circles/c2'), { name: 'New', createdBy: 'uN', createdAt: 1, theme: 'evergreen' });
+  b1.set(doc(db, 'circles/c2'), { name: 'New', createdBy: 'uN', createdAt: Date.now(), theme: 'evergreen' });
   b1.set(doc(db, 'circles/c2/access/uN'), { memberId: 'mN', role: 'admin' });
   await assertSucceeds(b1.commit());
   const b2 = writeBatch(db);
