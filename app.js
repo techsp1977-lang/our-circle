@@ -267,6 +267,7 @@ function renderSignIn(msg = '') {
         <button class="btn wide ghost" type="submit" name="mode" value="up">Create account</button>
       </form>
       <button class="linkish" id="forgot">Forgot password?</button>
+      <p class="muted small center"><a href="about.html">Plans, terms and privacy</a></p>
     </div></div>`;
   const form = $('#auth-form');
   form.onsubmit = async (e) => {

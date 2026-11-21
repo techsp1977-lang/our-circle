@@ -21,7 +21,10 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const u = new URL(e.request.url);
   if (e.request.method !== 'GET' || u.origin !== location.origin) return;
-  const isPage = e.request.mode === 'navigate';
+  // Only opening the app itself (its folder or index.html) gets the saved app. Anything else opened directly,
+  // like /about, an icon or a photo link, comes from the web as normal.
+  const isPage = e.request.mode === 'navigate' && /\/(index\.html)?$/.test(u.pathname);
+  if (e.request.mode === 'navigate' && !isPage) return;
   const key = isPage ? './index.html' : './' + u.pathname.split('/').pop();
   e.respondWith((async () => {
     const saved = await caches.match(key, { ignoreSearch: true });

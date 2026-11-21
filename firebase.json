@@ -77,6 +77,13 @@
           }
         ]
       }
+    ],
+    "redirects": [
+      {
+        "source": "/about",
+        "destination": "/about.html",
+        "type": 301
+      }
     ]
   },
   "functions": [

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Our Circle: a private family app for chats, photos, birthdays, a family calendar and a personal journal. Plans, billing, terms, privacy and contact.">
+<title>Our Circle · Plans, terms and privacy</title>
+<link rel="icon" href="oc-icon-192.png" type="image/png">
+<link rel="stylesheet" href="apple-tokens.css">
+<style>
+  :root { --tint: rgb(47 93 74); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --tint: rgb(98 180 141); } }
+  :root[data-theme="dark"] { --tint: rgb(98 180 141); }
+  .btn { color: #fff; }
+  @media (prefers-color-scheme: dark) { .btn { color: #0b1a13; } }
+  body { margin: 0; background: var(--bg-grouped); color: var(--label); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; line-height: 1.5; -webkit-text-size-adjust: 100%; }
+  main { max-width: 720px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 32px) 16px 64px; }
+  .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--label-secondary); }
+  h1 { font-size: clamp(2rem, 6vw, 2.6rem); line-height: 1.1; margin: 4px 0 8px; }
+  h2 { font-size: 1.35rem; margin: 40px 0 12px; scroll-margin-top: 16px; }
+  h3 { font-size: 1.05rem; margin: 0 0 4px; }
+  p { margin: 0 0 12px; }
+  .lead { font-size: 1.15rem; color: var(--label-secondary); }
+  a { color: var(--tint); }
+  .btn { display: inline-block; margin-top: 12px; padding: 12px 22px; border-radius: 999px; background: var(--tint); color: #fff; text-decoration: none; font-weight: 600; }
+  nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 24px 0 0; }
+  nav a { padding: 6px 12px; border-radius: 999px; background: var(--card-bg); box-shadow: var(--shadow-card); text-decoration: none; font-size: 15px; }
+  .card { background: var(--card-bg); border-radius: 16px; box-shadow: var(--shadow-card); padding: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .grid .card p { margin: 0; color: var(--label-secondary); font-size: 15px; }
+  .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .price { font-size: 2rem; font-weight: 700; margin: 4px 0; }
+  .price small { font-size: 1rem; font-weight: 500; color: var(--label-secondary); }
+  ul { margin: 8px 0 0; padding-left: 20px; }
+  li { margin: 4px 0; }
+  dl { margin: 0; }
+  dt { font-weight: 600; margin-top: 14px; }
+  dd { margin: 2px 0 0; color: var(--label-secondary); }
+  .note { font-size: 14px; color: var(--label-secondary); margin-top: 12px; }
+  footer { margin-top: 48px; font-size: 14px; color: var(--label-secondary); text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">For families</div>
+  <h1>Our Circle</h1>
+  <p class="lead">A private place for your family: messages, photos, birthdays and a family calendar, plus a personal journal that's just for you.</p>
+  <a class="btn" href="./">Open Our Circle</a>
+  <nav aria-label="On this page"><a href="#what">What it is</a><a href="#plans">Plans</a><a href="#billing">Billing</a><a href="#terms">Terms</a><a href="#privacy">Privacy</a><a href="#contact">Contact</a></nav>
+
+  <h2 id="what">What it is</h2>
+  <p>Our Circle is a web app for families. It works in the browser on any phone or computer and can be added to your Home Screen like an app. There is nothing to download from an app store.</p>
+  <div class="grid">
+    <div class="card"><h3>Family chats</h3><p>Message everyone, one household, one person or a group, with photos and videos.</p></div>
+    <div class="card"><h3>Family album</h3><p>Share photos and videos at full original quality, so anyone can download the originals.</p></div>
+    <div class="card"><h3>Birthdays &amp; calendar</h3><p>Birthdays, anniversaries, big days and trips for the whole year, with a nudge on the day.</p></div>
+    <div class="card"><h3>Staying in touch</h3><p>Gentle check-in nudges when it's been a while since you messaged a household.</p></div>
+    <div class="card"><h3>Private journal</h3><p>Daily pages, gratitude lists and goals, and a printed book of your year.</p></div>
+    <div class="card"><h3>More than one family</h3><p>Belong to your own family and your parents' or in-laws' circles, and switch between them.</p></div>
+  </div>
+
+  <h2 id="plans">Plans</h2>
+  <p>Every new family circle gets a <b>30-day free trial</b> with everything included. No card is needed to start it. When it ends, the circle's organizer chooses a plan. <b>One plan covers everyone in the circle.</b></p>
+  <div class="plans">
+    <div class="card"><h3>Family</h3><div class="price">$49 <small>/ year</small></div>
+      <ul><li>Everything in Our Circle for the whole family</li><li>50 GB for photos and videos (about 15,000 photos)</li><li>Everyone in the circle joins free</li></ul></div>
+    <div class="card"><h3>Family Plus</h3><div class="price">$99 <small>/ year</small></div>
+      <ul><li>Everything in Family</li><li>200 GB for photos and videos (about 60,000 photos, or lots of video)</li><li>For families who share a lot of video</li></ul></div>
+  </div>
+  <p class="note">Prices are in US dollars. Journals are private and never count toward the family's storage.</p>
+
+  <h2 id="billing">Billing, cancelling and refunds</h2>
+  <dl>
+    <dt>Yearly billing.</dt><dd>Plans are charged once a year by card through Stripe and renew each year until you cancel.</dd>
+    <dt>Access is immediate.</dt><dd>Your plan turns on as soon as the payment goes through.</dd>
+    <dt>Cancel anytime.</dt><dd>In Our Circle, go to Family settings, then Plan &amp; billing, then Manage billing. You keep your plan through the end of the year you paid for.</dd>
+    <dt>Changing plans.</dt><dd>You can move from Family to Family Plus at any time and pay only the difference for the rest of your year.</dd>
+    <dt>If a plan ends or storage is full.</dt><dd>Only new photo and video uploads pause. Messages, the calendar, journals and every photo already shared keep working, and originals can still be downloaded.</dd>
+    <dt>Refunds.</dt><dd>If you were charged by mistake or have a problem with a charge, email us within 30 days and we'll make it right.</dd>
+  </dl>
+
+  <h2 id="terms">Terms of Use</h2>
+  <dl>
+    <dt>Our Circle</dt><dd>Our Circle, its design and its code are © 2026 Our Circle. All rights reserved.</dd>
+    <dt>Your account</dt><dd>Each account is for one person. Keep your sign-in to yourself. Organizers choose who is invited to their circle and can remove people.</dd>
+    <dt>What you share</dt><dd>What you post is yours. Share only what you have the right to share, and be thoughtful about photos of other people, especially children. Don't use Our Circle to harass anyone or to share anything illegal; we may remove content or close accounts that do.</dd>
+    <dt>Children</dt><dd>Parents can add profiles for young children and manage them. A child under 13 shouldn't have their own sign-in unless a parent sets it up and supervises it.</dd>
+    <dt>Fair use</dt><dd>Don't copy, scrape, reverse-engineer, rebuild or redistribute the app, and don't try to get around plan limits.</dd>
+    <dt>Plans and billing</dt><dd>Family is $49 a year and Family Plus is $99 a year, billed through Stripe. They renew yearly until you cancel, and you keep your plan through the end of the year you paid for. The 30-day trial is free. Gifted plans last as long as the gift says.</dd>
+    <dt>No warranty</dt><dd>The app is provided as is. Keep your own copies of anything irreplaceable. To the extent the law allows, we're not liable for lost data or anything that comes from using the app.</dd>
+    <dt>Changes</dt><dd>If these terms change in a way that matters, we'll say so in the app before the change takes effect.</dd>
+  </dl>
+
+  <h2 id="privacy">Privacy</h2>
+  <dl>
+    <dt>What we keep.</dt><dd>Your sign-in email and name, and what your family puts in Our Circle: names, photos and birthdays of family members (including profiles parents create for young children), messages, shared photos and videos, dates and trips, and your own journal pages and goals.</dd>
+    <dt>Who can see it.</dt><dd>Everything in a family circle is visible only to the people in that circle. Your journal and goals are visible only to you in the app; no one else in your family can see them.</dd>
+    <dt>An honest note about journals.</dt><dd>Journals are stored on Google's servers like everything else. As the people who run Our Circle, we could technically reach that storage, but we don't read journals. We're working on encrypting journals on your device so that no one but you can read them.</dd>
+    <dt>Where it lives.</dt><dd>Our Circle is stored with Google Firebase in the United States.</dd>
+    <dt>Payments.</dt><dd>Cards are handled by Stripe. Our Circle never sees or stores your card number.</dd>
+    <dt>Notifications.</dt><dd>If you turn on notifications, new-message previews are delivered through Apple's, Google's or your browser's push service. You can turn them off on My page or in your phone's settings.</dd>
+    <dt>Face ID.</dt><dd>Face ID sign-in uses a passkey that stays on your phone. We keep only a public key that can't be used to sign in anywhere else. Your face data never leaves your phone.</dd>
+    <dt>No selling.</dt><dd>We don't sell your information or show ads.</dd>
+    <dt>Download or delete.</dt><dd>You can download the original of any shared photo or video at any time. To delete your account, or a whole family circle and everything in it, email us and we'll do it within 30 days.</dd>
+  </dl>
+
+  <h2 id="contact">Contact</h2>
+  <p>Questions, billing help or feedback: <a href="mailto:yardagebook.app@gmail.com">yardagebook.app@gmail.com</a></p>
+
+  <footer>© 2026 Our Circle · <a href="mailto:yardagebook.app@gmail.com">yardagebook.app@gmail.com</a> · <a href="./">Open Our Circle</a></footer>
+</main>
+</body>
+</html>
