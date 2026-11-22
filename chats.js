@@ -1,6 +1,6 @@
 // Chats list and a single conversation.
 import * as S from './store.js';
-import { esc, icon, face, toast, fmtSize, listJoin, names, safeUrl, mediaKind } from './ui.js';
+import { esc, icon, face, toast, fmtSize, listJoin, names, safeUrl, mediaKind, hhColor } from './ui.js';
 import { ago } from './dates.js';
 import { pausedText } from './plans.js';
 
@@ -73,6 +73,11 @@ function conversation(root, app, chatId) {
     const c = st.chats[chatId];
     if (!c) { root.querySelector('#ct').textContent = 'Chat'; return; }
     root.querySelector('#ct').textContent = chatTitle(app, c);
+    // A household or one-on-one chat wears that household's shade of the circle color; the family-wide chat keeps the main color.
+    const hids = [...new Set((c.memberIds || []).filter((id) => id !== st.me).map((id) => app.member(id)?.householdId).filter(Boolean))];
+    const hh = c.kind === 'everyone' ? null : app.household(c.householdId) || (hids.length === 1 ? app.household(hids[0]) : null);
+    const convo = root.querySelector('.convo');
+    if (hh) convo.style.setProperty('--chat', hhColor(hh)); else convo.style.removeProperty('--chat');
     const names = c.kind === 'everyone' ? 'The whole family' : listJoin((c.memberIds || []).map((id) => (id === st.me ? 'You' : app.member(id)?.name)).filter(Boolean));
     root.querySelector('#cs').textContent = names;
   };

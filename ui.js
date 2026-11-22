@@ -1,4 +1,5 @@
 // Small UI helpers shared by every screen.
+import { shades, currentTheme } from './themes.js';
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -65,6 +66,8 @@ export function sheet({ title, intro = '', fields = [], submit = 'Save', danger 
         input = `<textarea id="${id}" name="${f.name}" rows="${f.rows || 3}" placeholder="${esc(f.placeholder || '')}" ${req}>${esc(f.value || '')}</textarea>`;
       } else if (f.type === 'checkbox') {
         return `<label class="check" for="${id}"><input type="checkbox" id="${id}" name="${f.name}" ${f.value ? 'checked' : ''}> <span>${esc(f.label)}</span></label>`;
+      } else if (f.type === 'swatches') {
+        return `<fieldset class="swatches"><legend>${esc(f.label)}</legend>${f.options.map((o, j) => `<label class="swatch" for="${id}_${j}" style="--sw:${esc(o.color)}"><input type="radio" id="${id}_${j}" name="${f.name}" value="${esc(o.value)}" ${o.value === f.value ? 'checked' : ''}><span class="sw-dot" aria-hidden="true"></span><span class="sw-name">${esc(o.label)}</span></label>`).join('')}</fieldset>`;
       } else if (f.type === 'checks') {
         return `<fieldset class="checks"><legend>${esc(f.label)}</legend>${f.options.map((o, j) => `<label class="check" for="${id}_${j}"><input type="checkbox" id="${id}_${j}" name="${f.name}" value="${esc(o.value)}" ${(f.value || []).includes(o.value) ? 'checked' : ''}> <span>${esc(o.label)}</span></label>`).join('')}</fieldset>`;
       } else {
@@ -134,19 +137,12 @@ export function listJoin(names) {
 
 // Each household gets its own shade of green (picked in Family settings, or by position).
 // Every shade carries white text at 4.5:1 or better.
-export const HH_COLORS = [
-  { key: 'forest', label: 'Forest', value: '#2F5D4A' },
-  { key: 'emerald', label: 'Emerald', value: '#0B7A55' },
-  { key: 'sage', label: 'Sage', value: '#4F6F58' },
-  { key: 'moss', label: 'Moss', value: '#5B6B1F' },
-  { key: 'teal', label: 'Sea green', value: '#17675F' },
-  { key: 'pine', label: 'Pine', value: '#1F4F3F' },
-  { key: 'fern', label: 'Fern', value: '#3E7A2E' },
-  { key: 'olive', label: 'Olive', value: '#6A6A2A' },
-];
+// Household colors are shades of the circle's color (themes.js). HH_COLORS is the current circle's set.
+export const HH_COLORS = { find: (fn) => shades(currentTheme()).find(fn), map: (fn) => shades(currentTheme()).map(fn) };
 export function hhColor(h, index = 0) {
-  const pick = HH_COLORS.find((c) => c.key === h?.color);
-  return (pick || HH_COLORS[(h?.order ?? index) % HH_COLORS.length]).value;
+  const list = shades(currentTheme());
+  const pick = list.find((c) => c.key === h?.color);
+  return (pick || list[(h?.order ?? index) % list.length]).value;
 }
 
 // Keep each name whole on one line: "Jamison, Sophi & Jack" can wrap between names, never inside one,

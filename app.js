@@ -2,6 +2,7 @@ import { APP_NAME, APP_TAGLINE, DEFAULT_CHECKIN_DAYS } from './config.js';
 import * as S from './store.js';
 import { esc, icon, toast, $, sheet, face } from './ui.js';
 import { setBadge } from './push.js';
+import { THEMES, theme, applyTheme, DEFAULT_THEME } from './themes.js';
 import { lockGate, webauthnSupported, prepared, passkeySignIn, explain, faceLabel } from './lock.js';
 
 // ───────────── shared app state ─────────────
@@ -221,7 +222,7 @@ async function openCircle(cid) {
   };
   const changed = () => { app.emit(); updateBadges(); maybeReady(); };
 
-  subs.push(S.watchDoc(`circles/${cid}`, (c) => { state.circle = c; first.circle = true; changed(); }));
+  subs.push(S.watchDoc(`circles/${cid}`, (c) => { state.circle = c; applyTheme(c?.theme); first.circle = true; changed(); }));
   subs.push(S.watchColl(`circles/${cid}/members`, {}, (rows) => {
     state.members = Object.fromEntries(rows.map((r) => [r.id, r])); first.members = true; changed(); renderDemoBar();
   }));
@@ -232,6 +233,8 @@ async function openCircle(cid) {
     rows.forEach((r) => (state.chats[r.id] = r)); changed(); noticeNew(rows);
   }));
   subs.push(S.watchDoc(`circles/${cid}/chats/everyone`, (c) => { if (c) { state.chats.everyone = c; noticeNew([c]); } changed(); }));
+  // Role changes (made an organizer, or stepped down) show up without reopening the app.
+  subs.push(S.watchDoc(`circles/${cid}/access/${state.uid}`, (a) => { if (a && a.role !== state.access?.role) { state.access = a; changed(); } }));
   subs.push(S.watchDoc(`users/${state.uid}`, (u) => { state.prefs = u?.prefs || {}; changed(); }));
   subs.push(S.watchDoc('config/billing', (b) => { state.billingOn = !!b?.on; changed(); }));
   return true;
@@ -325,6 +328,7 @@ async function renderOnboarding(msg = '', opts = {}) {
     [cid, code] = join.split('.');
     invite = await S.get(`circles/${cid}/invites/${code}`).catch(() => null);
   }
+  applyTheme(DEFAULT_THEME);
   document.body.innerHTML = `<div class="auth"><div class="auth-card">
     <div class="brand">${icon('family', 30)}<span>${esc(APP_NAME)}</span></div>
     ${msg ? `<p class="error" role="alert">${esc(msg)}</p>` : ''}
@@ -340,6 +344,8 @@ async function renderOnboarding(msg = '', opts = {}) {
         <label class="field" for="cn"><span>Family name</span><input id="cn" required placeholder="The Proctors"></label>
         <label class="field" for="yn"><span>Your first name</span><input id="yn" required placeholder="Spencer" value="${esc(opts.myName || '')}"></label>
         <label class="field" for="hn"><span>Your household</span><input id="hn" required placeholder="Spencer & Jeana"><small>Everyone who lives with you, as you'd write it on a card.</small></label>
+        <fieldset class="swatches"><legend>Circle color</legend>${THEMES.map((t, j) => `<label class="swatch" for="tc_${j}" style="--sw:${theme(t.key).swatch}"><input type="radio" id="tc_${j}" name="theme" value="${t.key}" ${j === 0 ? 'checked' : ''}><span class="sw-dot" aria-hidden="true"></span><span class="sw-name">${t.label}</span></label>`).join('')}</fieldset>
+        <p class="muted small">Each household gets its own shade of this color. You can change it later in Family settings.</p>
         <button class="btn wide" type="submit">Create our circle</button>
       </form>
       <p class="muted small">Got an invite link from family? Open that link instead.</p>`}
@@ -347,6 +353,7 @@ async function renderOnboarding(msg = '', opts = {}) {
   </div></div>`;
   $('#out')?.addEventListener('click', () => S.auth.signOut());
   $('#back')?.addEventListener('click', () => openCircle(opts.back));
+  $('#start')?.addEventListener('change', (e) => { if (e.target.name === 'theme') applyTheme(e.target.value); });
   $('#join')?.addEventListener('click', async () => {
     try {
       const uid = state.uid;
@@ -368,7 +375,7 @@ async function renderOnboarding(msg = '', opts = {}) {
     try {
       const uid = state.uid, cid2 = S.newId(), mid = S.newId(), hid = S.newId();
       await S.batch([
-        { op: 'set', path: `circles/${cid2}`, data: { name: $('#cn').value.trim(), createdBy: uid, createdAt: Date.now(), theme: 'evergreen' } },
+        { op: 'set', path: `circles/${cid2}`, data: { name: $('#cn').value.trim(), createdBy: uid, createdAt: Date.now(), theme: $('#start').elements.theme?.value || DEFAULT_THEME } },
         { op: 'set', path: `circles/${cid2}/access/${uid}`, data: { memberId: mid, role: 'admin' } },
       ]);
       await S.batch([
