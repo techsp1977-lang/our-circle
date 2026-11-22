@@ -1,6 +1,7 @@
 // Family settings for organizers: households, people, invite links.
 import * as S from './store.js';
-import { esc, icon, face, sheet, toast, confirmBox, names, HH_COLORS, hhColor } from './ui.js';
+import { esc, icon, face, sheet, toast, confirmBox, names, listJoin, HH_COLORS, hhColor } from './ui.js';
+import { THEMES, theme, applyTheme } from './themes.js';
 import { pickAndCrop } from './crop.js';
 import { PLANS, planState, fmtGB } from './plans.js';
 
@@ -82,6 +83,8 @@ export function mount(root, app) {
       <section class="block card list">
         <div class="li"><span class="li-main"><span class="li-sub">Family name</span><span class="li-title">${esc(st.circle?.name || '')}</span></span>
           <button class="icon-btn sm" data-act="circle" aria-label="Rename family">${icon('edit', 16)}</button></div>
+        <div class="li"><span class="hh-swatch" style="--hh:${theme(st.circle?.theme).swatch}" aria-hidden="true"></span><span class="li-main"><span class="li-sub">Circle color</span><span class="li-title">${esc(theme(st.circle?.theme).label)}</span></span>
+          <button class="icon-btn sm" data-act="color" aria-label="Change circle color">${icon('edit', 16)}</button></div>
       </section>
 
       ${planSection(st.circle)}
@@ -103,7 +106,13 @@ export function mount(root, app) {
             <button class="li add-row" data-act="add-m" data-id="${esc(h.id)}">${icon('plus', 16)} Add a person to ${esc(h.name)}</button>
           </div>`).join('')}
       </section>
-      <p class="hint pad-x">Tip: add everyone first, with birthdays, then send each person their own invite link. Young kids don't need a link; their parents manage them from My page.</p>`;
+      <p class="hint pad-x">Tip: add everyone first, with birthdays, then send each person their own invite link. Young kids don't need a link; their parents manage them from My page.</p>
+      <section class="block">
+        <h2>Hand the circle over</h2>
+        <p class="hint">Setting this up for someone else? Make them an organizer (tap the pencil next to their name), then step down here. You stay in the family as a regular member.</p>
+        <div class="card list"><button class="li add-row" data-act="step-down">${icon('users', 16)} Step down as organizer</button></div>
+        ${accessRows.filter((a) => a.role === 'admin' && a.id !== st.uid).length ? '' : '<p class="hint">You are the only organizer right now.</p>'}
+      </section>`;
   };
 
   const hhOptions = () => st.households.map((h) => ({ value: h.id, label: h.name }));
@@ -125,6 +134,28 @@ export function mount(root, app) {
         if (r) await S.update(`circles/${st.cid}`, { name: r.name });
         break;
       }
+      case 'color': {
+        const was = st.circle?.theme;
+        const pending = sheet({ title: 'Circle color', intro: 'Everyone in the circle sees this color. Each household gets its own shade of it, and so do its chats.', submit: 'Use this color', fields: [
+          { name: 'theme', label: 'Color', type: 'swatches', value: theme(was).key, options: THEMES.map((t) => ({ value: t.key, label: t.label, color: theme(t.key).swatch })) },
+        ] });
+        // Show the color on the page behind as it's tapped.
+        [...document.querySelectorAll('.sheet-wrap')].at(-1)?.addEventListener('change', (ev) => { if (ev.target.name === 'theme') applyTheme(ev.target.value); });
+        const r = await pending;
+        if (!r || !r.theme || r.theme === theme(was).key) { applyTheme(was); break; }
+        try { await S.update(`circles/${st.cid}`, { theme: r.theme }); toast(`Circle color changed to ${theme(r.theme).label}.`); }
+        catch (er) { applyTheme(was); toast('The color did not save. Try again.'); }
+        break;
+      }
+      case 'step-down': {
+        const others = accessRows.filter((a) => a.role === 'admin' && a.id !== st.uid);
+        if (!others.length) { toast('Make someone else an organizer first, so the circle always has one.'); break; }
+        const who = listJoin(others.map((a) => app.member(a.memberId)?.name).filter(Boolean));
+        if (!(await confirmBox('Step down as organizer?', `${who} will run the circle. You stay in the family, with your chats, photos and journal, but you won't be able to change family settings. An organizer can make you one again.`, 'Step down'))) break;
+        try { await S.update(app.path('access/' + st.uid), { role: 'member' }); st.access = { ...st.access, role: 'member' }; toast('You are no longer an organizer.'); location.hash = '#/me'; }
+        catch (er) { toast('That did not work. Try again.'); }
+        break;
+      }
       case 'add-hh': {
         const r = await sheet({ title: 'Add household', intro: 'For example "Jamison, Sophi & Jack", or one person living on their own.', fields: [{ name: 'name', label: 'Household name', required: true }] });
         if (r) await S.add(app.path('households'), { name: r.name, order: st.households.length });
@@ -135,7 +166,7 @@ export function mount(root, app) {
         const r = await sheet({ title: 'Edit household', danger: app.membersOf(id).length ? null : 'Delete household', fields: [
           { name: 'name', label: 'Household name', value: h.name, required: true },
           { name: 'order', label: 'Position in the list (1 = top)', type: 'number', value: String((h.order ?? 0) + 1) },
-          { name: 'color', label: 'Color', type: 'select', value: h.color || HH_COLORS.find((c) => c.value === hhColor(h))?.key, options: HH_COLORS.map((c) => ({ value: c.key, label: c.label })) },
+          { name: 'color', label: 'Shade', type: 'swatches', value: h.color || HH_COLORS.find((c) => c.value === hhColor(h))?.key, options: HH_COLORS.map((c) => ({ value: c.key, label: c.label, color: c.value })) },
         ] });
         if (!r) return;
         if (r.__danger) { await S.del(app.path('households/' + id)); return; }
