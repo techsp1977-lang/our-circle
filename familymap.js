@@ -7,14 +7,17 @@ import { happeningToday } from './events.js';
 import { today, diffDays } from './dates.js';
 import { checkin } from './hub.js';
 
-const CELL_W = 56, CELL_H = 62, GAP_X = 24, GAP_Y = 50, LABEL_H = 46, SHELF = 560;
+const GAP_X = 22, GAP_Y = 46, LABEL_H = 50, SHELF = 560;
 const views = new Map(); // remembered zoom and position, per circle
 
-// How big a bubble is: room for everyone's photo and name in a square that fits inside the circle.
-function diameter(n) {
-  const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
-  const rows = Math.ceil(Math.max(1, n) / cols);
-  return Math.max(104, Math.round(Math.max(cols * CELL_W, rows * CELL_H) * 1.42 + 14));
+// How big a bubble is, and how big the photos inside it are: photos fill as much of the circle as they can
+// (fewer people, bigger photos), with each name under its photo.
+function spec(n) {
+  n = Math.max(1, n);
+  const cols = n === 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
+  const a = n === 1 ? 78 : n === 2 ? 64 : n <= 4 ? 58 : n <= 6 ? 52 : n <= 9 ? 46 : 42;
+  const rows = Math.ceil(n / cols), gw = cols * (a + 6), gh = rows * (a + 20);
+  return { a, cols, d: Math.round(Math.max(118, Math.hypot(gw, gh) * 0.92 + 12)) };
 }
 
 // Today's reason to celebrate each household: { hid: { kind, text } }.
@@ -46,7 +49,7 @@ function celebrations(app) {
 function layout(app) {
   const st = app.state;
   const rows = familyTree(st.households);
-  const node = new Map(rows.map(({ h, depth }) => [h.id, { h, depth, d: diameter(app.membersOf(h.id).length), kids: [] }]));
+  const node = new Map(rows.map(({ h, depth }) => [h.id, { h, depth, ...spec(app.membersOf(h.id).length), kids: [] }]));
   const roots = [];
   rows.forEach(({ h }) => { const n = node.get(h.id); const p = h.parentId && node.get(h.parentId); if (p && p !== n && n.depth > p.depth) p.kids.push(n); else roots.push(n); });
   const rowsOf = (n) => {
@@ -103,7 +106,7 @@ function bubbleHTML(app, n, cel, i) {
       aria-label="${esc(h.name)}${mine ? ', your household' : ''}${c ? ', ' + esc(c.text) : ''}${due ? ', time to check in' : ''}. Open">
       <span class="bub-fill" aria-hidden="true"></span>
       ${c ? `<span class="bub-sparks" aria-hidden="true">${(c.kind === 'bday' ? ['🎈', '🎂', '🎉'] : c.kind === 'anniv' ? ['💕', '💗', '💞'] : c.kind === 'new' ? ['✨', '👶', '✨'] : ['🎉', '✨', '🎊']).map((e, j) => `<i style="--j:${j}">${e}</i>`).join('')}</span>` : ''}
-      <span class="bub-people">${people.map((m) => `<span class="bub-p">${face(m, 'bub-face')}<span class="bub-name">${esc(m.name)}</span></span>`).join('') || '<span class="bub-empty">No one yet</span>'}</span>
+      <span class="bub-people" style="--a:${n.a}px;width:${n.cols * (n.a + 6)}px">${people.map((m) => `<span class="bub-p">${face(m, 'bub-face')}<span class="bub-name">${esc(m.name)}</span></span>`).join('') || '<span class="bub-empty">No one yet</span>'}</span>
       ${due ? `<span class="bub-due" aria-hidden="true">${icon('bell', 13)}</span>` : ''}
     </button>
     <div class="bub-label" style="left:${Math.round(n.x - (n.d + 70) / 2)}px;top:${Math.round(n.y + n.d + 6)}px;width:${n.d + 70}px">
@@ -120,7 +123,7 @@ export function mapHTML() {
         <button type="button" class="icon-btn sm" data-zoom="in" aria-label="Zoom in">+</button>
       </div>
     </div>
-    <p class="hint center">Pinch to zoom, drag sideways to look around. Tap a circle to message them.</p>`;
+    <p class="hint center">Pinch with two fingers to zoom and move around. Tap a circle to message them.</p>`;
 }
 
 // Fill in the map and hook up zooming. Call after mapHTML() is on the page.
@@ -168,34 +171,58 @@ export function drawMap(app, root) {
     if (z.dataset.zoom === 'fit') { const s = fitScale(); v.s = s; v.x = (w - W * s) / 2; v.y = 8; apply(); }
     else zoomAt(v.s * (z.dataset.zoom === 'in' ? 1.35 : 1 / 1.35), w / 2, h / 2);
   });
-  // Pinch and drag. One finger up-and-down still scrolls the page; sideways pans the family.
-  const pts = new Map(); let start = null, moved = false;
-  const rel = (e) => { const r = viewEl.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-  const begin = () => {
-    const p = [...pts.values()];
-    if (p.length >= 2) start = { two: true, d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) || 1, mx: (p[0].x + p[1].x) / 2, my: (p[0].y + p[1].y) / 2, s: v.s, x: v.x, y: v.y };
-    else if (p.length === 1) start = { two: false, px: p[0].x, py: p[0].y, x: v.x, y: v.y };
-    else start = null;
+  // Gestures, like a map in an app: two fingers zoom and move the family (the page holds still); one finger up or
+  // down scrolls the page as usual; one finger sideways slides the family. Changes are drawn once per frame.
+  let moved = false, frame = 0;
+  const draw = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; apply(); }); };
+  const rel = (x, y) => { const r = viewEl.getBoundingClientRect(); return { x: x - r.left, y: y - r.top }; };
+  let g = null; // the gesture in progress
+  const startTwo = (t) => {
+    const a = rel(t[0].clientX, t[0].clientY), b = rel(t[1].clientX, t[1].clientY);
+    g = { two: true, d: Math.hypot(a.x - b.x, a.y - b.y) || 1, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, s: v.s, x: v.x, y: v.y };
   };
-  viewEl.addEventListener('pointerdown', (e) => { if (e.target.closest('.fam-zoom')) return; pts.set(e.pointerId, rel(e)); if (pts.size === 1) moved = false; begin(); });
-  viewEl.addEventListener('pointermove', (e) => {
-    if (!pts.has(e.pointerId) || !start) return;
-    pts.set(e.pointerId, rel(e));
-    const p = [...pts.values()];
-    if (start.two && p.length >= 2) {
-      const d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), mx = (p[0].x + p[1].x) / 2, my = (p[0].y + p[1].y) / 2;
-      const s = start.s * d / start.d, k = s / start.s;
-      v.s = s; v.x = mx - (start.mx - start.x) * k; v.y = my - (start.my - start.y) * k; moved = true; apply();
-    } else if (!start.two) {
-      const dx = p[0].x - start.px, dy = p[0].y - start.py;
-      if (Math.abs(dx) + Math.abs(dy) > 6) moved = true;
-      if (moved) { v.x = start.x + dx; v.y = start.y + dy; apply(); }
+  viewEl.addEventListener('touchstart', (e) => {
+    if (e.target.closest('.fam-zoom')) return;
+    if (e.touches.length >= 2) { e.preventDefault(); startTwo(e.touches); moved = true; return; }
+    const p = rel(e.touches[0].clientX, e.touches[0].clientY);
+    g = { two: false, px: p.x, py: p.y, x: v.x, y: v.y, axis: null };
+    moved = false;
+  }, { passive: false });
+  viewEl.addEventListener('touchmove', (e) => {
+    if (!g) return;
+    if (e.touches.length >= 2) {
+      e.preventDefault();
+      if (!g.two) startTwo(e.touches);
+      const a = rel(e.touches[0].clientX, e.touches[0].clientY), b = rel(e.touches[1].clientX, e.touches[1].clientY);
+      const d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      const k = (g.s * d / g.d) / g.s;
+      v.s = g.s * k; v.x = mx - (g.mx - g.x) * k; v.y = my - (g.my - g.y) * k;
+      draw(); return;
     }
+    if (g.two) return; // one finger left after a pinch: wait until it lifts
+    const p = rel(e.touches[0].clientX, e.touches[0].clientY), dx = p.x - g.px, dy = p.y - g.py;
+    if (!g.axis && Math.abs(dx) + Math.abs(dy) > 8) g.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    if (g.axis !== 'x') return; // up or down: the page scrolls
+    e.preventDefault(); moved = true;
+    v.x = g.x + dx; v.y = g.y + dy; draw();
+  }, { passive: false });
+  viewEl.addEventListener('touchend', (e) => { if (!e.touches.length) g = null; else if (g?.two && e.touches.length === 1) g = { two: true, done: true }; });
+  viewEl.addEventListener('touchcancel', () => { g = null; });
+  // Safari's own page zoom stays out of the family view.
+  ['gesturestart', 'gesturechange'].forEach((t) => viewEl.addEventListener(t, (e) => e.preventDefault()));
+  // A mouse drags in any direction.
+  let m = null;
+  viewEl.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse' || e.button || e.target.closest('.fam-zoom')) return; const p = rel(e.clientX, e.clientY); m = { px: p.x, py: p.y, x: v.x, y: v.y }; moved = false; });
+  // (The view is redrawn with the page, so listeners stay on it, not on the window; it holds the mouse once a drag starts.)
+  viewEl.addEventListener('pointermove', (e) => {
+    if (!m || e.pointerType !== 'mouse') return;
+    const p = rel(e.clientX, e.clientY), dx = p.x - m.px, dy = p.y - m.py;
+    if (!moved && Math.abs(dx) + Math.abs(dy) > 5) { moved = true; try { viewEl.setPointerCapture(e.pointerId); } catch (er) {} }
+    if (moved) { v.x = m.x + dx; v.y = m.y + dy; draw(); }
   });
-  const end = (e) => { pts.delete(e.pointerId); begin(); };
-  ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => viewEl.addEventListener(t, end));
+  ['pointerup', 'pointercancel'].forEach((t) => viewEl.addEventListener(t, () => { m = null; }));
   viewEl.addEventListener('click', (e) => { if (moved && !e.target.closest('[data-zoom]')) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
-  viewEl.addEventListener('wheel', (e) => { e.preventDefault(); const r = rel(e); zoomAt(v.s * Math.exp(-e.deltaY * 0.0025), r.x, r.y); }, { passive: false });
+  viewEl.addEventListener('wheel', (e) => { e.preventDefault(); const r = rel(e.clientX, e.clientY); zoomAt(v.s * Math.exp(-e.deltaY * 0.0025), r.x, r.y); }, { passive: false });
 }
 
 // Tapping a circle: everyone in that household, with ways to reach them.
