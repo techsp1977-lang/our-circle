@@ -136,7 +136,7 @@ function post(root, app, id) {
     const can = p.by === st.me || app.isAdmin();
     const items = p.media || [];
     root.innerHTML = `
-      <header class="top"><a class="icon-btn" href="#/album" aria-label="Back to album">${icon('back')}</a>
+      <header class="top"><a class="icon-btn" href="#/album" data-back="#/album" aria-label="Back">${icon('back')}</a>
         <div class="grow"><h1 class="h1">${esc(p.title)}</h1><div class="muted small">${esc(app.member(p.by)?.name || '')} · ${shortDate(toISO(new Date(p.at)))} · ${items.length} item${items.length === 1 ? '' : 's'}</div></div>
         ${can ? `<button class="icon-btn" data-act="edit" aria-label="Edit">${icon('edit')}</button>` : ''}</header>
       ${p.caption ? `<p class="pad-x">${esc(p.caption)}</p>` : ''}

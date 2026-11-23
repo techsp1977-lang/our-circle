@@ -55,7 +55,7 @@ function conversation(root, app, chatId) {
   root.innerHTML = `
     <div class="convo">
       <header class="convo-head">
-        <a class="icon-btn" href="#/chats" aria-label="Back to chats">${icon('back')}</a>
+        <a class="icon-btn" href="#/chats" data-back="#/chats" aria-label="Back">${icon('back')}</a>
         <div class="convo-title"><b id="ct"></b><small id="cs"></small></div>
       </header>
       <div class="msgs" id="msgs" aria-live="polite"></div>
