@@ -20,12 +20,18 @@ export async function inviteLink(app, memberId) {
     intro: 'Send this link by text. It works once and signs them in as ' + m.name + '.',
     submit: navigator.share ? 'Share link' : 'Copy link',
     body: `<p class="linkbox">${esc(link)}</p>`,
-    fields: [],
+    // Organizers can have someone join as an organizer too (to run their branch of the family).
+    fields: app.isAdmin() && !m.managedBy?.length ? [{ name: 'organizer', label: `Make ${m.name} an organizer when they join`, type: 'checkbox', value: false }] : [],
   });
   if (!r) return;
+  if (r.organizer) {
+    try { await S.update(app.path('invites/' + code), { organizer: true }); }
+    catch (e) { toast(why("Couldn't mark the invite for an organizer.", e), 9000); return; }
+  }
   try {
     if (navigator.share) await navigator.share({ title: 'Join our family', text });
     else { await navigator.clipboard.writeText(text); toast('Invite copied. Paste it into a text message.'); }
+    if (r.organizer) toast(`${m.name} will be an organizer when they join.`, 4000);
   } catch (e) { toast('Copy the link above and text it.'); }
 }
 
