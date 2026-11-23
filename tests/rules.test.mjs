@@ -82,6 +82,27 @@ test('attack: one invite code lets several accounts join (never marked used)', a
 test('attack: organizer re-points their own login at another member (reads their DMs)', async () => {
   await assertFails(updateDoc(doc(as('uA'), `${C}/access/uA`), { memberId: 'mB' }));
 });
+test('attack: someone joins as an organizer with an ordinary invite', async () => {
+  const db = as('uD');
+  const b = writeBatch(db);
+  b.set(doc(db, `${C}/access/uD`), { memberId: 'mD', role: 'admin', invite: 'inv1' });
+  b.update(doc(db, `${C}/invites/inv1`), { used: true, usedBy: 'uD' });
+  b.update(doc(db, `${C}/members/mD`), { uid: 'uD', claimed: true });
+  await assertFails(b.commit());
+  // The same invite still works for joining as an ordinary member.
+  const b2 = writeBatch(db);
+  b2.set(doc(db, `${C}/access/uD`), { memberId: 'mD', role: 'member', invite: 'inv1' });
+  b2.update(doc(db, `${C}/invites/inv1`), { used: true, usedBy: 'uD' });
+  b2.update(doc(db, `${C}/members/mD`), { uid: 'uD', claimed: true });
+  await assertSucceeds(b2.commit());
+});
+test('attack: a parent (not an organizer) makes an organizer invite for their child', async () => {
+  const db = as('uB');
+  await assertSucceeds(setDoc(doc(db, `${C}/members/mKB`), { name: 'Kid B', householdId: 'h2', order: 9, photo: null, uid: null, claimed: false, managedBy: ['mB'], createdAt: 1 }));
+  await assertSucceeds(setDoc(doc(db, `${C}/invites/kb1`), { memberId: 'mKB', memberName: 'Kid B', circleName: 'Test family', used: false, createdBy: 'mB', createdAt: 1 }));
+  await assertFails(setDoc(doc(db, `${C}/invites/kb2`), { memberId: 'mKB', memberName: 'Kid B', circleName: 'Test family', used: false, organizer: true, createdBy: 'mB', createdAt: 1 }));
+  await assertFails(updateDoc(doc(db, `${C}/invites/kb1`), { organizer: true }));
+});
 test('attack: organizer makes an invite for a member who already has a login', async () => {
   await assertFails(setDoc(doc(as('uA'), `${C}/invites/evil`), { memberId: 'mB', memberName: 'B', circleName: '', used: false, createdBy: 'mA', createdAt: 1 }));
 });
@@ -239,6 +260,17 @@ test('app: send a message, update the chat preview, mark as read', async () => {
 test('app: edit my own name and photo', async () => {
   await assertSucceeds(updateDoc(doc(as('uC'), `${C}/members/mC`), { name: 'Cee' }));
   await assertSucceeds(updateDoc(doc(as('uC'), `${C}/members/mC`), { photo: 'https://x/p.jpg' }));
+});
+test('app: organizer invites someone to join as an organizer, and they do', async () => {
+  await assertSucceeds(setDoc(doc(as('uA'), `${C}/invites/org1`), { memberId: 'mD', memberName: 'D', circleName: 'Test family', used: false, createdBy: 'mA', createdAt: 1 }));
+  await assertSucceeds(updateDoc(doc(as('uA'), `${C}/invites/org1`), { organizer: true }));
+  const db = as('uD');
+  const b = writeBatch(db);
+  b.set(doc(db, `${C}/access/uD`), { memberId: 'mD', role: 'admin', invite: 'org1' });
+  b.update(doc(db, `${C}/invites/org1`), { used: true, usedBy: 'uD' });
+  b.update(doc(db, `${C}/members/mD`), { uid: 'uD', claimed: true });
+  await assertSucceeds(b.commit());
+  await assertSucceeds(setDoc(doc(db, `${C}/households/h9`), { name: 'New house', order: 9 }));
 });
 test('app: parent adds, edits, invites and removes a child profile', async () => {
   const db = as('uA');

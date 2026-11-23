@@ -80,7 +80,9 @@ service cloud.firestore {
           ||
           // Everyone else joins with a one-time invite for a specific family member who has no login yet,
           // and must mark the invite used in the same batch (so one link can't let several accounts in).
-          (request.resource.data.role == 'member'
+          // They join as a member, or as an organizer when an organizer marked the invite that way.
+          ((request.resource.data.role == 'member'
+              || (request.resource.data.role == 'admin' && get(invitePath(cid, request.resource.data.invite)).data.get('organizer', false) == true))
              && request.resource.data.keys().hasOnly(['memberId', 'role', 'invite'])
              && get(invitePath(cid, request.resource.data.invite)).data.memberId == request.resource.data.memberId
              && get(invitePath(cid, request.resource.data.invite)).data.used == false
@@ -98,8 +100,10 @@ service cloud.firestore {
         allow get: if signedIn();
         allow list, delete: if isAdmin(cid);
         // Organizers can invite anyone without a login; parents can invite a child whose profile they manage.
+        // Only organizers can make an invite that joins as an organizer.
         allow create: if okId(code)
           && request.resource.data.used == false
+          && (request.resource.data.get('organizer', false) == false || isAdmin(cid))
           && memberDoc(cid, request.resource.data.memberId).uid == null
           && (isAdmin(cid) || (isMember(cid) && me(cid) in memberDoc(cid, request.resource.data.memberId).managedBy));
         allow update: if isAdmin(cid) || (

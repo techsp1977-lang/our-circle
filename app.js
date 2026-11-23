@@ -394,7 +394,7 @@ async function renderOnboarding(msg = '', opts = {}) {
     try {
       const uid = state.uid;
       await S.batch([
-        { op: 'set', path: `circles/${cid}/access/${uid}`, data: { memberId: invite.memberId, role: 'member', invite: code } },
+        { op: 'set', path: `circles/${cid}/access/${uid}`, data: { memberId: invite.memberId, role: invite.organizer === true ? 'admin' : 'member', invite: code } },
         { op: 'update', path: `circles/${cid}/invites/${code}`, data: { used: true, usedBy: uid } },
         { op: 'update', path: `circles/${cid}/members/${invite.memberId}`, data: { uid, claimed: true } },
       ]);
