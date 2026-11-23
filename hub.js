@@ -1,7 +1,7 @@
 // Family hub: coming up, today's big days, weekly check-ins, the family chart.
 import * as S from './store.js';
 import { planState, fmtGB, pausedText } from './plans.js';
-import { esc, icon, face, toast, sheet, listJoin, names, hhColor } from './ui.js';
+import { esc, icon, face, toast, sheet, listJoin, names, hhColor, why } from './ui.js';
 import { pickAndCrop } from './crop.js';
 import { today, monShort, dayNum, whenText, rangeText, diffDays, weekday, shortDate, monthName, agoText, dayOfYear } from './dates.js';
 import { upcoming, happeningToday, headline, editEvent, canEdit, isCalendarType, typeOf, byMonth } from './events.js';
@@ -127,7 +127,7 @@ export function mount(root, app) {
         if (!f) break;
         toast('Saving photo…');
         try { const [m] = await app.uploadFiles([f]); await S.update(app.path('members/' + st.me), { photo: m.url }); toast('Photo saved.'); }
-        catch (er) { toast('The photo did not save. Check your connection and try again.'); }
+        catch (er) { toast(why('The photo did not save.', er), 9000); }
         break;
       }
       case 'alerts': showAlerts(app); break;
