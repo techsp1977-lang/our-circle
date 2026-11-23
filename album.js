@@ -4,7 +4,8 @@ import * as S from './store.js';
 import { esc, icon, sheet, toast, fmtSize, confirmBox, safeUrl, mediaKind } from './ui.js';
 import { shortDate, toISO } from './dates.js';
 import { pickMedia, startBatch, progressCard, MAX_PICK } from './photos.js';
-import { pausedText } from './plans.js';
+import { pausedText, planState, fmtGB, PLANS } from './plans.js';
+import { upgradeStorage } from './manage.js';
 
 export function mount(root, app, key, args) {
   return args[0] ? post(root, app, args[0]) : grid(root, app);
@@ -19,6 +20,34 @@ function tile(m, cls = 'cover') {
   return `<span class="${cls}"><img src="${esc(small(m))}" alt="" loading="lazy" decoding="async"${m.w ? ` width="${+m.w}" height="${+m.h}"` : ''}></span>`;
 }
 
+// How much room the family has left for photos and videos, for everyone. On the basic plan (Family, or the free
+// trial) at 95% full, organizers are offered Family Plus once a week; everyone else sees who can add more.
+const NEAR = 0.95;
+function storageBar(app) {
+  const c = app.state.circle || {}, p = planState(c), pct = Math.min(100, (p.used / p.limit) * 100);
+  const basic = p.plan === 'family' || p.plan === 'trial';
+  const near = p.used >= p.limit * NEAR, full = p.used >= p.limit;
+  const note = full ? 'Storage is full. New photos and videos are paused until there is more room.'
+    : near && basic ? (app.isAdmin() ? 'Almost full. Family Plus has 4 times the room.' : 'Almost full. An organizer can move the family to Family Plus for 4 times the room.')
+    : near ? 'Almost full.' : '';
+  return `<section class="block"><div class="card storage-card ${full ? 'full' : near ? 'near' : ''}">
+    <div class="storage-line"><b>${fmtGB(Math.max(0, p.limit - p.used))} left</b><span class="muted small">${fmtGB(p.used)} of ${fmtGB(p.limit)} used</span></div>
+    <span class="progress" role="progressbar" aria-label="Family storage used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}"><i style="width:${Math.max(pct, 1)}%"></i></span>
+    ${note ? `<p class="storage-note">${esc(note)}</p>` : ''}
+    ${(near || full) && basic && app.isAdmin() && app.state.billingOn ? `<button class="btn sm" data-act="upgrade">Get more storage</button>` : ''}
+  </div></section>`;
+}
+// The one-time question for organizers (asked again a week after "Not now").
+async function maybeAskUpgrade(app) {
+  const c = app.state.circle || {}, p = planState(c);
+  if (!app.state.billingOn || !app.isAdmin() || !(p.plan === 'family' || p.plan === 'trial') || p.used < p.limit * NEAR) return;
+  const key = 'oc-upgrade-asked-' + app.state.cid;
+  try { if (Date.now() - Number(localStorage.getItem(key) || 0) < 7 * 864e5) return; localStorage.setItem(key, String(Date.now())); } catch (e) { return; }
+  const ok = await sheet({ title: 'Your family is almost out of room', submit: 'Upgrade to Family Plus', cancel: 'Not now', fields: [],
+    intro: `You've used ${fmtGB(p.used)} of ${fmtGB(p.limit)}. Family Plus has 200 GB (about 60,000 photos, or lots of video) for ${PLANS.plus.price}. ${p.paid ? "You'll only pay the difference for the rest of your year." : ''} Want to upgrade?` });
+  if (ok) upgradeStorage(app);
+}
+
 function grid(root, app) {
   const st = app.state;
   let posts = [];
@@ -27,6 +56,7 @@ function grid(root, app) {
       <header class="top"><div><div class="eyebrow">${esc(st.circle?.name || '')}</div><h1 class="display">Family Album</h1></div>
         <button class="btn sm" data-act="share">${icon('plus', 16)} Share</button></header>
       <p class="pad-x"><button class="linkish" data-act="year" style="text-align:left">${icon('star', 16)} Make our year-in-review video</button></p>
+      ${storageBar(app)}
       <p class="hint pad-x">Photos and videos shared here go to the whole family. Originals are kept at full quality.</p>
       <section class="block album-grid">
         ${posts.map((p) => `<a class="album-card" href="#/album/${encodeURIComponent(p.id)}">
@@ -36,11 +66,13 @@ function grid(root, app) {
       </section>`;
   };
   const onClick = (e) => {
+    if (e.target.closest('[data-act="upgrade"]')) upgradeStorage(app);
     if (e.target.closest('[data-act="share"]')) sharePhotos(app);
     if (e.target.closest('[data-act="year"]')) import('./yearvideo.js').then((m) => m.openYearVideo(app));
   };
   root.addEventListener('click', onClick);
   const unsub = S.watchColl(app.path('album'), { orderBy: ['at', 'desc'] }, (rows) => { posts = rows; render(); });
+  setTimeout(() => maybeAskUpgrade(app), 600);
   const off = app.on(render);
   render();
   return { destroy: () => { unsub(); off(); root.removeEventListener('click', onClick); } };

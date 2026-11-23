@@ -59,12 +59,12 @@ function planSection(c) {
   </section>`;
 }
 
-async function choosePlan(app) {
-  let plan = 'family';
+export async function choosePlan(app, pick = 'family') {
+  let plan = pick;
   const pending = sheet({
     title: 'Choose a plan',
     intro: 'Yearly, for the whole family. Cancel any time from Manage billing.',
-    body: `<div class="plan-pick">${['family', 'plus'].map((k) => `<label class="plan-opt" for="plan_${k}"><input type="radio" name="plan" id="plan_${k}" value="${k}" ${k === 'family' ? 'checked' : ''}>
+    body: `<div class="plan-pick">${['family', 'plus'].map((k) => `<label class="plan-opt" for="plan_${k}"><input type="radio" name="plan" id="plan_${k}" value="${k}" ${k === pick ? 'checked' : ''}>
         <span><b>${PLANS[k].name}</b> <span class="price">${PLANS[k].price}</span><small>${esc(PLANS[k].blurb)}</small></span></label>`).join('')}</div>`,
     submit: 'Continue to payment',
     fields: [],
@@ -75,6 +75,19 @@ async function choosePlan(app) {
   toast('Opening secure checkout…', 8000);
   try { location.href = (await S.callFn('billing', { action: 'checkout', cid: app.state.cid, plan })).url; }
   catch (e) { toast(e?.message || "Checkout couldn't open. Try again."); }
+}
+
+// More storage: a family already paying for Family switches to Family Plus in Stripe's billing page (paying only
+// the difference for the rest of the year); a family on the free trial picks a plan, with Family Plus selected.
+export async function upgradeStorage(app) {
+  const p = planState(app.state.circle || {});
+  if (p.paid && p.active) {
+    toast('Opening billing…', 6000);
+    try { location.href = (await S.callFn('billing', { action: 'portal', cid: app.state.cid })).url; }
+    catch (er) { toast(er?.message || "Billing couldn't open. Try again."); }
+    return;
+  }
+  return choosePlan(app, 'plus');
 }
 
 export function mount(root, app) {
