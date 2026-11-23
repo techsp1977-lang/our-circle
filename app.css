@@ -575,11 +575,19 @@ body[data-view="journal"] #main { overflow-x: clip; }
 .convo[style*="--chat"] .convo-head { box-shadow: inset 0 -3px 0 var(--chat); }
 .convo[style*="--chat"] .composer textarea:focus { border-color: var(--chat); }
 
-/* ---------- profile photos: never crop a face ---------- */
-/* The photo is shown whole (contain); a blurred copy of it fills whatever room is left in wide or tall boxes. */
-.face { position: relative; isolation: isolate; }
-.face img.face-pic { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain; }
-.face img.face-fill { position: absolute; left: -12%; top: -12%; width: 124%; height: 124%; max-width: none; object-fit: cover; filter: blur(12px) saturate(1.1); opacity: 0.75; z-index: 0; }
-/* Small round-ish avatars are square already: show them filled, no blur needed. */
-.face:not(.tile-img) img.face-pic { object-fit: cover; }
-.face:not(.tile-img) img.face-fill { display: none; }
+/* ---------- profile photos: square, filled, same size everywhere ---------- */
+/* Every person's box is a square photo (the cropper makes square photos, so nothing is cut off) with the name under it.
+   Households show their people at one size from the left; any room left over is a light shade of the household color. */
+/* One size for everyone: the width of a photo in your household's column (or a third of the row when stacked). */
+.chart { --tile: calc(clamp(100px, 18vw, 150px) - 16px); }
+@container (max-width: 21rem) {
+  .chart { --tile: calc((100cqw - 28px) / 3); }
+  .mine-card { gap: 6px; }
+  .mine-tile { flex: 0 0 var(--tile); width: var(--tile); min-width: 0; }
+}
+.tile-img, .face.tile-img, .mine-tile .tile-img, .mine-tile .face.tile-img { height: auto; aspect-ratio: 1 / 1; }
+.face img.face-pic { width: 100%; height: 100%; object-fit: cover; }
+.hh-tiles { --hh-wash: color-mix(in srgb, var(--hh) 12%, var(--card-bg)); justify-content: flex-start; }
+.hh-tiles .tile, .hh-row .hh-tiles .tile { flex: 0 0 var(--tile); width: var(--tile); min-width: 0; }
+.hh-row .tile { background: var(--card-bg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); }
+.hh-row .face.tile-img:not(:has(img)), .mine-tile .face.tile-img:not(:has(img)) { background: color-mix(in srgb, var(--hh, var(--tint)) 16%, var(--card-bg)); }
