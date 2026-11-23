@@ -71,7 +71,7 @@ export function mount(root, app) {
       <section class="block">
         <div class="seg" role="radiogroup" aria-label="How to show the family" data-on="${famView}">
           <button type="button" role="radio" aria-checked="${famView === 'circles'}" data-act="famview" data-id="circles">${icon('family', 15)} Circles</button>
-          <button type="button" role="radio" aria-checked="${famView === 'list'}" data-act="famview" data-id="list">${icon('users', 15)} List</button>
+          <button type="button" role="radio" aria-checked="${famView === 'list'}" data-act="famview" data-id="list">${icon('users', 15)} Cards</button>
         </div>
       </section>
       ${famView === 'circles' ? `<section class="block fam-wrap" aria-label="Family circles">${mapHTML()}</section>` : `<section class="block tree" aria-label="Family tree">
