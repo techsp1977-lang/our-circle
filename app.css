@@ -637,9 +637,6 @@ body[data-view="journal"] #main { overflow-x: clip; }
 .fam-view { position: relative; overflow: hidden; border-radius: var(--radius-lg); touch-action: pan-y; user-select: none; -webkit-user-select: none;
   background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--tint) 10%, var(--card-bg)), var(--card-bg) 70%); box-shadow: var(--shadow-card); }
 .fam-map { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
-.fam-lines { position: absolute; left: 0; top: 0; overflow: visible; }
-.fam-lines .fam-group { fill: color-mix(in srgb, var(--hh) 8%, transparent); stroke: color-mix(in srgb, var(--hh) 30%, transparent); stroke-width: 1.5; stroke-dasharray: 5 5; }
-.fam-lines path { fill: none; stroke: color-mix(in srgb, var(--tint) 35%, var(--separator)); stroke-width: 2.5; stroke-linecap: round; }
 .fam-zoom { position: absolute; right: 8px; top: 8px; display: flex; gap: 6px; z-index: 3; }
 .fam-zoom .icon-btn { background: var(--glass-bg, var(--card-bg)); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18); font-size: 20px; font-weight: 600; color: var(--label); }
 
@@ -650,56 +647,61 @@ body[data-view="journal"] #main { overflow-x: clip; }
   background:
     radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.85) 0 5%, rgba(255, 255, 255, 0) 20%),
     radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--hh) 30%, #fff) 0%, color-mix(in srgb, var(--hh) 55%, #fff) 50%, color-mix(in srgb, var(--hh) 92%, #fff) 86%, var(--hh) 100%);
-  box-shadow: inset 0 -10px 22px color-mix(in srgb, var(--hh) 45%, transparent), inset 0 6px 14px rgba(255, 255, 255, 0.55), 0 8px 22px color-mix(in srgb, var(--hh) 30%, transparent); }
+  box-shadow: inset 0 -10px 22px color-mix(in srgb, var(--hh) 45%, transparent), inset 0 6px 14px rgba(255, 255, 255, 0.55), 0 0 0 2.5px var(--card-bg), 0 8px 22px color-mix(in srgb, var(--hh) 28%, transparent);
+  opacity: 0.97; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .bub-fill { background:
     radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.5) 0 5%, rgba(255, 255, 255, 0) 20%),
     radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--hh) 30%, #111) 0%, color-mix(in srgb, var(--hh) 50%, #111) 55%, var(--hh) 100%); }
 }
-.fam-bub.mine .bub-fill { outline: 3px solid color-mix(in srgb, var(--hh) 70%, #fff); outline-offset: 3px; }
+.fam-bub.mine .bub-fill { box-shadow: inset 0 -10px 22px color-mix(in srgb, var(--hh) 45%, transparent), inset 0 6px 14px rgba(255, 255, 255, 0.55), 0 0 0 2.5px var(--card-bg), 0 0 0 6px color-mix(in srgb, var(--hh) 75%, #fff), 0 8px 22px color-mix(in srgb, var(--hh) 28%, transparent); }
 .bub-people { position: relative; z-index: 2; display: flex; flex-wrap: wrap; justify-content: center; align-content: center; gap: 0; }
+.bub-hh { width: 100%; text-align: center; font-size: 13px; font-weight: 700; line-height: 1.2; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
 .bub-p { width: calc(var(--a) + 6px); height: calc(var(--a) + 20px); display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .face.bub-face { width: var(--a); height: var(--a); border-radius: 50%; font-size: calc(var(--a) * 0.4); background: rgba(255, 255, 255, 0.92); color: var(--hh); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 2px 6px rgba(0, 0, 0, 0.15); }
 .bub-name { max-width: calc(var(--a) + 12px); font-size: 13px; line-height: 1.15; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bub-name { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); } }
 .bub-empty { font-size: 11px; color: #4a524d; }
-.bub-due { position: absolute; z-index: 3; top: 6%; right: 6%; width: 24px; height: 24px; border-radius: 50%; background: var(--due-bg, #dc2634); color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--card-bg); }
-.bub-label { position: absolute; text-align: center; font-size: 15px; line-height: 1.2; color: var(--label); pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.bub-label small { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--tint-text); }
-.bub-label b { font-weight: 600; }
-.bub-chip { margin-top: 2px; padding: 2px 9px; border-radius: 999px; font-size: 13px; font-weight: 600; background: color-mix(in srgb, var(--hh, var(--tint)) 16%, var(--card-bg)); color: var(--label); white-space: nowrap; }
+.bub-due { position: absolute; z-index: 5; top: 8%; right: 8%; width: 28px; height: 28px; border-radius: 50%; background: var(--due-bg, #dc2634); color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--card-bg); }
+.bub-badge { position: absolute; z-index: 6; left: -8px; top: 38%; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; background: var(--cel-ring); box-shadow: 0 0 0 2.5px var(--card-bg), 0 4px 12px rgba(0, 0, 0, 0.22); pointer-events: none; animation: cel-badge 1s ease-in-out var(--plays); }
+@keyframes cel-badge { 0%, 100% { transform: scale(1) rotate(0); } 40% { transform: scale(1.18) rotate(-10deg); } 70% { transform: scale(1.05) rotate(6deg); } }
 /* Celebrations: on a big day the bubble comes alive for a few moments each time the page opens, then rests with a
    lit ring and its label. Only transform and opacity move (smooth on phones); nothing moves under Reduce Motion. */
-.fam-bub.cel { z-index: 2; --plays: 4; }
-.fam-bub.cel::before, .fam-bub.cel::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; pointer-events: none; z-index: 0; }
+.fam-bub.cel { z-index: 3; --plays: 6; }
+.fam-bub.cel::before, .fam-bub.cel::after { content: ""; position: absolute; inset: -9px; border-radius: 50%; pointer-events: none; z-index: 0; }
 /* the resting ring */
-.fam-bub.cel::after { border: 3px solid var(--cel-ring); opacity: 0.9; }
+.fam-bub.cel::after { border: 5px solid var(--cel-ring); opacity: 1; }
 .cel-bday { --cel-ring: #f5b301; } .cel-anniv { --cel-ring: #ff5b8a; } .cel-new { --cel-ring: #58b4f0; } .cel-big { --cel-ring: #a979f2; }
 /* Birthday: a rainbow ring that turns */
-.cel-bday::before { inset: -9px; background: conic-gradient(#ff5b5b, #f5b301, #3cc46a, #39a0ff, #a979f2, #ff5b8a, #ff5b5b);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+.cel-bday::before { inset: -13px; background: conic-gradient(#ff5b5b, #f5b301, #3cc46a, #39a0ff, #a979f2, #ff5b8a, #ff5b5b);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px)); mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px));
   animation: cel-spin 2.4s linear var(--plays) both; }
-.cel-bday::after { opacity: 0; animation: cel-show .4s ease-out calc(2.4s * 4) forwards; }
+.cel-bday::after { opacity: 0; animation: cel-show .4s ease-out calc(2.4s * 6) forwards; }
 /* Anniversary: a heartbeat */
-.cel-anniv .bub-fill { animation: cel-beat 1.3s ease-in-out var(--plays); }
-.cel-anniv::before { border: 3px solid var(--cel-ring); animation: cel-ripple 1.3s ease-out var(--plays) both; }
+.cel-anniv::before { border: 5px solid var(--cel-ring); animation: cel-ripple 1.3s ease-out var(--plays) both; }
 /* New baby: a soft glow that breathes (a radial glow fading in and out, not a blurred shadow) */
-.cel-new::before { inset: -26px; background: radial-gradient(closest-side, color-mix(in srgb, var(--cel-ring) 55%, transparent), transparent); animation: cel-breathe 2.2s ease-in-out var(--plays) both; }
+.cel-new::before { inset: -34px; background: radial-gradient(closest-side, color-mix(in srgb, var(--cel-ring) 55%, transparent), transparent); animation: cel-breathe 2.2s ease-in-out var(--plays) both; }
 /* Other big days: ripples */
-.cel-big::before { border: 3px solid var(--cel-ring); animation: cel-ripple 1.8s ease-out var(--plays) both; }
+.cel-big::before { border: 5px solid var(--cel-ring); animation: cel-ripple 1.8s ease-out var(--plays) both; }
 .bub-sparks { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
-.bub-sparks i { position: absolute; bottom: 60%; left: calc(22% + var(--j) * 26%); font-style: normal; font-size: 20px; opacity: 0; animation: cel-rise 3s ease-out 3 both; animation-delay: calc(var(--j) * 0.9s); }
+.bub-sparks i { position: absolute; bottom: 55%; left: calc(6% + var(--j) * 20%); font-style: normal; font-size: 30px; opacity: 0; animation: cel-rise 2.8s ease-out 4 both; animation-delay: calc(var(--j) * 0.55s); }
+/* a glow behind the bubble (a radial gradient, not a blurred shadow), pulsing while it plays, then softly on */
+.bub-halo { position: absolute; inset: -38px; border-radius: 50%; z-index: -1; pointer-events: none; background: radial-gradient(closest-side, color-mix(in srgb, var(--cel-ring) 60%, transparent), transparent); opacity: 0.45; animation: cel-breathe 1.8s ease-in-out var(--plays); }
+/* a pop when the page opens */
+.fam-bub.cel .bub-fill { animation: cel-pop .7s cubic-bezier(.3, 1.6, .5, 1) both; }
+.cel-anniv .bub-fill { animation: cel-pop .7s cubic-bezier(.3, 1.6, .5, 1) both, cel-beat 1.3s ease-in-out .7s var(--plays); }
+@keyframes cel-pop { 0% { transform: scale(0.82); } 100% { transform: scale(1); } }
 @keyframes cel-spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 @keyframes cel-show { to { opacity: 0.9; } }
 @keyframes cel-beat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.06); } 30% { transform: scale(0.99); } 45% { transform: scale(1.04); } }
 @keyframes cel-ripple { 0% { transform: scale(0.96); opacity: 0.8; } 100% { transform: scale(1.32); opacity: 0; } }
 @keyframes cel-breathe { 0%, 100% { opacity: 0.25; transform: scale(0.94); } 50% { opacity: 1; transform: scale(1.04); } }
-@keyframes cel-rise { 0% { transform: translateY(10px) scale(0.6); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(-90px) scale(1.15); opacity: 0; } }
+@keyframes cel-rise { 0% { transform: translateY(10px) scale(0.6); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(-150px) scale(1.3); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .fam-bub.cel::before, .bub-sparks i, .cel-anniv .bub-fill { animation: none !important; }
+  .fam-bub.cel::before, .bub-sparks i, .fam-bub.cel .bub-fill, .bub-halo, .bub-badge { animation: none !important; }
   .cel-bday::after { animation: none; opacity: 0.9; }
   .fam-bub.cel:not(.cel-bday)::before { opacity: 0; }
-  .bub-sparks i { opacity: 1; bottom: auto; top: -10px; }
+  .bub-sparks i { display: none; }
 }
 .hh-sheet .hh-cel { margin: 0 0 var(--space-2); padding: 8px 12px; border-radius: var(--radius-md); background: color-mix(in srgb, var(--hh) 14%, var(--card-bg)); font-weight: 600; }
 .hh-sheet .btn.wide { margin-top: var(--space-3); }

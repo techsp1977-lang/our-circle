@@ -7,7 +7,7 @@ import { happeningToday } from './events.js';
 import { today, diffDays } from './dates.js';
 import { checkin } from './hub.js';
 
-const GAP_X = 22, GAP_Y = 46, LABEL_H = 50, SHELF = 560;
+const OVER = 10, BRANCH_GAP = 18, SHELF = 560; // OVER: how far neighboring bubbles overlap, like a Venn diagram
 const views = new Map(); // remembered zoom and position, per circle
 
 // How big a bubble is, and how big the photos inside it are: photos fill as much of the circle as they can
@@ -15,9 +15,9 @@ const views = new Map(); // remembered zoom and position, per circle
 function spec(n) {
   n = Math.max(1, n);
   const cols = n === 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
-  const a = n === 1 ? 78 : n === 2 ? 64 : n <= 4 ? 58 : n <= 6 ? 52 : n <= 9 ? 46 : 42;
-  const rows = Math.ceil(n / cols), gw = cols * (a + 6), gh = rows * (a + 20);
-  return { a, cols, d: Math.round(Math.max(118, Math.hypot(gw, gh) * 0.92 + 12)) };
+  const a = n === 1 ? 96 : n === 2 ? 78 : n <= 4 ? 68 : n <= 6 ? 60 : n <= 9 ? 52 : 46;
+  const rows = Math.ceil(n / cols), gw = cols * (a + 6), gh = rows * (a + 22) + (n > 1 ? 20 : 0);
+  return { a, cols, d: Math.round(Math.max(130, Math.hypot(gw, gh) * 0.92 + 12)) };
 }
 
 // Today's reason to celebrate each household: { hid: { kind, text } }.
@@ -59,59 +59,65 @@ function layout(app) {
     for (let i = 0; i < n.kids.length; i += wrap ? 3 : n.kids.length) out.push(n.kids.slice(i, i + (wrap ? 3 : n.kids.length)));
     return out;
   };
-  const rowW = (r) => r.reduce((a, k) => a + k.w, 0) + GAP_X * (r.length - 1);
-  const rowH = (r) => Math.max(...r.map((k) => k.ht));
-  const measure = (n) => {
-    n.kids.forEach(measure);
-    n.rows = rowsOf(n);
-    n.w = Math.max(n.d + 50, ...n.rows.map(rowW));
-    n.ht = n.d + LABEL_H + n.rows.reduce((a, r) => a + GAP_Y + rowH(r), 0);
-  };
-  const place = (n, left, top) => {
-    n.x = left + n.w / 2; n.y = top;
-    let y = top + n.d + LABEL_H + GAP_Y;
-    n.rows.forEach((r) => {
-      const maxD = Math.max(...r.map((k) => k.d));
-      let l = left + (n.w - rowW(r)) / 2;
-      r.forEach((k) => { place(k, l, y + (maxD - k.d) / 2); l += k.w + GAP_X; });
-      y += rowH(r) + GAP_Y;
-    });
-    // Children on more than one row share one rounded family area, joined to their parents by one line.
-    if (n.rows.length > 1) {
-      const top0 = top + n.d + LABEL_H + GAP_Y - 18, widest = Math.max(...n.rows.map(rowW));
-      n.group = { x: left + (n.w - widest) / 2 - 12, y: top0, w: widest + 24, h: y - GAP_Y - top0 + 12 };
+  const rowW = (r) => r.reduce((a, k) => a + k.w, 0) - OVER * (r.length - 1);
+  const measure = (n) => { n.kids.forEach(measure); n.rows = rowsOf(n); n.w = Math.max(n.d, ...n.rows.map(rowW)); };
+  // Gravity: each bubble drops straight down from above until it just touches (overlapping by OVER) whatever is
+  // already there: its parents, its brothers and sisters, cousins. So nothing overlaps more than that, anywhere.
+  let placed = [];
+  const drop = (x, r, minCy) => {
+    let cy = minCy;
+    for (const p of placed) {
+      const reach = p.r + r - OVER, dx = Math.abs(x - p.x);
+      if (dx < reach) cy = Math.max(cy, p.cy + Math.sqrt(reach * reach - dx * dx));
     }
+    return cy;
+  };
+  const place = (n, left, minCy) => {
+    n.x = left + n.w / 2;
+    const cy = drop(n.x, n.d / 2, minCy);
+    n.y = cy - n.d / 2;
+    placed.push({ x: n.x, cy, r: n.d / 2 });
+    let bottom = n.y + n.d;
+    n.rows.forEach((r) => {
+      let l = left + (n.w - rowW(r)) / 2;
+      r.forEach((k) => { bottom = Math.max(bottom, place(k, l, cy + n.d * 0.22)); l += k.w - OVER; });
+    });
+    return bottom;
   };
   roots.forEach(measure);
+  const shelfW = (s) => s.reduce((a, r) => a + r.w, 0) + BRANCH_GAP * (s.length - 1);
   const shelves = []; let cur = [];
-  roots.forEach((r) => { if (cur.length && rowW([...cur, r]) > Math.max(SHELF, r.w)) { shelves.push(cur); cur = []; } cur.push(r); });
+  roots.forEach((r) => { if (cur.length && shelfW([...cur, r]) > Math.max(SHELF, r.w)) { shelves.push(cur); cur = []; } cur.push(r); });
   if (cur.length) shelves.push(cur);
-  const maxW = Math.max(0, ...shelves.map(rowW));
-  let top = 60; // room for the zoom buttons
+  const maxW = Math.max(0, ...shelves.map(shelfW));
+  let top = 62; // room for the zoom buttons
   shelves.forEach((s) => {
-    let left = 16 + (maxW - rowW(s)) / 2;
-    s.forEach((r) => { place(r, left, top); left += r.w + GAP_X; });
-    top += rowH(s) + GAP_Y;
+    let left = 16 + (maxW - shelfW(s)) / 2, bottom = top;
+    s.forEach((r) => { bottom = Math.max(bottom, place(r, left, top + r.d / 2)); left += r.w + BRANCH_GAP; });
+    top = bottom + 26;
   });
-  return { nodes: [...node.values()], W: maxW + 32, H: Math.max(top - GAP_Y + 12, 140) };
+  return { nodes: [...node.values()], W: maxW + 32, H: Math.max(top + 4, 160) };
 }
 
-function bubbleHTML(app, n, cel, i) {
+function bubbleHTML(app, n, cel) {
   const h = n.h, people = app.membersOf(h.id);
   const mine = h.id === app.myMember()?.householdId;
   const due = !mine && checkin(app, h.id)?.overdue;
   const c = cel[h.id];
+  const sparks = c ? (c.kind === 'bday' ? ['🎈', '🎂', '🎉', '🎈', '🎁'] : c.kind === 'anniv' ? ['💕', '💗', '💞', '💖', '💕'] : c.kind === 'new' ? ['✨', '👶', '🍼', '✨', '💫'] : ['🎉', '✨', '🎊', '🎓', '✨']) : [];
   return `<button type="button" class="fam-bub ${mine ? 'mine' : ''} ${c ? 'cel cel-' + c.kind : ''}" data-act="hh-open" data-id="${esc(h.id)}"
       style="left:${Math.round(n.x - n.d / 2)}px;top:${Math.round(n.y)}px;width:${n.d}px;height:${n.d}px;--hh:${hhColor(h)}"
       aria-label="${esc(h.name)}${mine ? ', your household' : ''}${c ? ', ' + esc(c.text) : ''}${due ? ', time to check in' : ''}. Open">
+      ${c ? '<span class="bub-halo" aria-hidden="true"></span>' : ''}
       <span class="bub-fill" aria-hidden="true"></span>
-      ${c ? `<span class="bub-sparks" aria-hidden="true">${(c.kind === 'bday' ? ['🎈', '🎂', '🎉'] : c.kind === 'anniv' ? ['💕', '💗', '💞'] : c.kind === 'new' ? ['✨', '👶', '✨'] : ['🎉', '✨', '🎊']).map((e, j) => `<i style="--j:${j}">${e}</i>`).join('')}</span>` : ''}
-      <span class="bub-people" style="--a:${n.a}px;width:${n.cols * (n.a + 6)}px">${people.map((m) => `<span class="bub-p">${face(m, 'bub-face')}<span class="bub-name">${esc(m.name)}</span></span>`).join('') || '<span class="bub-empty">No one yet</span>'}</span>
-      ${due ? `<span class="bub-due" aria-hidden="true">${icon('bell', 13)}</span>` : ''}
-    </button>
-    <div class="bub-label" style="left:${Math.round(n.x - (n.d + 70) / 2)}px;top:${Math.round(n.y + n.d + 6)}px;width:${n.d + 70}px">
-      ${mine ? '<small>Your household</small>' : ''}<b>${names(h.name)}</b>${c ? `<span class="bub-chip">${esc(c.text)}</span>` : ''}
-    </div>`;
+      ${c ? `<span class="bub-sparks" aria-hidden="true">${sparks.map((e, j) => `<i style="--j:${j}">${e}</i>`).join('')}</span>` : ''}
+      <span class="bub-people" style="--a:${n.a}px;width:${n.cols * (n.a + 6)}px">
+        ${people.length > 1 ? `<span class="bub-hh">${mine ? 'You · ' : ''}${names(h.name)}</span>` : ''}
+        ${people.map((m) => `<span class="bub-p">${face(m, 'bub-face')}<span class="bub-name">${esc(m.name)}</span></span>`).join('') || `<span class="bub-hh">${names(h.name)}</span><span class="bub-empty">No one yet</span>`}
+      </span>
+      ${c ? `<span class="bub-badge" aria-hidden="true">${{ bday: '🎂', anniv: '💕', new: '👶', big: '🎉' }[c.kind]}</span>` : ''}
+      ${due ? `<span class="bub-due" aria-hidden="true">${icon('bell', 15)}</span>` : ''}
+    </button>`;
 }
 
 export function mapHTML() {
@@ -132,12 +138,9 @@ export function drawMap(app, root) {
   if (!viewEl || !map) return;
   const { nodes, W, H } = layout(app);
   const cel = celebrations(app);
-  const curve = (x1, y1, x2, y2) => { const my = (y1 + y2) / 2 + 10; return `<path d="M${x1} ${y1 + 2} C ${x1} ${my}, ${x2} ${my - 20}, ${x2} ${y2 - 2}" />`; };
-  const lines = nodes.flatMap((p) => p.group
-    ? [`<rect class="fam-group" x="${p.group.x}" y="${p.group.y}" width="${p.group.w}" height="${p.group.h}" rx="34" style="--hh:${hhColor(p.h)}" />`, curve(p.x, p.y + p.d + LABEL_H - 6, p.x, p.group.y)]
-    : p.kids.map((k) => curve(p.x, p.y + p.d, k.x, k.y))).join('');
   map.style.width = W + 'px'; map.style.height = H + 'px';
-  map.innerHTML = `<svg class="fam-lines" width="${W}" height="${H}" aria-hidden="true">${lines}</svg>${nodes.map((n, i) => bubbleHTML(app, n, cel, i)).join('')}`;
+  // Bigger bubbles first, so smaller ones (children) sit on top where they overlap.
+  map.innerHTML = nodes.slice().sort((a, b) => a.y - b.y).map((n) => bubbleHTML(app, n, cel)).join('');
 
   const key = app.state.cid;
   const vw = () => viewEl.clientWidth;
