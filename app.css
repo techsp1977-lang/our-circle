@@ -730,7 +730,7 @@ body.has-menu #main > header.top, body.has-menu #main > * > header.top { padding
 .warn-text { color: var(--due-bg, #c4232f); }
 
 /* ---------- year in review video ---------- */
-.yr-wrap { position: fixed; inset: 0; z-index: 80; background: rgba(0, 0, 0, 0.86); display: flex; align-items: stretch; justify-content: center; }
+.yr-wrap { position: fixed; inset: 0; z-index: 300; background: #000; display: flex; align-items: stretch; justify-content: center; }
 .yr { width: min(100%, 520px); display: flex; flex-direction: column; gap: 10px; padding: calc(env(safe-area-inset-top) + 10px) 14px calc(env(safe-area-inset-bottom) + 14px); color: #fff; }
 .yr-top { display: flex; align-items: center; gap: 10px; }
 .yr-top .icon-btn { color: #fff; background: rgba(255, 255, 255, 0.14); }
@@ -765,3 +765,10 @@ body.has-menu #main > header.top, body.has-menu #main > * > header.top { padding
 .yr-card { width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 0; text-align: left; color: var(--label); }
 .yr-card-ic { font-size: 30px; width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: var(--tint-soft); }
 .yr-card .li-main { flex: 1; min-width: 0; }
+/* the player scrolls instead of squeezing the video; the video keeps its shape */
+.yr { overflow-y: auto; }
+.yr-stage { flex: 0 0 auto; }
+.yr .yr-stage canvas { flex: 0 0 auto; max-height: none; }
+.yr.wide .yr-stage canvas { width: 100%; height: auto; }
+.yr:not(.wide) .yr-stage canvas { height: min(60vh, 820px); width: auto; max-width: 100%; }
+.yr-top .select-pill { background-color: rgba(255, 255, 255, 0.92); color: #111; }

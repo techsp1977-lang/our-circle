@@ -303,8 +303,8 @@ export async function openYearVideo(app) {
     status.textContent = !(data.albums.length || data.days.length) ? `Nothing from ${year} yet. Share albums and add big days, and they'll show up here.`
       : show.total < length - 20 ? `${runs}. That's everything from ${year} so far; add more albums for a longer video.` : runs;
     playBtn.disabled = false; saveBtn.disabled = env.tainted;
+    frame(Math.min(2, show.total - 0.01)); // show the title, not a blank screen, until Play
     if (env.tainted) status.textContent += '. Saving needs a one-time setting (see the Our Circle setup guide).';
-    frame(0);
   };
   const frame = (t) => {
     env.clock = t;
