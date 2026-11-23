@@ -124,7 +124,7 @@ export function mount(root, app) {
         <button class="btn ghost grow" data-act="signout">Sign out</button>
         ${S.isDemo ? '<button class="btn ghost" data-act="reset">Reset demo</button>' : ''}
       </section>
-      <p class="hint center">${housemates.length ? 'Household: ' + esc(listJoin([me.name, ...housemates.map((m) => m.name)])) + ' · ' : ''}<a href="about.html">Plans, terms and privacy</a></p>`;
+      <p class="hint center">${housemates.length ? 'Household: ' + esc(listJoin([me.name, ...housemates.map((m) => m.name)])) + ' · ' : ''}<a href="tour.html">Quick tour</a> · <a href="about.html">Plans, terms and privacy</a></p>`;
   };
 
   const onClick = async (e) => {
