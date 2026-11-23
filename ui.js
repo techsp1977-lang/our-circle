@@ -119,8 +119,8 @@ export function face(member, cls = '') {
   if (!member) return '';
   const ini = esc((member.name || '?').trim().charAt(0).toUpperCase());
   return member.photo
-    // The blurred copy fills any spare room in wide or tall boxes, so the photo itself is never cropped.
-    ? `<span class="face ${cls}"><img class="face-fill" src="${esc(safeUrl(member.photo))}" alt="" loading="lazy" aria-hidden="true"><img class="face-pic" src="${esc(safeUrl(member.photo))}" alt="" loading="lazy"></span>`
+    // Photo boxes are square (like the cropper), so the photo fills the box without cutting off the face.
+    ? `<span class="face ${cls}"><img class="face-pic" src="${esc(safeUrl(member.photo))}" alt="" loading="lazy"></span>`
     : `<span class="face ${cls}" data-ini="${ini}">${ini}</span>`;
 }
 
