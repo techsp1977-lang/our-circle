@@ -261,14 +261,18 @@ function renderSignIn(msg = '', email = '') {
       <h1>${joining ? 'You have been invited' : 'Welcome'}</h1>
       <p class="muted">${joining ? 'Create an account or sign in to join your family.' : esc(APP_TAGLINE)}</p>
       ${msg ? `<p class="error" role="alert">${esc(msg)}</p>` : ''}
-      ${webauthnSupported() ? `<button class="btn wide" id="faceid">${icon('lock', 18)} Sign in with ${esc(faceLabel())}</button>` : ''}
+      ${webauthnSupported() ? `<button class="btn wide ${joining ? 'ghost' : ''}" id="faceid">${icon('lock', 18)} Sign in with ${esc(faceLabel())}</button>` : ''}
       <button class="btn wide ${webauthnSupported() ? 'ghost' : ''}" id="google">Continue with Google</button>
       <div class="or"><span>or use email</span></div>
       <form id="auth-form" class="stack">
         <label class="field" for="email"><span>Email</span><input id="email" type="email" autocomplete="email" required value="${esc(email)}"></label>
-        <label class="field" for="pw"><span>Password</span><input id="pw" type="password" autocomplete="current-password" required><small>New here? Pick a password of at least ${MIN_PW} characters, then tap Create account.</small></label>
-        <button class="btn wide ghost" type="submit" name="mode" value="in">Sign in</button>
-        <button class="btn wide ghost" type="submit" name="mode" value="up">Create account</button>
+        <label class="field" for="pw"><span>Password</span><input id="pw" type="password" autocomplete="${joining ? 'new-password' : 'current-password'}" required><small>New here? Pick a password of at least ${MIN_PW} characters, then tap Create account.</small></label>
+        ${joining
+          // Invited: they're almost always new, and the keyboard's Go key presses the first button.
+          ? `<button class="btn wide" type="submit" name="mode" value="up">Create account</button>
+        <button class="btn wide ghost" type="submit" name="mode" value="in">I already have an account: Sign in</button>`
+          : `<button class="btn wide ghost" type="submit" name="mode" value="in">Sign in</button>
+        <button class="btn wide ghost" type="submit" name="mode" value="up">Create account</button>`}
       </form>
       <button class="linkish" id="forgot">Forgot password?</button>
       <p class="muted small center"><a href="about.html">Plans, terms and privacy</a></p>
