@@ -591,3 +591,19 @@ body[data-view="journal"] #main { overflow-x: clip; }
 .hh-tiles .tile, .hh-row .hh-tiles .tile { flex: 0 0 var(--tile); width: var(--tile); min-width: 0; }
 .hh-row .tile { background: var(--card-bg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); }
 .hh-row .face.tile-img:not(:has(img)), .mine-tile .face.tile-img:not(:has(img)) { background: color-mix(in srgb, var(--hh, var(--tint)) 16%, var(--card-bg)); }
+
+/* ---------- family tree (Family tab) ---------- */
+/* The head of the circle sits at the left; each generation under it steps in a little, with a connector line. */
+.tree { container-type: inline-size; display: flex; flex-direction: column; gap: var(--space-3); }
+.tree { --step: clamp(16px, 6cqw, 34px); --tile: clamp(86px, 29cqw, 132px); }
+.tree-row { position: relative; margin-left: calc(var(--depth, 0) * var(--step)); }
+.tree .hh-row::before { display: none; }
+.tree-row:not([style*="--depth:0"])::before {
+  content: ""; position: absolute; z-index: 0;
+  left: calc(var(--step) * -0.62); width: calc(var(--step) * 0.62 - 2px);
+  top: calc(var(--space-3) * -1 - 6px); height: calc(var(--space-3) + 6px + 26px);
+  border-left: 2px solid var(--separator); border-bottom: 2px solid var(--separator); border-bottom-left-radius: 12px;
+}
+.tree .hh-row.is-mine > .card { box-shadow: 0 0 0 2px var(--hh), var(--shadow-card); }
+.hh-you { display: block; font-size: var(--text-caption2); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: 0.04em; color: rgba(255, 255, 255, 0.85); }
+.tree .tile-img.add { aspect-ratio: 1 / 1; height: auto; }

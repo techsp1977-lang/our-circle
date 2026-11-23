@@ -1,6 +1,6 @@
 // Family settings for organizers: households, people, invite links.
 import * as S from './store.js';
-import { esc, icon, face, sheet, toast, confirmBox, names, listJoin, HH_COLORS, hhColor, why } from './ui.js';
+import { esc, icon, face, sheet, toast, confirmBox, names, listJoin, HH_COLORS, hhColor, why, familyTree, descendantsOf } from './ui.js';
 import { THEMES, theme, applyTheme } from './themes.js';
 import { pickAndCrop } from './crop.js';
 import { listCircles } from './circles.js';
@@ -101,9 +101,9 @@ export function mount(root, app) {
         <div class="row-head"><h2>Households</h2><button class="linkish" data-act="add-hh">${icon('plus', 16)} Add household</button></div>
         ${otherCircles.length ? `<p><button class="linkish" data-act="copy-photos" style="text-align:left">${icon('image', 16)} Copy profile photos from ${otherCircles.length === 1 ? esc(otherCircles[0].name) : 'another circle'}</button></p>` : ''}
         <p class="hint">A household is everyone you'd message together, like a couple and their kids. Each person still gets their own login and private journal.</p>
-        ${st.households.map((h) => `
-          <div class="card list mb">
-            <div class="li"><span class="hh-swatch" style="--hh:${hhColor(h)}" aria-hidden="true"></span><span class="li-main"><span class="li-title">${names(h.name)}</span></span>
+        ${familyTree(st.households).map(({ h, depth }) => `
+          <div class="card list mb" style="margin-left:${Math.min(depth, 3) * 14}px">
+            <div class="li"><span class="hh-swatch" style="--hh:${hhColor(h)}" aria-hidden="true"></span><span class="li-main"><span class="li-title">${names(h.name)}</span>${h.parentId && app.household(h.parentId) ? `<span class="li-sub">Under ${esc(app.household(h.parentId).name)}</span>` : ''}</span>
               <button class="icon-btn sm" data-act="edit-hh" data-id="${esc(h.id)}" aria-label="Edit ${esc(h.name)}">${icon('edit', 16)}</button></div>
             ${app.membersOf(h.id).map((m) => {
               const acc = accessRows.find((a) => a.memberId === m.id);
@@ -125,6 +125,14 @@ export function mount(root, app) {
   };
 
   const hhOptions = () => st.households.map((h) => ({ value: h.id, label: h.name }));
+  // "Under which household?" choices: the top of the tree, or any household that isn't this one or one of its own.
+  const parentOptions = (id) => {
+    const skip = id ? descendantsOf(st.households, id) : new Set();
+    return [{ value: '', label: 'Top of the family tree (the head of the circle)' },
+      ...familyTree(st.households).filter(({ h }) => h.id !== id && !skip.has(h.id)).map(({ h, depth }) => ({ value: h.id, label: `${'— '.repeat(depth)}${h.name}` }))];
+  };
+  const parentField = (id, value) => ({ name: 'parentId', label: 'Under which household? (for the family tree)', type: 'select', value: value || '', options: parentOptions(id),
+    hint: 'For example, put a married child\'s household under their parents\' household.' });
 
   const onClick = async (e) => {
     const b = e.target.closest('[data-act]');
@@ -166,20 +174,26 @@ export function mount(root, app) {
         break;
       }
       case 'add-hh': {
-        const r = await sheet({ title: 'Add household', intro: 'For example "Ethan, Olivia & Henry", or one person living on their own.', fields: [{ name: 'name', label: 'Household name', required: true }] });
-        if (r) await S.add(app.path('households'), { name: r.name, order: st.households.length });
+        const r = await sheet({ title: 'Add household', intro: 'For example "Ethan, Olivia & Henry", or one person living on their own.', fields: [{ name: 'name', label: 'Household name', required: true }, parentField(null, '')] });
+        if (r) await S.add(app.path('households'), { name: r.name, order: st.households.length, parentId: r.parentId || null });
         break;
       }
       case 'edit-hh': {
         const h = app.household(id);
         const r = await sheet({ title: 'Edit household', danger: app.membersOf(id).length ? null : 'Delete household', fields: [
           { name: 'name', label: 'Household name', value: h.name, required: true },
-          { name: 'order', label: 'Position in the list (1 = top)', type: 'number', value: String((h.order ?? 0) + 1) },
+          parentField(id, h.parentId),
+          { name: 'order', label: 'Position among its brothers and sisters (1 = first)', type: 'number', value: String((h.order ?? 0) + 1) },
           { name: 'color', label: 'Shade', type: 'swatches', value: h.color || HH_COLORS.find((c) => c.value === hhColor(h))?.key, options: HH_COLORS.map((c) => ({ value: c.key, label: c.label, color: c.value })) },
         ] });
         if (!r) return;
-        if (r.__danger) { await S.del(app.path('households/' + id)); return; }
-        await S.update(app.path('households/' + id), { name: r.name, order: Math.max(0, Number(r.order || 1) - 1), color: r.color });
+        if (r.__danger) {
+          // Households that were under this one move up to its parent, so the tree stays in one piece.
+          await S.batch([...st.households.filter((x) => x.parentId === id).map((x) => ({ op: 'update', path: app.path('households/' + x.id), data: { parentId: h.parentId || null } })),
+            { op: 'delete', path: app.path('households/' + id) }]);
+          return;
+        }
+        await S.update(app.path('households/' + id), { name: r.name, parentId: r.parentId || null, order: Math.max(0, Number(r.order || 1) - 1), color: r.color });
         break;
       }
       case 'add-m': {

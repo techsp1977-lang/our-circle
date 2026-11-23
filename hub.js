@@ -1,7 +1,7 @@
 // Family hub: coming up, today's big days, weekly check-ins, the family chart.
 import * as S from './store.js';
 import { planState, fmtGB, pausedText } from './plans.js';
-import { esc, icon, face, toast, sheet, listJoin, names, hhColor, why } from './ui.js';
+import { esc, icon, face, toast, sheet, listJoin, names, hhColor, why, familyTree } from './ui.js';
 import { pickAndCrop } from './crop.js';
 import { today, monShort, dayNum, whenText, rangeText, diffDays, weekday, shortDate, monthName, agoText, dayOfYear } from './dates.js';
 import { upcoming, happeningToday, headline, editEvent, canEdit, isCalendarType, typeOf, byMonth } from './events.js';
@@ -27,8 +27,6 @@ export function mount(root, app) {
     // Birthdays & big days: this month and next month only
     const big = byMonth(app, { filter: (ev) => !isCalendarType(ev), months: 2 });
 
-    const others = st.households.filter((h) => h.id !== me.householdId);
-    const mine = app.household(me.householdId);
 
     root.innerHTML = `
       <header class="top">
@@ -68,21 +66,10 @@ export function mount(root, app) {
         </div>
       </section>
 
-      <section class="block chart-wrap" aria-label="Family"><div class="chart">
-        <div class="chart-mine">
-          <div class="mine-card" style="--hh:${hhColor(mine)}">
-            <a href="#/me" class="mine-head"><span class="eyebrow">Your household</span><span class="mine-name">${names(mine?.name || me.name)}</span></a>
-            ${app.membersOf(me.householdId).map((m) => `
-              <button class="tile mine-tile" data-act="${m.id === st.me ? 'photo' : 'msg-member'}" data-id="${esc(m.id)}" aria-label="${m.id === st.me ? (m.photo ? 'Change my photo' : 'Add my photo') : 'Message ' + esc(m.name) + ' only'}">
-                ${m.photo || m.id !== st.me ? face(m, 'tile-img') : `<span class="tile-img add">${icon('camera', 20)}<small>Add photo</small></span>`}
-                <span class="tile-name">${esc(m.name)}</span>
-              </button>`).join('')}
-          </div>
-        </div>
-        <div class="chart-others">
-          ${others.map((h) => householdCard(app, h)).join('') || `<div class="card empty-card">${app.isAdmin() ? '<a href="#/manage">Add your family members</a> to see everyone here.' : 'No one else yet.'}</div>`}
-        </div>
-      </div></section>
+      <section class="block tree" aria-label="Family tree">
+        ${familyTree(st.households).map(({ h, depth }) => `<div class="tree-row" style="--depth:${Math.min(depth, 3)}">${householdCard(app, h, h.id === me.householdId)}</div>`).join('')
+          || `<div class="card empty-card">${app.isAdmin() ? '<a href="#/manage">Add your family members</a> to see everyone here.' : 'No one else yet.'}</div>`}
+      </section>
       <p class="hint center">Message goes to the whole household. Tap a photo to message one person.</p>
 
       <section class="block">
@@ -228,7 +215,9 @@ function todayCard(app, ev) {
   </div>`;
 }
 
-function householdCard(app, h) {
+// One household's box. mine: it's your own household (your photo button, no check-in nudge).
+function householdCard(app, h, mine = false) {
+  const me = app.state.me;
   const people = app.membersOf(h.id);
   const single = people.length === 1;
   const ci = checkin(app, h.id);
@@ -245,13 +234,17 @@ function householdCard(app, h) {
       <small>${ci.overdue ? 'Due' : 'Good'}</small>
     </button>`;
   }
-  return `<div class="hh-row" style="--hh:${hhColor(h)}">
+  return `<div class="hh-row ${mine ? 'is-mine' : ''}" style="--hh:${hhColor(h)}">
     <div class="card hh">
       <div class="hh-head">
-        <span class="hh-title"><b>${names(h.name)}</b>${people.length > 1 ? `<small>${people.length} people</small>` : ''}</span>
+        <span class="hh-title">${mine ? '<small class="hh-you">Your household</small>' : ''}<b>${names(h.name)}</b>${people.length > 1 ? `<small>${people.length} people</small>` : ''}</span>
         <button class="icon-btn sm msg-btn" data-act="${act}" data-id="${esc(target)}" aria-label="Message ${esc(h.name)}${single ? '' : ' together'}">${icon('chat', 17)}</button>
       </div>
-      <div class="hh-tiles">${people.map((m) => `
+      <div class="hh-tiles">${people.map((m) => m.id === me ? `
+        <button class="tile" data-act="photo" data-id="${esc(m.id)}" aria-label="${m.photo ? 'Change my photo' : 'Add my photo'}">
+          ${m.photo ? face(m, 'tile-img') : `<span class="tile-img add">${icon('camera', 20)}<small>Add photo</small></span>`}
+          <span class="tile-name">${esc(m.name)}</span>
+        </button>` : `
         <button class="tile" data-act="msg-member" data-id="${esc(m.id)}" aria-label="Message ${esc(m.name)} only">
           ${face(m, 'tile-img')}
           <span class="tile-name">${esc(m.name)}</span>
