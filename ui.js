@@ -152,7 +152,29 @@ export const HH_COLORS = { find: (fn) => shades(currentTheme()).find(fn), map: (
 export function hhColor(h, index = 0) {
   const list = shades(currentTheme());
   const pick = list.find((c) => c.key === h?.color);
-  return (pick || list[(h?.order ?? index) % list.length]).value;
+  const n = Math.trunc(Number(h?.order ?? index)) || 0;
+  return (pick || list[((n % list.length) + list.length) % list.length]).value;
+}
+
+// Family tree order: each household, then the households under it (households.parentId), deepest last.
+// Returns [{ h, depth }]. A household whose parent is missing, or that would loop back on itself, starts a new branch.
+export function familyTree(households) {
+  const byId = new Map(households.map((h) => [h.id, h]));
+  const kids = new Map();
+  const isRoot = (h) => !h.parentId || !byId.has(h.parentId) || h.parentId === h.id;
+  const sort = (a, b) => (a.order ?? 0) - (b.order ?? 0);
+  households.forEach((h) => { if (h.parentId && byId.has(h.parentId) && h.parentId !== h.id) { if (!kids.has(h.parentId)) kids.set(h.parentId, []); kids.get(h.parentId).push(h); } });
+  const out = [], done = new Set();
+  const walk = (h, depth) => { if (done.has(h.id)) return; done.add(h.id); out.push({ h, depth }); (kids.get(h.id) || []).sort(sort).forEach((k) => walk(k, depth + 1)); };
+  households.filter(isRoot).sort(sort).forEach((h) => walk(h, 0));
+  households.slice().sort(sort).forEach((h) => walk(h, 0)); // anything caught in a loop
+  return out;
+}
+// The households under this one (all generations), so a household can't be put under its own descendant.
+export function descendantsOf(households, id) {
+  const out = new Set(); let grew = true;
+  while (grew) { grew = false; for (const h of households) if (h.parentId && (h.parentId === id || out.has(h.parentId)) && !out.has(h.id) && h.id !== id) { out.add(h.id); grew = true; } }
+  return out;
 }
 
 // Keep each name whole on one line: "Ethan, Olivia & Henry" can wrap between names, never inside one,
