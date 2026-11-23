@@ -3,7 +3,7 @@ import * as S from './store.js';
 import { esc, icon, toast, $, sheet, face } from './ui.js';
 import { setBadge } from './push.js';
 import { THEMES, theme, applyTheme, DEFAULT_THEME } from './themes.js';
-import { lockGate, webauthnSupported, prepared, passkeySignIn, explain, faceLabel } from './lock.js';
+import { lockGate, webauthnSupported, phoneHasPasskey, prepared, passkeySignIn, explain, faceLabel } from './lock.js';
 
 // ───────────── shared app state ─────────────
 const state = {
@@ -256,14 +256,16 @@ let signInPrep = null;
 const MIN_PW = 7; // matches Firebase → Authentication → Settings → Password policy
 function renderSignIn(msg = '', email = '') {
   const joining = pendingJoin();
+  // The big Face ID button only on a phone where it was set up; otherwise iPhone asks for a QR code or security key.
+  const quickFace = webauthnSupported() && phoneHasPasskey();
   document.body.innerHTML = `<div class="auth">
     <div class="auth-card">
       <div class="brand">${icon('family', 30)}<span>${esc(APP_NAME)}</span></div>
       <h1>${joining ? 'You have been invited' : 'Welcome'}</h1>
       <p class="muted">${joining ? 'Create an account or sign in to join your family.' : esc(APP_TAGLINE)}</p>
       ${msg ? `<p class="error" role="alert">${esc(msg)}</p>` : ''}
-      ${webauthnSupported() ? `<button class="btn wide ${joining ? 'ghost' : ''}" id="faceid">${icon('lock', 18)} Sign in with ${esc(faceLabel())}</button>` : ''}
-      <button class="btn wide ${webauthnSupported() ? 'ghost' : ''}" id="google">Continue with Google</button>
+      ${quickFace ? `<button class="btn wide ${joining ? 'ghost' : ''}" id="faceid">${icon('lock', 18)} Sign in with ${esc(faceLabel())}</button>` : ''}
+      <button class="btn wide ${quickFace ? 'ghost' : ''}" id="google">Continue with Google</button>
       <div class="or"><span>or use email</span></div>
       <form id="auth-form" class="stack">
         <label class="field" for="email"><span>Email</span><input id="email" type="email" autocomplete="email" required value="${esc(email)}"></label>
@@ -276,6 +278,8 @@ function renderSignIn(msg = '', email = '') {
         <button class="btn wide ghost" type="submit" name="mode" value="up">Create account</button>`}
       </form>
       <button class="linkish" id="forgot">Forgot password?</button>
+      ${webauthnSupported() && !quickFace ? `<p class="muted small center">Want ${esc(faceLabel())}? Sign in with your password once, then go to My page → This phone → Set up. After that, ${esc(faceLabel())} is all you need.</p>
+      <button class="linkish" id="faceid">I already set up ${esc(faceLabel())} on this phone</button>` : ''}
       <p class="muted small center"><a href="about.html">Plans, terms and privacy</a></p>
     </div></div>`;
   const form = $('#auth-form');

@@ -24,6 +24,8 @@ const read = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null')
 const write = (k, v) => { try { v ? localStorage.setItem(k, JSON.stringify(v)) : localStorage.removeItem(k); } catch (e) {} };
 
 export const faceLabel = () => (/iPhone|iPad|Macintosh/.test(navigator.userAgent) ? 'Face ID' : 'fingerprint or face');
+// Whether Face ID sign-in was set up on this phone (by anyone), so the sign-in screen knows to offer it.
+export const phoneHasPasskey = () => !!read(PASSKEY)?.id;
 export const hasPasskey = (uid) => { const v = read(PASSKEY); return !!(v && v.uid === uid && v.id); };
 export const lockOn = (uid) => hasPasskey(uid) && read(LOCK)?.uid === uid;
 export const webauthnSupported = () => !S.isDemo && !!window.PublicKeyCredential && !!navigator.credentials;
