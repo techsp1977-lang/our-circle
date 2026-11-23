@@ -54,7 +54,7 @@ export function toast(msg, ms = 2600) {
 
 // Bottom sheet with a form. fields: [{name,label,type,value,options,placeholder,required,hint}]
 // Resolves with the values, or null when cancelled.
-export function sheet({ title, intro = '', fields = [], submit = 'Save', danger = null, body = '' }) {
+export function sheet({ title, intro = '', fields = [], submit = 'Save', danger = null, body = '', cancel = '' }) {
   return new Promise((resolve) => {
     const wrap = document.createElement('div');
     wrap.className = 'sheet-wrap';
@@ -80,7 +80,7 @@ export function sheet({ title, intro = '', fields = [], submit = 'Save', danger 
     wrap.innerHTML = `<form class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
       <div class="sheet-head"><h2>${esc(title)}</h2><button type="button" class="icon-btn" data-x aria-label="Close">${icon('x')}</button></div>
       ${intro ? `<p class="muted">${esc(intro)}</p>` : ''}${body}${fieldHtml}
-      <div class="sheet-actions">${danger ? `<button type="button" class="btn ghost danger" data-danger>${esc(danger)}</button>` : '<span></span>'}<button class="btn" type="submit">${esc(submit)}</button></div>
+      <div class="sheet-actions">${danger ? `<button type="button" class="btn ghost danger" data-danger>${esc(danger)}</button>` : cancel ? `<button type="button" class="btn ghost" data-x>${esc(cancel)}</button>` : '<span></span>'}<button class="btn" type="submit">${esc(submit)}</button></div>
     </form>`;
     document.body.appendChild(wrap);
     const form = wrap.querySelector('form');

@@ -772,3 +772,14 @@ body.has-menu #main > header.top, body.has-menu #main > * > header.top { padding
 .yr.wide .yr-stage canvas { width: 100%; height: auto; }
 .yr:not(.wide) .yr-stage canvas { height: min(60vh, 820px); width: auto; max-width: 100%; }
 .yr-top .select-pill { background-color: rgba(255, 255, 255, 0.92); color: #111; }
+
+/* ---------- storage left (Album page) ---------- */
+.storage-card { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.storage-line { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.storage-card .progress { display: block; height: 8px; border-radius: 999px; background: var(--fill-tertiary); overflow: hidden; }
+.storage-card .progress i { display: block; height: 100%; border-radius: inherit; background: var(--tint); }
+.storage-card.near .progress i { background: #e69a00; }
+.storage-card.full .progress i { background: var(--due-bg, #c4232f); }
+.storage-note { margin: 0; font-size: var(--text-footnote); color: var(--label-secondary); }
+.storage-card.full .storage-note { color: var(--due-bg, #c4232f); }
+.storage-card .btn { align-self: flex-start; }
