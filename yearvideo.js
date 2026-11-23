@@ -205,31 +205,63 @@ function drawSlide(ctx, s, t, env) {
   }
 }
 
-// ───────── soft music (made here, so there's nothing to license) ─────────
-function music(ac, out, seconds) {
-  const chords = [[261.6, 329.6, 392.0], [196.0, 246.9, 392.0], [220.0, 261.6, 329.6], [174.6, 220.0, 349.2]]; // C G Am F
+// ───────── music (made here, so there's nothing to license) ─────────
+// Each style is a tempo, a chord progression and a few instruments built from simple tones. Notes are scheduled a
+// couple of seconds ahead while the video plays (not all at once), and everything stops when the video does.
+const N = (name) => { const i = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[name[0]] + (name[1] === '#' ? 1 : name[1] === 'b' ? -1 : 0); const oct = Number(name.slice(-1)); return 440 * Math.pow(2, (i + (oct - 4) * 12 - 9) / 12); };
+const CH = { C: ['C3', 'E3', 'G3', 'C4'], G: ['G2', 'B2', 'D3', 'G3'], Am: ['A2', 'C3', 'E3', 'A3'], F: ['F2', 'A2', 'C3', 'F3'], Em: ['E2', 'G2', 'B2', 'E3'], Dm: ['D3', 'F3', 'A3', 'D4'] };
+export const STYLES = {
+  calm: { level: 2.3, label: 'Calm', bpm: 60, beats: 4, prog: ['C', 'G', 'Am', 'F'], pad: ['sine', 'triangle'], padGain: 0.07, bell: 1, echo: 0 },
+  upbeat: { level: 0.85, label: 'Upbeat', bpm: 112, beats: 4, prog: ['C', 'Am', 'F', 'G'], pad: ['triangle'], padGain: 0.035, bass: 2, arp: 2, arpWave: 'square', drums: 'pop', echo: 0 },
+  fast: { level: 0.55, label: 'Fast', bpm: 140, beats: 4, prog: ['Am', 'F', 'C', 'G'], pad: ['sawtooth'], padGain: 0.018, bass: 4, arp: 4, arpWave: 'square', drums: 'drive', echo: 0 },
+  spiritual: { level: 1.6, label: 'Spiritual', bpm: 52, beats: 4, prog: ['C', 'F', 'C', 'G', 'Am', 'F', 'G', 'C'], organ: true, padGain: 0.05, bell: 0.5, echo: 0.42 },
+  nostalgic: { level: 2.8, label: 'Nostalgic', bpm: 76, beats: 4, prog: ['Am', 'F', 'C', 'G'], pad: ['sine'], padGain: 0.03, piano: true, echo: 0.3 },
+};
+
+export function music(ac, out, seconds, style) {
+  const S_ = STYLES[style] || STYLES.calm, beat = 60 / S_.bpm, bar = beat * S_.beats, start = ac.currentTime + 0.12;
   const master = ac.createGain(); master.gain.value = 0.0001; master.connect(out);
-  master.gain.setTargetAtTime(0.16, ac.currentTime, 1.2);
-  master.gain.setTargetAtTime(0.0001, ac.currentTime + seconds - 2.5, 0.8);
-  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400; lp.connect(master);
-  const bar = 3.2;
-  for (let i = 0, t0 = ac.currentTime + 0.1; t0 < ac.currentTime + seconds; i++, t0 += bar) {
-    chords[i % 4].forEach((f) => {
-      ['sine', 'triangle'].forEach((type, j) => {
-        const o = ac.createOscillator(), g = ac.createGain();
-        o.type = type; o.frequency.value = f * (j ? 0.5 : 1); o.detune.value = j ? -4 : 3;
-        g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(j ? 0.05 : 0.07, t0 + 0.8); g.gain.linearRampToValueAtTime(0.0001, t0 + bar + 0.4);
-        o.connect(g); g.connect(lp); o.start(t0); o.stop(t0 + bar + 0.5);
-      });
-    });
-    // a gentle bell on top
-    [0, 1, 2].forEach((n) => {
-      const o = ac.createOscillator(), g = ac.createGain(), t = t0 + n * (bar / 3);
-      o.type = 'sine'; o.frequency.value = chords[i % 4][(n + i) % 3] * 2;
-      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.035, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
-      o.connect(g); g.connect(master); o.start(t); o.stop(t + 1.7);
-    });
+  master.gain.setTargetAtTime(0.9 * (S_.level || 1), start, 0.8); // styles leveled to about the same loudness
+  master.gain.setTargetAtTime(0.0001, start + Math.max(1, seconds - 2.5), 0.8);
+  const tone = ac.createBiquadFilter(); tone.type = 'lowpass'; tone.frequency.value = S_.drums ? 3200 : 1600; tone.connect(master);
+  let into = tone;
+  if (S_.echo) { // a soft echo, like a room
+    const d = ac.createDelay(1), fb = ac.createGain(), wet = ac.createGain();
+    d.delayTime.value = Math.min(0.6, beat * 0.75); fb.gain.value = S_.echo; wet.gain.value = 0.35;
+    const dry = ac.createGain(); dry.connect(tone); dry.connect(d); d.connect(fb); fb.connect(d); d.connect(wet); wet.connect(tone);
+    into = dry;
   }
+  let noise = null;
+  const noiseBuf = () => { if (noise) return noise; noise = ac.createBuffer(1, ac.sampleRate * 0.5, ac.sampleRate); const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; return noise; };
+  const note = (f, t, len, gain, wave = 'sine', attack = 0.02, dest = into) => {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = wave; o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(gain, t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    o.connect(g); g.connect(dest); o.start(t); o.stop(t + len + 0.05);
+  };
+  const kick = (t) => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.14); g.gain.setValueAtTime(0.55, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.32); };
+  const hiss = (t, hp, len, gain) => { const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noiseBuf(); f.type = 'highpass'; f.frequency.value = hp; g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + len); s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + len + 0.02); };
+  const playBar = (i, t0) => {
+    const name = S_.prog[i % S_.prog.length], ch = CH[name].map(N);
+    if (S_.organ) { // hymn organ: each chord tone with its octave and fifth, slow to swell
+      ch.forEach((f) => [[1, 1], [2, 0.4], [3, 0.18]].forEach(([m, w]) => note(f * m, t0, bar + 0.3, S_.padGain * w, 'sine', 0.6)));
+    } else (S_.pad || []).forEach((w, j) => ch.slice(0, 3).forEach((f) => note(f * (j ? 0.5 : 1), t0, bar + 0.3, S_.padGain, w, 0.5)));
+    if (S_.bell) for (let n = 0; n < 3; n++) if (Math.random() < S_.bell) note(ch[(n + i) % 4] * 4, t0 + n * (bar / 3), 1.6, 0.03, 'sine', 0.01);
+    if (S_.piano) [0, 1, 2, 3, 2, 1, 2, 3].forEach((k, n) => note(ch[k] * 2, t0 + n * (bar / 8), 1.2, 0.05, 'triangle', 0.005));
+    if (S_.bass) for (let n = 0; n < S_.beats * (S_.bass / 2); n++) note(ch[0] / 2, t0 + n * (beat * 2 / S_.bass), beat * 0.9, 0.12, 'triangle', 0.01);
+    if (S_.arp) { const steps = S_.beats * S_.arp; for (let n = 0; n < steps; n++) note(ch[[0, 1, 2, 3, 2, 1][n % 6]] * 2, t0 + n * (bar / steps), (bar / steps) * 0.9, 0.025, S_.arpWave, 0.005); }
+    for (let b = 0; b < S_.beats; b++) {
+      const t = t0 + b * beat;
+      if (S_.drums === 'pop') { if (b % 2 === 0) kick(t); else hiss(t, 1500, 0.16, 0.22); hiss(t, 7000, 0.05, 0.08); hiss(t + beat / 2, 7000, 0.05, 0.06); }
+      if (S_.drums === 'drive') { kick(t); if (b % 2) hiss(t, 1500, 0.14, 0.24); hiss(t + beat / 2, 7000, 0.05, 0.09); }
+    }
+  };
+  // Schedule a couple of seconds ahead at a time.
+  let i = 0, next = start, stopped = false;
+  const fill = () => { if (stopped) return; while (next < ac.currentTime + 2.5 && next < start + seconds) { playBar(i++, next); next += bar; } };
+  fill();
+  const timer = setInterval(fill, 500);
+  return () => { stopped = true; clearInterval(timer); master.gain.cancelScheduledValues(ac.currentTime); master.gain.setTargetAtTime(0.0001, ac.currentTime, 0.15); };
 }
 
 // ───────── the player ─────────
@@ -241,7 +273,9 @@ export async function openYearVideo(app) {
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const saved = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
   const keep = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
-  let length = Number(saved('oc-yr-length', '180')), wide = saved('oc-yr-shape', 'tv') === 'tv';
+  let length = Number(saved('oc-yr-length', '180')), wide = saved('oc-yr-shape', 'tv') === 'tv', style = saved('oc-yr-music', 'calm');
+  if (style !== 'off' && !STYLES[style]) style = 'calm';
+  let stopMusic = null;
   if (!LENGTHS.includes(length)) length = 180;
   const seg = (name, opts, on) => `<div class="seg yr-seg" role="radiogroup" aria-label="${name}" data-on="${on}" style="--n:${opts.length}">${opts.map(([v, l]) => `<button type="button" role="radio" aria-checked="${String(v) === String(on)}" data-${name.toLowerCase()}="${v}">${l}</button>`).join('')}</div>`;
   const wrap = document.createElement('div');
@@ -251,7 +285,8 @@ export async function openYearVideo(app) {
       <label class="sr" for="yr-year">Year</label>
       <select id="yr-year" class="select-pill">${years.map((y) => `<option value="${y}" ${y === year ? 'selected' : ''}>${y}</option>`).join('')}</select>
       <span class="grow"></span>
-      <label class="yr-music"><input type="checkbox" id="yr-music" checked> Music</label>
+      <label class="sr" for="yr-music">Music</label>
+      <select id="yr-music" class="select-pill" aria-label="Music">${[...Object.entries(STYLES).map(([k, v]) => [k, '♪ ' + v.label]), ['off', 'No music']].map(([k, l]) => `<option value="${k}" ${k === style ? 'selected' : ''}>${l}</option>`).join('')}</select>
       <button class="icon-btn" data-x aria-label="Close">${icon('x')}</button>
     </div>
     <div class="yr-opts">
@@ -318,8 +353,8 @@ export async function openYearVideo(app) {
   };
   const play = (onEnd) => new Promise((resolve) => {
     cancelAnimationFrame(raf);
-    const music_ = wrap.querySelector('#yr-music').checked;
-    if (music_) { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); music(ac, recording?.audioOut || ac.destination, show.total); }
+    stopMusic?.(); stopMusic = null;
+    if (style !== 'off') { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); stopMusic = music(ac, recording?.audioOut || ac.destination, show.total, style); }
     const t0 = performance.now();
     const tick = () => {
       const t = (performance.now() - t0) / 1000;
@@ -336,7 +371,7 @@ export async function openYearVideo(app) {
     const mime = types.find((t) => MediaRecorder.isTypeSupported(t));
     const stream = canvas.captureStream(30);
     recording = {};
-    if (wrap.querySelector('#yr-music').checked) {
+    if (style !== 'off') {
       ac = ac || new (window.AudioContext || window.webkitAudioContext)();
       // The music goes both to the speaker and into the recording.
       const dest = ac.createMediaStreamDestination();
@@ -359,6 +394,12 @@ export async function openYearVideo(app) {
     setTimeout(() => URL.revokeObjectURL(a.href), 60000);
   });
   wrap.querySelector('#yr-year').addEventListener('change', (e) => { year = Number(e.target.value); prepare(); });
+  // Picking a style plays a few seconds of it, so it can be heard before the video starts.
+  wrap.querySelector('#yr-music').addEventListener('change', (e) => {
+    style = e.target.value; keep('oc-yr-music', style);
+    cancelAnimationFrame(raf); stopMusic?.(); stopMusic = null;
+    if (style !== 'off' && !recording) { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); stopMusic = music(ac, ac.destination, 8, style); }
+  });
   wrap.querySelector('.yr-opts').addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b || recording) return;
     if (b.dataset.length) { length = Number(b.dataset.length); keep('oc-yr-length', String(length)); }
@@ -376,7 +417,7 @@ export async function openYearVideo(app) {
     try { await go.call(stage); if (wide) await screen.orientation?.lock?.('landscape').catch(() => {}); } catch (e) {}
     play();
   });
-  const close = () => { alive = false; cancelAnimationFrame(raf); ac?.close?.(); wrap.remove(); };
+  const close = () => { alive = false; cancelAnimationFrame(raf); stopMusic?.(); ac?.close?.(); wrap.remove(); };
   wrap.addEventListener('click', (e) => { if (e.target === wrap || e.target.closest('[data-x]')) close(); });
   wrap.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
   prepare();
