@@ -82,7 +82,8 @@ const app = {
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
       const safe = (f.name || 'file').replace(/[^\w.\-]+/g, '_').slice(-80);
-      const url = await S.upload(app.path(`media/${S.newId()}_${safe}`), f, (p) => onProgress && onProgress((i + p) / files.length));
+      // Marked as yours: the storage rules require it, and it lets you delete your own files later.
+      const url = await S.upload(app.path(`media/${S.newId()}_${safe}`), f, (p) => onProgress && onProgress((i + p) / files.length), { by: state.uid });
       out.push({ url, type: f.type || 'application/octet-stream', name: f.name || safe, size: f.size || 0 });
     }
     return out;
