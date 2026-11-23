@@ -708,7 +708,7 @@ body[data-view="journal"] #main { overflow-x: clip; }
 
 /* ---------- ☰ menu (top right) and the three bottom tabs ---------- */
 .tabbar .tab-more { display: none; }
-.menu-btn { position: fixed; z-index: 25; top: calc(env(safe-area-inset-top) + 14px); right: max(12px, calc((100vw - 680px) / 2 + 12px)); width: 44px; height: 44px; border-radius: 50%; border: 0.5px solid var(--glass-border, var(--separator)); display: flex; align-items: center; justify-content: center; color: var(--label);
+.menu-btn { position: fixed; z-index: 35; top: calc(env(safe-area-inset-top) + 14px); right: max(12px, calc((100vw - 680px) / 2 + 12px)); width: 44px; height: 44px; border-radius: 50%; border: 0.5px solid var(--glass-border, var(--separator)); display: flex; align-items: center; justify-content: center; color: var(--label);
   background: var(--glass-bg, var(--card-bg)); -webkit-backdrop-filter: blur(var(--glass-blur, 16px)) saturate(var(--glass-saturate, 1.6)); backdrop-filter: blur(var(--glass-blur, 16px)) saturate(var(--glass-saturate, 1.6)); box-shadow: var(--glass-shadow, 0 2px 10px rgba(0, 0, 0, 0.15)); }
 body[data-view="chat"] .menu-btn { display: none; }
 /* Room for the menu button beside each page's own header buttons. */
@@ -728,3 +728,18 @@ body.has-menu #main > header.top, body.has-menu #main > * > header.top { padding
 }
 
 .warn-text { color: var(--due-bg, #c4232f); }
+
+/* ---------- year in review video ---------- */
+.yr-wrap { position: fixed; inset: 0; z-index: 80; background: rgba(0, 0, 0, 0.86); display: flex; align-items: stretch; justify-content: center; }
+.yr { width: min(100%, 520px); display: flex; flex-direction: column; gap: 10px; padding: calc(env(safe-area-inset-top) + 10px) 14px calc(env(safe-area-inset-bottom) + 14px); color: #fff; }
+.yr-top { display: flex; align-items: center; gap: 10px; }
+.yr-top .icon-btn { color: #fff; background: rgba(255, 255, 255, 0.14); }
+.yr-top .select-pill { color: #111; }
+.yr-music { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-footnote); min-height: var(--hit); }
+.yr-music input { width: 20px; height: 20px; accent-color: var(--tint); }
+.yr-stage { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+.yr-stage canvas { max-height: 100%; max-width: 100%; height: auto; aspect-ratio: 9 / 16; flex: 1 1 auto; min-height: 0; border-radius: 22px; background: #111; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+.yr-status { margin: 0; min-height: 20px; font-size: var(--text-footnote); color: rgba(255, 255, 255, 0.8); text-align: center; }
+.yr-actions { display: flex; gap: 10px; justify-content: center; }
+.yr-actions .btn { flex: 1; max-width: 220px; }
+.yr-actions .btn.ghost { background: rgba(255, 255, 255, 0.14); color: #fff; }
