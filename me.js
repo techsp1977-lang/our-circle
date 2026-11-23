@@ -187,8 +187,8 @@ export function mount(root, app) {
         if (!cropped) return;
         toast('Saving photo…');
         const [m] = await app.uploadFiles([cropped]);
-        await S.update(app.path('members/' + st.me), { photo: m.url });
-        toast('Photo updated.');
+        await app.setMyPhoto(m.url);
+        toast('Photo updated in all your circles.');
       } catch (er) { toast(why('Photo did not upload.', er), 9000); }
     }
     if (e.target.id === 'inapp') {

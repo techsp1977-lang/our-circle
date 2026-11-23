@@ -126,7 +126,7 @@ export function mount(root, app) {
         const f = await pickAndCrop('Your photo');
         if (!f) break;
         toast('Saving photo…');
-        try { const [m] = await app.uploadFiles([f]); await S.update(app.path('members/' + st.me), { photo: m.url }); toast('Photo saved.'); }
+        try { const [m] = await app.uploadFiles([f]); await app.setMyPhoto(m.url); toast('Photo saved in all your circles.'); }
         catch (er) { toast(why('The photo did not save.', er), 9000); }
         break;
       }

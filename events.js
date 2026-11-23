@@ -1,7 +1,7 @@
 // Shared dates & events: birthdays, anniversaries, graduations, trips, anything.
 import * as S from './store.js';
-import { sheet, toast, listJoin } from './ui.js';
-import { nextOccurrence, today, yearsSince, occurrenceInMonth, monthsFrom } from './dates.js';
+import { sheet, toast, listJoin, why } from './ui.js';
+import { nextOccurrence, today, yearsSince, occurrenceInMonth, monthsFrom, shortDate } from './dates.js';
 
 export const TYPES = [
   { value: 'birthday', label: 'Birthday', icon: 'gift', yearly: true },
@@ -98,4 +98,67 @@ export async function editEvent(app, ev = null, defaults = {}) {
   else await S.add(app.path('events'), { ...data, createdBy: st.me, createdAt: Date.now() });
   toast(ev ? 'Saved.' : 'Added. The family will see it.');
   return data;
+}
+
+// ───────── Copy dates from another of your circles ─────────
+// Birthdays, anniversaries and other yearly dates come across matched to the same people by first name.
+// Dates this circle already has are left out, and a date for someone who isn't in this circle starts unticked.
+const norm = (s) => String(s || '').trim().toLowerCase();
+const mmdd = (d) => String(d || '').slice(5, 10);
+
+export async function copyFromCircle(app, others) {
+  const st = app.state;
+  if (!others?.length) { toast('You are only in this one circle.'); return; }
+  let src = others[0];
+  if (others.length > 1) {
+    const r = await sheet({ title: 'Copy dates from…', submit: 'Next', fields: [
+      { name: 'cid', label: 'Which circle?', type: 'select', value: others[0].id, options: others.map((c) => ({ value: c.id, label: c.name })) },
+    ] });
+    if (!r) return;
+    src = others.find((c) => c.id === r.cid) || others[0];
+  }
+  let srcMembers, srcEvents;
+  try { [srcMembers, srcEvents] = await Promise.all([S.getColl(`circles/${src.id}/members`), S.getColl(`circles/${src.id}/events`)]); }
+  catch (e) { toast(`Could not read ${src.name}. Check your connection.`); return; }
+
+  // People here, by first name (only names that are unique here, so nobody gets the wrong birthday).
+  const here = new Map();
+  Object.values(st.members).forEach((m) => { const k = norm(m.name); here.set(k, here.has(k) ? null : m.id); });
+  const srcName = Object.fromEntries(srcMembers.map((m) => [m.id, m.name]));
+
+  const yearly = srcEvents.filter((ev) => ev.recurring || typeOf(ev.type).yearly);
+  const rows = yearly
+    .map((ev) => {
+      const ids = (ev.memberIds || []).map((id) => here.get(norm(srcName[id])) || null);
+      const mapped = ids.filter(Boolean);
+      const allFound = ids.every(Boolean);
+      const dup = st.events.some((x) => x.type === ev.type && mmdd(x.date) === mmdd(ev.date)
+        && (norm(x.title) === norm(ev.title) || (mapped.length && mapped.every((id) => (x.memberIds || []).includes(id)))));
+      return { ev, mapped, allFound, dup };
+    })
+    .filter((r) => !r.dup && (r.mapped.length || !(r.ev.memberIds || []).length))
+    .sort((a, b) => mmdd(a.ev.date).localeCompare(mmdd(b.ev.date)));
+
+  const missing = yearly.filter((ev) => (ev.memberIds || []).length && !(ev.memberIds || []).some((id) => here.get(norm(srcName[id])))).length;
+  const skipped = missing ? ` ${missing} date${missing === 1 ? ' is' : 's are'} left out because ${missing === 1 ? 'that person isn\'t' : 'those people aren\'t'} in this circle yet. Add them in Family settings, then copy again.` : '';
+  if (!rows.length) { toast(`Nothing new to copy.${skipped}`, skipped ? 8000 : 2600); return; }
+  const r = await sheet({
+    title: `Copy from ${src.name}`,
+    intro: `Tick the dates to add here. They are matched to people with the same first name in this circle.${skipped}`,
+    submit: 'Copy dates',
+    fields: [{ name: 'pick', label: `${rows.length} date${rows.length === 1 ? '' : 's'} not here yet`, type: 'checks',
+      value: rows.filter((x) => x.allFound).map((x) => x.ev.id),
+      options: rows.map((x) => ({ value: x.ev.id, label: `${x.ev.title} · ${shortDate(x.ev.date)}${x.allFound ? '' : ' (only some of these people are here)'}` })) }],
+  });
+  if (!r || !r.pick?.length) return;
+  const now = Date.now();
+  const ops = rows.filter((x) => r.pick.includes(x.ev.id)).map(({ ev, mapped }) => {
+    const names = listJoin(mapped.map((id) => app.member(id)?.name).filter(Boolean));
+    const title = !mapped.length ? ev.title : ev.type === 'birthday' ? `${names}'s birthday` : ev.type === 'anniversary' ? `${names} · anniversary` : ev.title;
+    return { op: 'set', path: app.path('events/' + S.newId()), data: {
+      type: ev.type, title, date: ev.date, endDate: ev.endDate || null, recurring: !!ev.recurring,
+      memberIds: mapped, note: ev.note || '', shared: true, createdBy: st.me, createdAt: now } };
+  });
+  try { await S.batch(ops); toast(`Copied ${ops.length} date${ops.length === 1 ? '' : 's'} from ${src.name}.`); }
+  catch (e) { toast(why('The dates did not copy.', e), 9000); }
 }
