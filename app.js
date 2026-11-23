@@ -252,7 +252,7 @@ function clearJoin() {
 }
 
 let signInPrep = null;
-const MIN_PW = 10; // matches Firebase → Authentication → Settings → Password policy
+const MIN_PW = 7; // matches Firebase → Authentication → Settings → Password policy
 function renderSignIn(msg = '', email = '') {
   const joining = pendingJoin();
   document.body.innerHTML = `<div class="auth">
