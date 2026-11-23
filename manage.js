@@ -3,6 +3,7 @@ import * as S from './store.js';
 import { esc, icon, face, sheet, toast, confirmBox, names, listJoin, HH_COLORS, hhColor, why } from './ui.js';
 import { THEMES, theme, applyTheme } from './themes.js';
 import { pickAndCrop } from './crop.js';
+import { listCircles } from './circles.js';
 import { PLANS, planState, fmtGB } from './plans.js';
 
 export async function inviteLink(app, memberId) {
@@ -74,6 +75,7 @@ export function mount(root, app) {
   const st = app.state;
   if (!app.isAdmin()) { root.innerHTML = '<p class="pad muted">Only family organizers can change these settings.</p>'; return {}; }
   let accessRows = [];
+  let otherCircles = [];
 
   const render = () => {
     root.innerHTML = `
@@ -91,6 +93,7 @@ export function mount(root, app) {
 
       <section class="block">
         <div class="row-head"><h2>Households</h2><button class="linkish" data-act="add-hh">${icon('plus', 16)} Add household</button></div>
+        ${otherCircles.length ? `<p><button class="linkish" data-act="copy-photos" style="text-align:left">${icon('image', 16)} Copy profile photos from ${otherCircles.length === 1 ? esc(otherCircles[0].name) : 'another circle'}</button></p>` : ''}
         <p class="hint">A household is everyone you'd message together, like a couple and their kids. Each person still gets their own login and private journal.</p>
         ${st.households.map((h) => `
           <div class="card list mb">
@@ -210,6 +213,28 @@ export function mount(root, app) {
         break;
       }
       case 'invite': await inviteLink(app, id); break;
+      case 'copy-photos': {
+        const others = (await listCircles(app).catch(() => [])).filter((c) => !c.current);
+        if (!others.length) { toast('You are only in this one circle.'); break; }
+        let src = others[0];
+        if (others.length > 1) {
+          const r = await sheet({ title: 'Copy photos from…', submit: 'Next', fields: [{ name: 'cid', label: 'Which circle?', type: 'select', value: src.id, options: others.map((c) => ({ value: c.id, label: c.name })) }] });
+          if (!r) break; src = others.find((c) => c.id === r.cid) || src;
+        }
+        const theirs = await S.getColl(`circles/${src.id}/members`).catch(() => null);
+        if (!theirs) { toast(`Could not read ${src.name}. Check your connection.`); break; }
+        const key = (n) => String(n || '').trim().toLowerCase();
+        const count = (list) => list.reduce((m, x) => m.set(key(x.name), (m.get(key(x.name)) || 0) + 1), new Map());
+        const hereCount = count(Object.values(st.members)), thereCount = count(theirs);
+        // Only people with no photo here, and only when the first name is unique in both circles.
+        const pairs = Object.values(st.members).filter((m) => !m.photo && hereCount.get(key(m.name)) === 1 && thereCount.get(key(m.name)) === 1)
+          .map((m) => [m, theirs.find((t) => key(t.name) === key(m.name))]).filter(([, t]) => t?.photo);
+        if (!pairs.length) { toast(`No new photos to copy from ${src.name}. Everyone here with a match already has one.`, 5000); break; }
+        if (!(await confirmBox(`Copy ${pairs.length} photo${pairs.length === 1 ? '' : 's'} from ${src.name}?`, `${listJoin(pairs.map(([m]) => m.name))} will get the photo they have in ${src.name}. People who already have a photo here keep theirs.`, 'Copy photos', false))) break;
+        try { await S.batch(pairs.map(([m, t]) => ({ op: 'update', path: app.path('members/' + m.id), data: { photo: t.photo } }))); toast(`Copied ${pairs.length} photo${pairs.length === 1 ? '' : 's'}.`); }
+        catch (er) { toast(why('The photos did not copy.', er), 9000); }
+        break;
+      }
       case 'photo': {
         const m = app.member(id);
         const f = await pickAndCrop(`${m.name}'s photo`);
@@ -227,5 +252,6 @@ export function mount(root, app) {
   const off = app.on(render);
   render();
   loadAccess();
+  listCircles(app).then((rows) => { otherCircles = rows.filter((c) => !c.current); if (otherCircles.length) render(); }).catch(() => {});
   return { destroy: () => { off(); root.removeEventListener('click', onClick); } };
 }

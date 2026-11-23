@@ -66,6 +66,30 @@ const app = {
     location.hash = '#/family';
     if (!(await openCircle(cid))) toast('That circle is no longer available on this account.');
   },
+  // Your photo is the same in every circle you belong to.
+  async setMyPhoto(url) {
+    await S.update(app.path('members/' + state.me), { photo: url });
+    const here = state.cid, uid = state.uid;
+    const u = (await S.get(`users/${uid}`).catch(() => null)) || {};
+    await Promise.all((u.circles || []).filter((cid) => cid !== here).map(async (cid) => {
+      const acc = await S.get(`circles/${cid}/access/${uid}`).catch(() => null);
+      if (acc?.memberId) await S.update(`circles/${cid}/members/${acc.memberId}`, { photo: url }).catch(() => {});
+    }));
+  },
+  // Joined or started a circle without a photo? Bring yours over from another circle.
+  async fillMyPhoto() {
+    const cid = state.cid, uid = state.uid;
+    if (!state.me || app.myMember()?.photo) return;
+    const u = (await S.get(`users/${uid}`).catch(() => null)) || {};
+    for (const other of (u.circles || []).filter((c) => c !== cid)) {
+      const acc = await S.get(`circles/${other}/access/${uid}`).catch(() => null);
+      const m = acc?.memberId && await S.get(`circles/${other}/members/${acc.memberId}`).catch(() => null);
+      if (m?.photo) {
+        if (state.cid === cid && !app.myMember()?.photo) await S.update(app.path('members/' + state.me), { photo: m.photo }).catch(() => {});
+        return;
+      }
+    }
+  },
   newCircle() { renderOnboarding('', { back: state.cid, myName: app.myMember()?.name || '' }); },
   async openSwitcher() { (await import('./circles.js')).openSwitcher(app); },
   async ensureEveryone() {
@@ -220,6 +244,7 @@ async function openCircle(cid) {
     document.title = (state.circle?.name || APP_NAME);
     await app.ensureEveryone().catch(() => {});
     route();
+    app.fillMyPhoto().catch(() => {});
   };
   const changed = () => { app.emit(); updateBadges(); maybeReady(); };
 
