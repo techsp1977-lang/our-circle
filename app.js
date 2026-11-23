@@ -141,10 +141,9 @@ const VIEWS = {
   calendar: () => import('./calendar.js'),
   admin: () => import('./admin.js'),
 };
-const TABS = [
-  ['family', 'Family', 'family'], ['chats', 'Chats', 'chat'], ['album', 'Album', 'album'],
-  ['journal', 'Journal', 'book'], ['me', 'My page', 'user'], ['calendar', 'Calendar', 'cal'],
-];
+// The bottom tabs are what the family uses most; the rest live in the ☰ menu (and the computer's sidebar).
+const TABS = [['family', 'Our Family', 'family'], ['chats', 'Chats', 'chat'], ['calendar', 'Calendar', 'cal']];
+const MENU = [['me', 'My page', 'user'], ['journal', 'Journal', 'book'], ['album', 'Album', 'album']];
 
 async function route() {
   if (!state.ready) return;
@@ -153,6 +152,7 @@ async function route() {
   const mod = await VIEWS[key]();
   if (view?.destroy) view.destroy();
   document.querySelectorAll('.sheet-wrap').forEach((s) => s.remove());
+  closeMenu();
   const main = $('#main');
   main.innerHTML = '';
   main.scrollTop = 0;
@@ -171,9 +171,40 @@ function shell() {
     <nav class="tabbar" aria-label="Main">
       <button class="side-brand" data-switch aria-label="Switch circles">${icon('family', 22)}<span>${esc(state.circle?.name || APP_NAME)}</span></button>
       ${TABS.map(([k, label, ic]) => `<a href="#/${k}" data-tab="${k}">${icon(ic, 22)}<span>${label}</span><i class="dot" hidden></i></a>`).join('')}
-    </nav>`;
+      ${MENU.map(([k, label, ic]) => `<a href="#/${k}" data-tab="${k}" class="tab-more">${icon(ic, 22)}<span>${label}</span></a>`).join('')}
+    </nav>
+    <button class="menu-btn" id="menu-btn" aria-label="Menu" aria-haspopup="menu" aria-expanded="false">${icon('menu', 22)}</button>`;
+  document.body.classList.add('has-menu');
   renderDemoBar();
   document.querySelector('.tabbar [data-switch]').onclick = () => app.openSwitcher();
+  document.getElementById('menu-btn').onclick = openMenu;
+}
+
+// The ☰ menu: My page, Journal and Album, plus family settings for organizers.
+function openMenu() {
+  const btn = document.getElementById('menu-btn');
+  if (document.querySelector('.menu-wrap')) { closeMenu(); return; }
+  const here = document.body.dataset.view;
+  const items = [...MENU, ...(app.isAdmin() ? [['manage', 'Family settings', 'gear']] : [])];
+  const wrap = document.createElement('div');
+  wrap.className = 'menu-wrap';
+  wrap.innerHTML = `<nav class="menu-pop" role="menu" aria-label="More">
+    ${items.map(([k, label, ic]) => `<a role="menuitem" href="#/${k}" class="${here === k || (k === 'journal' && here === 'book') ? 'on' : ''}">${icon(ic, 20)}<span>${label}</span></a>`).join('')}
+    <button role="menuitem" type="button" data-switch>${icon('family', 20)}<span>Switch family circle</span></button>
+    <a role="menuitem" href="tour.html">${icon('next', 20)}<span>Quick tour</span></a>
+  </nav>`;
+  document.body.appendChild(wrap);
+  btn.setAttribute('aria-expanded', 'true');
+  wrap.addEventListener('click', (e) => {
+    if (e.target.closest('[data-switch]')) { closeMenu(); app.openSwitcher(); return; }
+    if (e.target === wrap || e.target.closest('a')) closeMenu();
+  });
+  wrap.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeMenu(); btn.focus(); } });
+  wrap.querySelector('a, button')?.focus({ preventScroll: true });
+}
+function closeMenu() {
+  document.querySelectorAll('.menu-wrap').forEach((w) => w.remove());
+  document.getElementById('menu-btn')?.setAttribute('aria-expanded', 'false');
 }
 
 const isUnread = (c) => c.lastBy && c.lastBy !== state.me && (c.lastAt || 0) > (c.reads?.[state.me] || 0);
