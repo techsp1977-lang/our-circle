@@ -160,7 +160,7 @@ export function mount(root, app) {
         break;
       }
       case 'add-hh': {
-        const r = await sheet({ title: 'Add household', intro: 'For example "Jamison, Sophi & Jack", or one person living on their own.', fields: [{ name: 'name', label: 'Household name', required: true }] });
+        const r = await sheet({ title: 'Add household', intro: 'For example "Ethan, Olivia & Henry", or one person living on their own.', fields: [{ name: 'name', label: 'Household name', required: true }] });
         if (r) await S.add(app.path('households'), { name: r.name, order: st.households.length });
         break;
       }

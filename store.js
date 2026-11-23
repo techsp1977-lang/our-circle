@@ -150,7 +150,7 @@ async function firebaseImpl() {
 
 // ───────────────────────── Demo (in this browser only) ─────────────────────────
 async function demoImpl() {
-  const KEY = 'oc-demo-db-v2';
+  const KEY = 'oc-demo-db-v3';
   let db = {};
   try { db = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { db = {}; }
   if (!Object.keys(db).length) {
@@ -215,9 +215,9 @@ async function demoImpl() {
     onAuth: (cb) => { authCbs.add(cb); queueMicrotask(() => cb(uid ? { uid, email: uid + '@demo' } : null)); return () => authCbs.delete(cb); },
     uid: () => uid,
     email: () => (uid ? uid + '@demo' : ''),
-    signIn: async () => api.demo.switchTo('u_spencer'),
-    signUp: async () => api.demo.switchTo('u_spencer'),
-    google: async () => api.demo.switchTo('u_spencer'),
+    signIn: async () => api.demo.switchTo('u_michael'),
+    signUp: async () => api.demo.switchTo('u_michael'),
+    google: async () => api.demo.switchTo('u_michael'),
     reset: async () => {},
     withToken: async () => { throw new Error('Not available in demo mode'); },
     callFn: async () => { throw new Error('Not available in demo mode'); },
