@@ -82,7 +82,8 @@ const app = {
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
       const safe = (f.name || 'file').replace(/[^\w.\-]+/g, '_').slice(-80);
-      const url = await S.upload(app.path(`media/${S.newId()}_${safe}`), f, (p) => onProgress && onProgress((i + p) / files.length));
+      // Marked as yours: the storage rules require it, and it lets you delete your own files later.
+      const url = await S.upload(app.path(`media/${S.newId()}_${safe}`), f, (p) => onProgress && onProgress((i + p) / files.length), { by: state.uid });
       out.push({ url, type: f.type || 'application/octet-stream', name: f.name || safe, size: f.size || 0 });
     }
     return out;
@@ -397,6 +398,17 @@ async function renderOnboarding(msg = '', opts = {}) {
   });
 }
 
+// A newer version of the app was just saved on this phone. Switch to it now if the app only just opened and
+// nothing is being typed or chosen; otherwise the next time the app comes back to the screen.
+const openedAppAt = Date.now();
+function useUpdate() {
+  const busy = () => document.querySelector('.sheet-wrap') || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)
+    || [...document.querySelectorAll('textarea, input[type=text]')].some((x) => x.value);
+  if (Date.now() - openedAppAt < 8000 && !busy()) { location.reload(); return; }
+  const later = () => { if (document.visibilityState === 'visible' && !busy()) location.reload(); };
+  document.addEventListener('visibilitychange', later);
+}
+
 // ───────────── start ─────────────
 export async function start() {
   try { await S.initStore(); }
@@ -415,6 +427,7 @@ export async function start() {
   navigator.serviceWorker?.addEventListener('message', (e) => {
     if (e.data?.type === 'open' && /^#\/chat\/[\w%-]+$/.test(e.data.hash || '')) location.hash = e.data.hash;
     if (e.data?.type === 'push') updateBadges();
+    if (e.data?.type === 'updated') useUpdate();
   });
   S.auth.onChange(async (user) => {
     stopSubs();

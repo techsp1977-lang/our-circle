@@ -11,7 +11,17 @@ async function refreshAll() {
   const fresh = await Promise.all(SHELL.map((p) => fetch(p, { cache: 'no-cache' }).then((r) => (r.ok ? [p, r] : null)).catch(() => null)));
   if (fresh.some((x) => !x)) return; // offline or a file failed: keep the complete old set
   const cache = await caches.open(CACHE);
+  const hadOld = !!(await cache.match('./index.html'));
+  // Did anything change since the saved copy? (Compared by content, so it works with or without ETags.)
+  const same = await Promise.all(fresh.map(async ([p, r]) => {
+    const old = await cache.match(p);
+    return !!old && (await old.text()) === (await r.clone().text());
+  }));
   await Promise.all(fresh.map(([p, r]) => cache.put(p, r)));
+  // Tell the open app a newer version is saved, so it can switch to it right away instead of next time.
+  if (hadOld && same.includes(false)) {
+    (await self.clients.matchAll({ type: 'window' })).forEach((c) => c.postMessage({ type: 'updated' }));
+  }
 }
 
 self.addEventListener('install', (e) => { e.waitUntil(refreshAll().then(() => self.skipWaiting())); });
