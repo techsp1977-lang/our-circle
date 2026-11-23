@@ -100,6 +100,15 @@ export function sheet({ title, intro = '', fields = [], submit = 'Save', danger 
   });
 }
 
+// A failure message with the reason's code on the end, so a screenshot says what went wrong.
+export function why(text, err) {
+  console.warn(text, err);
+  const c = String(err?.code || err?.name || err?.message || 'unknown').replace(/^(storage|firestore|auth)\//, '').slice(0, 60);
+  const hint = /unauthorized|permission/.test(c) ? ' The circle may have uploads paused, or you may not be in it on this account.'
+    : /quota|retry-limit|network|unavailable/.test(c) ? ' Check your connection and try again.' : '';
+  return `${text}${hint} (code: ${c})`;
+}
+
 export async function confirmBox(title, text, yes = 'Yes', danger = true) {
   const r = await sheet({ title, intro: text, submit: yes, fields: [] });
   return !!r;

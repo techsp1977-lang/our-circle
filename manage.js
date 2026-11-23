@@ -1,6 +1,6 @@
 // Family settings for organizers: households, people, invite links.
 import * as S from './store.js';
-import { esc, icon, face, sheet, toast, confirmBox, names, listJoin, HH_COLORS, hhColor } from './ui.js';
+import { esc, icon, face, sheet, toast, confirmBox, names, listJoin, HH_COLORS, hhColor, why } from './ui.js';
 import { THEMES, theme, applyTheme } from './themes.js';
 import { pickAndCrop } from './crop.js';
 import { PLANS, planState, fmtGB } from './plans.js';
@@ -216,7 +216,7 @@ export function mount(root, app) {
         if (!f) break;
         toast('Saving photo…');
         try { const [u] = await app.uploadFiles([f]); await S.update(app.path('members/' + id), { photo: u.url }); toast('Photo saved.'); }
-        catch (er) { toast('The photo did not save. Try again.'); }
+        catch (er) { toast(why('The photo did not save.', er), 9000); }
         break;
       }
     }

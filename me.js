@@ -1,6 +1,6 @@
 // My page: my photo and name, my shared dates, profiles I manage, my nudge settings.
 import * as S from './store.js';
-import { esc, icon, face, sheet, toast, listJoin, safeUrl, confirmBox } from './ui.js';
+import { esc, icon, face, sheet, toast, listJoin, safeUrl, confirmBox, why } from './ui.js';
 import { monShort, dayNum, today, nextOccurrence } from './dates.js';
 import { TYPES, typeOf, editEvent, headline } from './events.js';
 import { inviteLink } from './manage.js';
@@ -189,7 +189,7 @@ export function mount(root, app) {
         const [m] = await app.uploadFiles([cropped]);
         await S.update(app.path('members/' + st.me), { photo: m.url });
         toast('Photo updated.');
-      } catch (er) { toast('Photo did not upload. Try again.'); }
+      } catch (er) { toast(why('Photo did not upload.', er), 9000); }
     }
     if (e.target.id === 'inapp') {
       await S.set(`users/${st.uid}`, { prefs: { ...st.prefs, inAppAlerts: e.target.value === 'on' } }, true);
