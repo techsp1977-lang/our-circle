@@ -1,6 +1,7 @@
 // Family hub: coming up, today's big days, weekly check-ins, the family chart.
 import * as S from './store.js';
 import { planState, fmtGB, pausedText } from './plans.js';
+import { mapHTML, drawMap, openHousehold } from './familymap.js';
 import { esc, icon, face, toast, sheet, listJoin, names, hhColor, why, familyTree } from './ui.js';
 import { pickAndCrop } from './crop.js';
 import { today, monShort, dayNum, whenText, rangeText, diffDays, weekday, shortDate, monthName, agoText, dayOfYear } from './dates.js';
@@ -11,6 +12,7 @@ export function mount(root, app) {
   const st = app.state;
   let journalDone = false;
   let sayingShift = 0; // tap the saying to see the next one
+  let famView = (() => { try { return localStorage.getItem('oc-famview') || 'circles'; } catch (e) { return 'circles'; } })();
 
   const render = () => {
     const me = app.myMember();
@@ -66,11 +68,17 @@ export function mount(root, app) {
         </div>
       </section>
 
-      <section class="block tree" aria-label="Family tree">
+      <section class="block">
+        <div class="seg" role="radiogroup" aria-label="How to show the family" data-on="${famView}">
+          <button type="button" role="radio" aria-checked="${famView === 'circles'}" data-act="famview" data-id="circles">${icon('family', 15)} Circles</button>
+          <button type="button" role="radio" aria-checked="${famView === 'list'}" data-act="famview" data-id="list">${icon('users', 15)} Cards</button>
+        </div>
+      </section>
+      ${famView === 'circles' ? `<section class="block fam-wrap" aria-label="Family circles">${mapHTML()}</section>` : `<section class="block tree" aria-label="Family tree">
         ${familyTree(st.households).map(({ h, depth }) => `<div class="tree-row" style="--depth:${Math.min(depth, 3)}">${householdCard(app, h, h.id === me.householdId)}</div>`).join('')
           || `<div class="card empty-card">${app.isAdmin() ? '<a href="#/manage">Add your family members</a> to see everyone here.' : 'No one else yet.'}</div>`}
-      </section>
-      <p class="hint center">Message goes to the whole household. Tap a photo to message one person.</p>
+      </section>`}
+      ${famView === 'list' ? '<p class="hint center">Message goes to the whole household. Tap a photo to message one person.</p>' : ''}
 
       <section class="block">
         <div class="row-head"><h2>Birthdays &amp; big days</h2><a class="linkish" href="#/me">My dates</a></div>
@@ -95,6 +103,7 @@ export function mount(root, app) {
           ${icon('next', 18)}
         </a>
       </section>`;
+    if (famView === 'circles') drawMap(app, root);
   };
 
   const onClick = async (e) => {
@@ -118,6 +127,14 @@ export function mount(root, app) {
         break;
       }
       case 'alerts': showAlerts(app); break;
+      case 'hh-open': openHousehold(app, id, onClick); break;
+      case 'famview': {
+        if (famView === id) break;
+        famView = id; try { localStorage.setItem('oc-famview', id); } catch (er) {}
+        b.closest('.seg')?.setAttribute('data-on', id);
+        setTimeout(render, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220);
+        break;
+      }
       case 'msg-household': app.go('#/chat/' + (await app.chatForHousehold(id))); break;
       case 'msg-member': app.go('#/chat/' + (await app.chatFor([id]))); break;
       case 'celebrate': {

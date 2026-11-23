@@ -625,3 +625,102 @@ body[data-view="journal"] #main { overflow-x: clip; }
 .react-big { font-size: 24px; width: 32px; text-align: center; }
 @keyframes react-in { from { transform: scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .react-bar { animation: none; } }
+
+/* ---------- the family as circles (Family tab) ---------- */
+.seg { position: relative; display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 3px; border-radius: 999px; background: var(--fill-tertiary); }
+.seg::before { content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 999px; background: var(--card-bg); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); transition: transform .32s var(--spring, cubic-bezier(.2, .8, .2, 1)); }
+.seg[data-on="list"]::before { transform: translateX(100%); }
+.seg button { position: relative; z-index: 1; border: 0; background: transparent; border-radius: 999px; min-height: 36px; padding: 0 16px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: var(--text-footnote); font-weight: var(--weight-semibold); color: var(--label-secondary); transition: color .2s; }
+.seg button[aria-checked="true"] { color: var(--label); }
+@media (prefers-reduced-motion: reduce) { .seg::before { transition: none; } }
+.fam-wrap { margin-bottom: var(--space-3); }
+.fam-view { position: relative; overflow: hidden; border-radius: var(--radius-lg); touch-action: pan-y; user-select: none; -webkit-user-select: none;
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--tint) 10%, var(--card-bg)), var(--card-bg) 70%); box-shadow: var(--shadow-card); }
+.fam-map { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.fam-lines { position: absolute; left: 0; top: 0; overflow: visible; }
+.fam-lines .fam-group { fill: color-mix(in srgb, var(--hh) 8%, transparent); stroke: color-mix(in srgb, var(--hh) 30%, transparent); stroke-width: 1.5; stroke-dasharray: 5 5; }
+.fam-lines path { fill: none; stroke: color-mix(in srgb, var(--tint) 35%, var(--separator)); stroke-width: 2.5; stroke-linecap: round; }
+.fam-zoom { position: absolute; right: 8px; top: 8px; display: flex; gap: 6px; z-index: 3; }
+.fam-zoom .icon-btn { background: var(--glass-bg, var(--card-bg)); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18); font-size: 20px; font-weight: 600; color: var(--label); }
+
+/* A household bubble: a soft liquid sphere in the household's shade, slowly changing shape. */
+.fam-bub { position: absolute; border: 0; padding: 0; background: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 1; -webkit-tap-highlight-color: transparent; }
+.fam-bub:focus-visible { outline: 3px solid var(--tint); outline-offset: 4px; }
+.bub-fill { position: absolute; inset: 0; border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.85) 0 5%, rgba(255, 255, 255, 0) 20%),
+    radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--hh) 30%, #fff) 0%, color-mix(in srgb, var(--hh) 55%, #fff) 50%, color-mix(in srgb, var(--hh) 92%, #fff) 86%, var(--hh) 100%);
+  box-shadow: inset 0 -10px 22px color-mix(in srgb, var(--hh) 45%, transparent), inset 0 6px 14px rgba(255, 255, 255, 0.55), 0 8px 22px color-mix(in srgb, var(--hh) 30%, transparent); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .bub-fill { background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.5) 0 5%, rgba(255, 255, 255, 0) 20%),
+    radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--hh) 30%, #111) 0%, color-mix(in srgb, var(--hh) 50%, #111) 55%, var(--hh) 100%); }
+}
+.fam-bub.mine .bub-fill { outline: 3px solid color-mix(in srgb, var(--hh) 70%, #fff); outline-offset: 3px; }
+.bub-people { position: relative; z-index: 2; width: 72%; display: flex; flex-wrap: wrap; justify-content: center; align-content: center; gap: 2px 4px; }
+.bub-p { width: 52px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.face.bub-face { width: 40px; height: 40px; border-radius: 50%; font-size: 16px; background: rgba(255, 255, 255, 0.92); color: var(--hh); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 2px 6px rgba(0, 0, 0, 0.15); }
+.bub-name { max-width: 56px; font-size: 10.5px; line-height: 1.15; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bub-name { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); } }
+.bub-empty { font-size: 11px; color: #4a524d; }
+.bub-due { position: absolute; z-index: 3; top: 6%; right: 6%; width: 24px; height: 24px; border-radius: 50%; background: var(--due-bg, #dc2634); color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--card-bg); }
+.bub-label { position: absolute; text-align: center; font-size: 12.5px; line-height: 1.2; color: var(--label); pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.bub-label small { font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--tint-text); }
+.bub-label b { font-weight: 600; }
+.bub-chip { margin-top: 2px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: color-mix(in srgb, var(--hh, var(--tint)) 16%, var(--card-bg)); color: var(--label); white-space: nowrap; }
+/* Celebrations: on a big day the bubble comes alive for a few moments each time the page opens, then rests with a
+   lit ring and its label. Only transform and opacity move (smooth on phones); nothing moves under Reduce Motion. */
+.fam-bub.cel { z-index: 2; --plays: 4; }
+.fam-bub.cel::before, .fam-bub.cel::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; pointer-events: none; z-index: 0; }
+/* the resting ring */
+.fam-bub.cel::after { border: 3px solid var(--cel-ring); opacity: 0.9; }
+.cel-bday { --cel-ring: #f5b301; } .cel-anniv { --cel-ring: #ff5b8a; } .cel-new { --cel-ring: #58b4f0; } .cel-big { --cel-ring: #a979f2; }
+/* Birthday: a rainbow ring that turns */
+.cel-bday::before { inset: -9px; background: conic-gradient(#ff5b5b, #f5b301, #3cc46a, #39a0ff, #a979f2, #ff5b8a, #ff5b5b);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+  animation: cel-spin 2.4s linear var(--plays) both; }
+.cel-bday::after { opacity: 0; animation: cel-show .4s ease-out calc(2.4s * 4) forwards; }
+/* Anniversary: a heartbeat */
+.cel-anniv .bub-fill { animation: cel-beat 1.3s ease-in-out var(--plays); }
+.cel-anniv::before { border: 3px solid var(--cel-ring); animation: cel-ripple 1.3s ease-out var(--plays) both; }
+/* New baby: a soft glow that breathes (a radial glow fading in and out, not a blurred shadow) */
+.cel-new::before { inset: -26px; background: radial-gradient(closest-side, color-mix(in srgb, var(--cel-ring) 55%, transparent), transparent); animation: cel-breathe 2.2s ease-in-out var(--plays) both; }
+/* Other big days: ripples */
+.cel-big::before { border: 3px solid var(--cel-ring); animation: cel-ripple 1.8s ease-out var(--plays) both; }
+.bub-sparks { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
+.bub-sparks i { position: absolute; bottom: 60%; left: calc(22% + var(--j) * 26%); font-style: normal; font-size: 20px; opacity: 0; animation: cel-rise 3s ease-out 3 both; animation-delay: calc(var(--j) * 0.9s); }
+@keyframes cel-spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+@keyframes cel-show { to { opacity: 0.9; } }
+@keyframes cel-beat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.06); } 30% { transform: scale(0.99); } 45% { transform: scale(1.04); } }
+@keyframes cel-ripple { 0% { transform: scale(0.96); opacity: 0.8; } 100% { transform: scale(1.32); opacity: 0; } }
+@keyframes cel-breathe { 0%, 100% { opacity: 0.25; transform: scale(0.94); } 50% { opacity: 1; transform: scale(1.04); } }
+@keyframes cel-rise { 0% { transform: translateY(10px) scale(0.6); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(-90px) scale(1.15); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .fam-bub.cel::before, .bub-sparks i, .cel-anniv .bub-fill { animation: none !important; }
+  .cel-bday::after { animation: none; opacity: 0.9; }
+  .fam-bub.cel:not(.cel-bday)::before { opacity: 0; }
+  .bub-sparks i { opacity: 1; bottom: auto; top: -10px; }
+}
+.hh-sheet .hh-cel { margin: 0 0 var(--space-2); padding: 8px 12px; border-radius: var(--radius-md); background: color-mix(in srgb, var(--hh) 14%, var(--card-bg)); font-weight: 600; }
+.hh-sheet .btn.wide { margin-top: var(--space-3); }
+
+/* ---------- ☰ menu (top right) and the three bottom tabs ---------- */
+.tabbar .tab-more { display: none; }
+.menu-btn { position: fixed; z-index: 25; top: calc(env(safe-area-inset-top) + 14px); right: max(12px, calc((100vw - 680px) / 2 + 12px)); width: 44px; height: 44px; border-radius: 50%; border: 0.5px solid var(--glass-border, var(--separator)); display: flex; align-items: center; justify-content: center; color: var(--label);
+  background: var(--glass-bg, var(--card-bg)); -webkit-backdrop-filter: blur(var(--glass-blur, 16px)) saturate(var(--glass-saturate, 1.6)); backdrop-filter: blur(var(--glass-blur, 16px)) saturate(var(--glass-saturate, 1.6)); box-shadow: var(--glass-shadow, 0 2px 10px rgba(0, 0, 0, 0.15)); }
+body[data-view="chat"] .menu-btn { display: none; }
+/* Room for the menu button beside each page's own header buttons. */
+body.has-menu #main > header.top, body.has-menu #main > * > header.top { padding-right: calc(var(--margin) + 52px); }
+.menu-wrap { position: fixed; inset: 0; z-index: 40; }
+.menu-pop { position: fixed; top: calc(env(safe-area-inset-top) + 64px); right: max(12px, calc((100vw - 680px) / 2 + 12px)); min-width: 230px; padding: 6px; border-radius: 18px; background: var(--card-bg); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22), 0 0 0 0.5px var(--separator); display: flex; flex-direction: column; animation: menu-in .16s ease-out; transform-origin: top right; }
+.menu-pop a, .menu-pop button { display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 12px; border-radius: 12px; border: 0; background: none; color: var(--label); text-decoration: none; font-size: var(--text-body); font-weight: var(--weight-medium); text-align: left; }
+.menu-pop a .ic, .menu-pop button .ic { color: var(--tint-text); }
+.menu-pop a.on { background: var(--fill-tertiary); font-weight: var(--weight-semibold); }
+.menu-pop a:active, .menu-pop button:active { background: var(--fill-tertiary); }
+@keyframes menu-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .menu-pop { animation: none; } }
+@media (min-width: 1024px) {
+  .tabbar .tab-more { display: flex; }
+  .menu-btn { display: none; }
+  body.has-menu #main > header.top, body.has-menu #main > * > header.top { padding-right: var(--margin); }
+}
