@@ -726,3 +726,5 @@ body.has-menu #main > header.top, body.has-menu #main > * > header.top { padding
   .menu-btn { display: none; }
   body.has-menu #main > header.top, body.has-menu #main > * > header.top { padding-right: var(--margin); }
 }
+
+.warn-text { color: var(--due-bg, #c4232f); }
