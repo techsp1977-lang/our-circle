@@ -607,3 +607,21 @@ body[data-view="journal"] #main { overflow-x: clip; }
 .tree .hh-row.is-mine > .card { box-shadow: 0 0 0 2px var(--hh), var(--shadow-card); }
 .hh-you { display: block; font-size: var(--text-caption2); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: 0.04em; color: rgba(255, 255, 255, 0.85); }
 .tree .tile-img.add { aspect-ratio: 1 / 1; height: auto; }
+
+/* ---------- message reactions ---------- */
+/* Long-press keeps the phone's text menu away (Copy is in the reaction bar instead). */
+.bubble { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.bubble-wrap { position: relative; }
+.reacts { align-self: flex-start; display: inline-flex; gap: 4px; margin: -6px 0 2px 10px; padding: 2px 7px; min-height: 26px; align-items: center; border-radius: 999px; border: 2px solid var(--bg); background: var(--bg-secondary); font-size: 14px; line-height: 1; position: relative; z-index: 1; cursor: pointer; }
+.msg.mine .reacts { align-self: flex-end; margin: -6px 10px 2px 0; }
+.reacts b { font-size: var(--text-caption2); font-weight: var(--weight-semibold); color: var(--label-secondary); margin-left: 2px; }
+.reacts.has-mine { background: color-mix(in srgb, var(--chat, var(--tint)) 18%, var(--bg-secondary)); }
+.react-wrap { position: fixed; inset: 0; z-index: 60; }
+.react-bar { position: fixed; display: flex; gap: 2px; padding: 5px; border-radius: 999px; background: var(--card-bg); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22), 0 0 0 0.5px var(--separator); animation: react-in var(--dur-fast, .16s) var(--ease, ease-out); }
+.react-bar button { width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; font-size: 26px; line-height: 1; display: flex; align-items: center; justify-content: center; color: var(--label-secondary); transition: transform .12s ease; }
+.react-bar button:active { transform: scale(1.25); }
+.react-bar button.on { background: color-mix(in srgb, var(--chat, var(--tint)) 22%, transparent); }
+.react-bar .copy { font-size: 0; }
+.react-big { font-size: 24px; width: 32px; text-align: center; }
+@keyframes react-in { from { transform: scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .react-bar { animation: none; } }

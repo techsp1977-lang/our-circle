@@ -1,8 +1,12 @@
 // Chats list and a single conversation.
 import * as S from './store.js';
-import { esc, icon, face, toast, fmtSize, listJoin, names, safeUrl, mediaKind, hhColor } from './ui.js';
+import { esc, icon, face, toast, fmtSize, listJoin, names, safeUrl, mediaKind, hhColor, sheet, why } from './ui.js';
 import { ago } from './dates.js';
 import { pausedText } from './plans.js';
+
+// Reactions on a message: one per person (tap another to change it, the same one again to remove it).
+// The security rules accept only these, so keep the two lists the same.
+export const REACTIONS = ['❤️', '👍', '😂', '😮', '😢', '🙏'];
 
 export function chatTitle(app, c) {
   if (c.kind === 'everyone') return 'Everyone';
@@ -93,6 +97,15 @@ function conversation(root, app, chatId) {
     </div>`;
   }).join('');
 
+  // The little reaction badge under a message: each reaction with its count. Tap it to see who.
+  const reacts = (m) => {
+    const all = Object.values(m.reactions || {}).filter((v) => REACTIONS.includes(v));
+    if (!all.length) return '';
+    const counts = REACTIONS.map((e) => [e, all.filter((v) => v === e).length]).filter(([, n]) => n);
+    const label = counts.map(([e, n]) => `${e} ${n}`).join(', ');
+    return `<button type="button" class="reacts ${m.reactions?.[st.me] ? 'has-mine' : ''}" data-reacts="${esc(m.id)}" aria-label="Reactions: ${esc(label)}. Tap to see who.">${counts.map(([e, n]) => `<span>${e}${n > 1 ? `<b>${n}</b>` : ''}</span>`).join('')}</button>`;
+  };
+
   const renderMsgs = () => {
     const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
     let prev = null;
@@ -103,10 +116,10 @@ function conversation(root, app, chatId) {
       const gap = !prev || m.at - prev.at > 3600000;
       prev = m;
       return `${gap ? `<div class="stamp">${new Date(m.at).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>` : ''}
-      <div class="msg ${mine ? 'mine' : ''}">
+      <div class="msg ${mine ? 'mine' : ''}" data-mid="${esc(m.id)}">
         ${!mine ? (showWho ? face(who || { name: '?' }, 'sm') : '<span class="face-gap"></span>') : ''}
         <div class="bubble-wrap">${showWho ? `<small class="who">${esc(who?.name || '')}</small>` : ''}
-          <div class="bubble">${m.text ? `<p>${esc(m.text)}</p>` : ''}${media(m)}</div></div>
+          <div class="bubble">${m.text ? `<p>${esc(m.text)}</p>` : ''}${media(m)}</div>${reacts(m)}</div>
       </div>`;
     }).join('') : '<p class="hint center pad">Say hello. Messages stay here for the family.</p>';
     if (nearBottom || !box.dataset.init) { box.scrollTop = box.scrollHeight; box.dataset.init = '1'; }
@@ -146,10 +159,78 @@ function conversation(root, app, chatId) {
     pending.hidden = true;
   };
 
+  // ───────── reactions: long-press (or right-click) a message for the bar; double-tap for a quick ❤️ ─────────
+  const msgPath = (id) => app.path(`chats/${chatId}/messages/${id}`);
+  const react = async (id, emoji) => {
+    const m = msgs.find((x) => x.id === id);
+    if (!m) return;
+    const same = m.reactions?.[st.me] === emoji;
+    // Show it right away; the database confirms a moment later.
+    m.reactions = { ...(m.reactions || {}) }; if (same) delete m.reactions[st.me]; else m.reactions[st.me] = emoji; renderMsgs();
+    try { same ? await S.removeField(msgPath(id), 'reactions.' + st.me) : await S.update(msgPath(id), { ['reactions.' + st.me]: emoji }); }
+    catch (e) { toast(why("That reaction didn't save.", e), 6000); }
+  };
+  const closeBar = () => document.querySelectorAll('.react-wrap').forEach((w) => w.remove());
+  const openBar = (id, bubble) => {
+    closeBar();
+    const m = msgs.find((x) => x.id === id);
+    if (!m) return;
+    try { navigator.vibrate?.(8); } catch (e) {}
+    const wrap = document.createElement('div');
+    wrap.className = 'react-wrap';
+    wrap.innerHTML = `<div class="react-bar" role="menu" aria-label="React to this message">
+      ${REACTIONS.map((e) => `<button type="button" role="menuitem" data-emo="${e}" class="${m.reactions?.[st.me] === e ? 'on' : ''}" aria-label="React ${e}">${e}</button>`).join('')}
+      ${m.text ? `<button type="button" role="menuitem" class="copy" data-copy aria-label="Copy text">${icon('copy', 18)}</button>` : ''}
+    </div>`;
+    document.body.appendChild(wrap);
+    const bar = wrap.firstElementChild, r = bubble.getBoundingClientRect(), bw = bar.offsetWidth, bh = bar.offsetHeight;
+    const top = r.top - bh - 8 > 60 ? r.top - bh - 8 : Math.min(r.bottom + 8, innerHeight - bh - 90);
+    const left = Math.max(8, Math.min(innerWidth - bw - 8, (bubble.closest('.msg.mine') ? r.right - bw : r.left)));
+    bar.style.top = top + 'px'; bar.style.left = left + 'px';
+    wrap.addEventListener('click', async (e) => {
+      const b = e.target.closest('button');
+      if (b?.dataset.emo) react(id, b.dataset.emo);
+      if (b?.hasAttribute('data-copy')) { try { await navigator.clipboard.writeText(m.text); toast('Copied.'); } catch (er) { toast("Couldn't copy on this phone."); } }
+      closeBar();
+    });
+    bar.querySelector('button')?.focus({ preventScroll: true });
+    wrap.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeBar(); });
+  };
+  let press = null, lastTap = { id: null, at: 0 };
+  const cancelPress = () => { if (press) { clearTimeout(press.timer); press = null; } };
+  box.addEventListener('pointerdown', (e) => {
+    const b = e.target.closest('.bubble');
+    if (!b || e.button > 0 || e.target.closest('video, .dl')) return;
+    const id = b.closest('[data-mid]')?.dataset.mid;
+    press = { x: e.clientX, y: e.clientY, timer: setTimeout(() => { press = null; openBar(id, b); }, 430) };
+  });
+  box.addEventListener('pointermove', (e) => { if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) cancelPress(); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => box.addEventListener(t, cancelPress));
+  box.addEventListener('scroll', cancelPress, { passive: true });
+  box.addEventListener('contextmenu', (e) => {
+    const b = e.target.closest('.bubble');
+    if (!b) return;
+    e.preventDefault(); cancelPress(); openBar(b.closest('[data-mid]')?.dataset.mid, b);
+  });
+  box.addEventListener('click', (e) => {
+    const who = e.target.closest('[data-reacts]');
+    if (who) { showWho(who.dataset.reacts); return; }
+    const b = e.target.closest('.bubble');
+    if (!b || e.target.closest('.media')) return;
+    const id = b.closest('[data-mid]')?.dataset.mid, now = Date.now();
+    if (lastTap.id === id && now - lastTap.at < 320) { lastTap = { id: null, at: 0 }; react(id, '❤️'); }
+    else lastTap = { id, at: now };
+  });
+  const showWho = (id) => {
+    const m = msgs.find((x) => x.id === id);
+    const rows = REACTIONS.map((e) => [e, Object.entries(m?.reactions || {}).filter(([, v]) => v === e).map(([mid]) => (mid === st.me ? 'You' : app.member(mid)?.name || 'Someone'))]).filter(([, w]) => w.length);
+    sheet({ title: 'Reactions', submit: 'Done', body: `<div class="card list">${rows.map(([e, w]) => `<div class="li"><span class="react-big" aria-hidden="true">${e}</span><span class="li-main"><span class="li-title">${esc(listJoin(w))}</span></span></div>`).join('')}</div>`, fields: [] });
+  };
+
   const unsub = S.watchColl(app.path(`chats/${chatId}/messages`), { orderBy: ['at', 'desc'], limit: 300 }, (rows) => {
     msgs = rows.reverse(); renderMsgs(); markRead();
   });
   const off = app.on(() => { head(); markRead(); });
   head();
-  return { destroy: () => { unsub(); off(); } };
+  return { destroy: () => { unsub(); off(); closeBar(); } };
 }

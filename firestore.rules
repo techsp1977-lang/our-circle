@@ -195,8 +195,17 @@ service cloud.firestore {
         match /messages/{msgId} {
           function chatData() { return get(/databases/$(database)/documents/circles/$(cid)/chats/$(chatId)).data; }
           allow read: if isMember(cid) && canSeeChat(chatData()) && chatOk(chatData());
-          allow create: if isMember(cid) && canSeeChat(chatData()) && chatOk(chatData()) && request.resource.data.by == me(cid);
-          allow update, delete: if isMember(cid) && resource.data.by == me(cid);
+          allow create: if isMember(cid) && canSeeChat(chatData()) && chatOk(chatData()) && request.resource.data.by == me(cid)
+            && !request.resource.data.keys().hasAny(['reactions']);
+          // Reactions: anyone in the chat sets or removes only their own, and only one of the app's six.
+          function reactionsOk() {
+            return !changed().hasAny(['reactions'])
+              || (request.resource.data.get('reactions', {}).diff(resource.data.get('reactions', {})).affectedKeys().hasOnly([me(cid)])
+                  && request.resource.data.get('reactions', {}).get(me(cid), '') in ['', '❤️', '👍', '😂', '😮', '😢', '🙏']);
+          }
+          allow update: if isMember(cid) && canSeeChat(chatData()) && chatOk(chatData()) && reactionsOk()
+            && (resource.data.by == me(cid) || onlyChanges(['reactions']));
+          allow delete: if isMember(cid) && resource.data.by == me(cid);
         }
       }
     }

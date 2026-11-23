@@ -272,6 +272,30 @@ test('app: organizer invites someone to join as an organizer, and they do', asyn
   await assertSucceeds(b.commit());
   await assertSucceeds(setDoc(doc(db, `${C}/households/h9`), { name: 'New house', order: 9 }));
 });
+test('app: reactions: people in the chat react, change and remove their own', async () => {
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), `${C}/chats/everyone/messages/r1`), { by: 'mA', text: 'Dinner Sunday?', media: [], at: 5 }));
+  await assertSucceeds(updateDoc(doc(as('uB'), `${C}/chats/everyone/messages/r1`), { 'reactions.mB': '❤️' }));
+  await assertSucceeds(updateDoc(doc(as('uC'), `${C}/chats/everyone/messages/r1`), { 'reactions.mC': '👍' }));
+  await assertSucceeds(updateDoc(doc(as('uB'), `${C}/chats/everyone/messages/r1`), { 'reactions.mB': '😂' }));
+  await assertSucceeds(updateDoc(doc(as('uB'), `${C}/chats/everyone/messages/r1`), { 'reactions.mB': deleteField() }));
+  await assertSucceeds(updateDoc(doc(as('uA'), `${C}/chats/everyone/messages/r1`), { 'reactions.mA': '🙏' }));
+});
+test('attack: reactions: fake someone else\'s, use a made-up value, edit the text, or react in a chat you\'re not in', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `${C}/chats/everyone/messages/r1`), { by: 'mA', text: 'Dinner Sunday?', media: [], at: 5, reactions: { mB: '❤️' } });
+    await setDoc(doc(db, `${C}/chats/p_mA_mB`), { kind: 'direct', name: '', memberIds: ['mA', 'mB'], householdId: null, ...chatBase });
+    await setDoc(doc(db, `${C}/chats/p_mA_mB/messages/d1`), { by: 'mA', text: 'private', media: [], at: 5 });
+  });
+  const m = `${C}/chats/everyone/messages/r1`;
+  await assertFails(updateDoc(doc(as('uC'), m), { 'reactions.mB': deleteField() }));
+  await assertFails(updateDoc(doc(as('uC'), m), { 'reactions.mB': '😢' }));
+  await assertFails(updateDoc(doc(as('uC'), m), { 'reactions.mC': '<img src=x onerror=alert(1)>' }));
+  await assertFails(updateDoc(doc(as('uC'), m), { text: 'Changed by C', 'reactions.mC': '👍' }));
+  await assertFails(updateDoc(doc(as('uA'), m), { 'reactions.mB': '😂' }));
+  await assertFails(updateDoc(doc(as('uC'), `${C}/chats/p_mA_mB/messages/d1`), { 'reactions.mC': '❤️' }));
+  await assertFails(setDoc(doc(as('uB'), `${C}/chats/everyone/messages/r2`), { by: 'mB', text: 'hi', media: [], at: 6, reactions: { mA: '❤️' } }));
+});
 test('app: parent adds, edits, invites and removes a child profile', async () => {
   const db = as('uA');
   await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), `${C}/access/uA`), { role: 'member' }));
