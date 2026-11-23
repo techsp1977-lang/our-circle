@@ -657,17 +657,17 @@ body[data-view="journal"] #main { overflow-x: clip; }
     radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--hh) 30%, #111) 0%, color-mix(in srgb, var(--hh) 50%, #111) 55%, var(--hh) 100%); }
 }
 .fam-bub.mine .bub-fill { outline: 3px solid color-mix(in srgb, var(--hh) 70%, #fff); outline-offset: 3px; }
-.bub-people { position: relative; z-index: 2; width: 72%; display: flex; flex-wrap: wrap; justify-content: center; align-content: center; gap: 2px 4px; }
-.bub-p { width: 52px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.face.bub-face { width: 40px; height: 40px; border-radius: 50%; font-size: 16px; background: rgba(255, 255, 255, 0.92); color: var(--hh); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 2px 6px rgba(0, 0, 0, 0.15); }
-.bub-name { max-width: 56px; font-size: 10.5px; line-height: 1.15; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55); }
+.bub-people { position: relative; z-index: 2; display: flex; flex-wrap: wrap; justify-content: center; align-content: center; gap: 0; }
+.bub-p { width: calc(var(--a) + 6px); height: calc(var(--a) + 20px); display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.face.bub-face { width: var(--a); height: var(--a); border-radius: 50%; font-size: calc(var(--a) * 0.4); background: rgba(255, 255, 255, 0.92); color: var(--hh); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 2px 6px rgba(0, 0, 0, 0.15); }
+.bub-name { max-width: calc(var(--a) + 12px); font-size: 13px; line-height: 1.15; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bub-name { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); } }
 .bub-empty { font-size: 11px; color: #4a524d; }
 .bub-due { position: absolute; z-index: 3; top: 6%; right: 6%; width: 24px; height: 24px; border-radius: 50%; background: var(--due-bg, #dc2634); color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--card-bg); }
-.bub-label { position: absolute; text-align: center; font-size: 12.5px; line-height: 1.2; color: var(--label); pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.bub-label small { font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--tint-text); }
+.bub-label { position: absolute; text-align: center; font-size: 15px; line-height: 1.2; color: var(--label); pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.bub-label small { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--tint-text); }
 .bub-label b { font-weight: 600; }
-.bub-chip { margin-top: 2px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: color-mix(in srgb, var(--hh, var(--tint)) 16%, var(--card-bg)); color: var(--label); white-space: nowrap; }
+.bub-chip { margin-top: 2px; padding: 2px 9px; border-radius: 999px; font-size: 13px; font-weight: 600; background: color-mix(in srgb, var(--hh, var(--tint)) 16%, var(--card-bg)); color: var(--label); white-space: nowrap; }
 /* Celebrations: on a big day the bubble comes alive for a few moments each time the page opens, then rests with a
    lit ring and its label. Only transform and opacity move (smooth on phones); nothing moves under Reduce Motion. */
 .fam-bub.cel { z-index: 2; --plays: 4; }
