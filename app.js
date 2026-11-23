@@ -252,7 +252,8 @@ function clearJoin() {
 }
 
 let signInPrep = null;
-function renderSignIn(msg = '') {
+const MIN_PW = 7; // matches Firebase → Authentication → Settings → Password policy
+function renderSignIn(msg = '', email = '') {
   const joining = pendingJoin();
   document.body.innerHTML = `<div class="auth">
     <div class="auth-card">
@@ -264,8 +265,8 @@ function renderSignIn(msg = '') {
       <button class="btn wide ${webauthnSupported() ? 'ghost' : ''}" id="google">Continue with Google</button>
       <div class="or"><span>or use email</span></div>
       <form id="auth-form" class="stack">
-        <label class="field" for="email"><span>Email</span><input id="email" type="email" autocomplete="email" required></label>
-        <label class="field" for="pw"><span>Password</span><input id="pw" type="password" autocomplete="current-password" minlength="6" required></label>
+        <label class="field" for="email"><span>Email</span><input id="email" type="email" autocomplete="email" required value="${esc(email)}"></label>
+        <label class="field" for="pw"><span>Password</span><input id="pw" type="password" autocomplete="current-password" required><small>New here? Pick a password of at least ${MIN_PW} characters, then tap Create account.</small></label>
         <button class="btn wide ghost" type="submit" name="mode" value="in">Sign in</button>
         <button class="btn wide ghost" type="submit" name="mode" value="up">Create account</button>
       </form>
@@ -277,9 +278,10 @@ function renderSignIn(msg = '') {
     e.preventDefault();
     const mode = e.submitter?.value || 'in';
     const email = $('#email').value.trim(), pw = $('#pw').value;
+    if (mode === 'up' && pw.length < MIN_PW) { renderSignIn(`Your password needs at least ${MIN_PW} characters. A short phrase works well, like "sunny porch 77".`, email); return; }
     markFreshSignIn();
     try { mode === 'up' ? await S.auth.signUp(email, pw) : await S.auth.signIn(email, pw); }
-    catch (err) { renderSignIn(friendlyAuth(err)); }
+    catch (err) { renderSignIn(friendlyAuth(err), email); }
   };
   // Face ID: the server's half is fetched now, so the tap goes straight to Face ID (iPhone requires that).
   if (webauthnSupported()) {
@@ -307,7 +309,7 @@ function friendlyAuth(err) {
   const msg = (t) => `${t} (code: ${c.replace('auth/', '')})`;
   if (c.includes('invalid-credential') || c.includes('wrong-password') || c.includes('user-not-found') || c.includes('invalid-login')) return msg('That email and password do not match. New here? Tap Create account instead.');
   if (c.includes('email-already-in-use')) return msg('That email already has an account. Tap Sign in instead.');
-  if (c.includes('weak-password')) return msg('Use a password with at least 6 characters.');
+  if (c.includes('weak-password') || c.includes('password-does-not-meet')) return msg(`Use a password with at least ${MIN_PW} characters. A short phrase works well, like "sunny porch 77".`);
   if (c.includes('invalid-email')) return msg('That email address does not look right.');
   if (c.includes('operation-not-allowed')) return msg('This sign-in method is turned off. In Firebase: Authentication → Sign-in method → turn on Email/Password (and Google).');
   if (c.includes('configuration-not-found')) return msg('Firebase sign-in is not set up yet. In Firebase: Authentication → click Get started, then turn on Email/Password.');
