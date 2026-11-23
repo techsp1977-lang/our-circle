@@ -145,8 +145,30 @@ const VIEWS = {
 const TABS = [['family', 'Our Family', 'family'], ['chats', 'Chats', 'chat'], ['calendar', 'Calendar', 'cal']];
 const MENU = [['me', 'My page', 'user'], ['journal', 'Journal', 'book'], ['album', 'Album', 'album']];
 
+// Where you've been, so a Back arrow returns to the page you came from (scrolled where you left it).
+const pagesBefore = [], scrollAt = {};
+let hereHash = '', goingBack = false;
+app.back = (fallback) => {
+  let to = pagesBefore.pop();
+  while (to && to === location.hash) to = pagesBefore.pop();
+  goingBack = true;
+  app.go(to || fallback);
+};
+// Any link marked data-back="#/somewhere" goes back the same way (its href is the fallback).
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('[data-back]');
+  if (!a || e.metaKey || e.ctrlKey || e.shiftKey) return;
+  e.preventDefault();
+  app.back(a.dataset.back);
+});
+
 async function route() {
   if (!state.ready) return;
+  const leaving = hereHash, back = goingBack;
+  goingBack = false;
+  hereHash = location.hash || '#/family';
+  if (leaving) scrollAt[leaving] = window.scrollY;
+  if (!back && leaving && leaving !== hereHash) { pagesBefore.push(leaving); if (pagesBefore.length > 30) pagesBefore.shift(); }
   const [name = 'family', ...args] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
   const key = VIEWS[name] ? name : 'family';
   const mod = await VIEWS[key]();
@@ -161,6 +183,7 @@ async function route() {
   document.querySelectorAll('.tabbar a').forEach((a) => a.classList.toggle('on', a.dataset.tab === tabKey));
   document.body.dataset.view = key;
   view = mod.mount(main, app, key, args) || null;
+  if (back && scrollAt[hereHash]) { const y = scrollAt[hereHash]; requestAnimationFrame(() => window.scrollTo(0, y)); }
   updateBadges();
 }
 
