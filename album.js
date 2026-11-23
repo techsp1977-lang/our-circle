@@ -54,7 +54,7 @@ function compose(batch, setListener, { title = '', withTitle = true } = {}) {
       <div class="sheet-head"><h2 id="ch"></h2><button type="button" class="icon-btn" data-x aria-label="Cancel">${icon('x')}</button></div>
       <p class="muted small" id="cs" aria-live="polite"></p>
       <div class="pick-grid" id="pg"></div>
-      ${withTitle ? `<label class="field" for="ct"><span>What is it?</span><input id="ct" required placeholder="Leah's birthday party" value="${esc(title)}"></label>
+      ${withTitle ? `<label class="field" for="ct"><span>What is it?</span><input id="ct" required placeholder="Grace's birthday party" value="${esc(title)}"></label>
       <label class="field" for="cc"><span>Caption (optional)</span><textarea id="cc" rows="2"></textarea></label>` : ''}
       <div class="sheet-actions"><span></span><button class="btn" type="submit" id="go"></button></div>
     </form>`;

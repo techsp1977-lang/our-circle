@@ -377,9 +377,9 @@ async function renderOnboarding(msg = '', opts = {}) {
       <h1>${opts.back ? 'Start a new circle' : 'Start your family circle'}</h1>
       <p class="muted">You'll be the organizer. You can add everyone else next.${opts.back ? ' Your other circles stay as they are; switch between them from the family name at the top.' : ''}</p>
       <form id="start" class="stack">
-        <label class="field" for="cn"><span>Family name</span><input id="cn" required placeholder="The Proctors"></label>
-        <label class="field" for="yn"><span>Your first name</span><input id="yn" required placeholder="Spencer" value="${esc(opts.myName || '')}"></label>
-        <label class="field" for="hn"><span>Your household</span><input id="hn" required placeholder="Spencer & Jeana"><small>Everyone who lives with you, as you'd write it on a card.</small></label>
+        <label class="field" for="cn"><span>Family name</span><input id="cn" required placeholder="The Bennetts"></label>
+        <label class="field" for="yn"><span>Your first name</span><input id="yn" required placeholder="Michael" value="${esc(opts.myName || '')}"></label>
+        <label class="field" for="hn"><span>Your household</span><input id="hn" required placeholder="Michael & Sarah"><small>Everyone who lives with you, as you'd write it on a card.</small></label>
         <fieldset class="swatches"><legend>Circle color</legend>${THEMES.map((t, j) => `<label class="swatch" for="tc_${j}" style="--sw:${theme(t.key).swatch}"><input type="radio" id="tc_${j}" name="theme" value="${t.key}" ${j === 0 ? 'checked' : ''}><span class="sw-dot" aria-hidden="true"></span><span class="sw-name">${t.label}</span></label>`).join('')}</fieldset>
         <p class="muted small">Each household gets its own shade of this color. You can change it later in Family settings.</p>
         <button class="btn wide" type="submit">Create our circle</button>
@@ -463,7 +463,7 @@ export async function start() {
     if (view?.destroy) view.destroy();
     view = null;
     Object.assign(state, { uid: user?.uid || null, ready: false, cid: null });
-    if (!user) { S.isDemo ? S.demo().switchTo('u_spencer') : renderSignIn(); return; }
+    if (!user) { S.isDemo ? S.demo().switchTo('u_michael') : renderSignIn(); return; }
     // Face ID lock for this phone, when it's turned on (My page → This phone).
     if (!(await lockGate(user.uid, () => S.auth.signOut()))) return;
     // If the database can't be reached (not created yet, or rules not published), say so instead of waiting forever.

@@ -192,7 +192,7 @@ async function editWords(app) {
     intro: 'Shown at the top of the Family tab for everyone in this circle.',
     fields: [
       { name: 'motto', label: 'Family motto', value: c.motto || '', placeholder: 'Love one another' },
-      { name: 'sayings', label: 'Family sayings (one per line, a different one shows each day)', type: 'textarea', rows: 4, value: (c.sayings || []).join('\n'), placeholder: "Proctors don't quit\nFamilies are forever" },
+      { name: 'sayings', label: 'Family sayings (one per line, a different one shows each day)', type: 'textarea', rows: 4, value: (c.sayings || []).join('\n'), placeholder: "Bennetts don't quit\nFamilies are forever" },
       { name: 'goal', label: 'Family goal', value: c.goal?.title || '', placeholder: 'Read the Book of Mormon together' },
       { name: 'due', label: 'Goal date (optional)', type: 'date', value: c.goal?.due || '' },
       { name: 'progress', label: 'How far along, 0–100% (optional)', type: 'number', value: c.goal?.progress ?? '' },

@@ -155,7 +155,7 @@ export function hhColor(h, index = 0) {
   return (pick || list[(h?.order ?? index) % list.length]).value;
 }
 
-// Keep each name whole on one line: "Jamison, Sophi & Jack" can wrap between names, never inside one,
+// Keep each name whole on one line: "Ethan, Olivia & Henry" can wrap between names, never inside one,
 // and "&" stays with the name after it.
 export function names(label) {
   const parts = String(label ?? '').split(/(,\s*|\s+&\s+|\s+and\s+)/);
