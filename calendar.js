@@ -2,7 +2,8 @@
 // birthday, anniversary, big day and trip under its month. Tap one to open it.
 import { esc, icon } from './ui.js';
 import { today, shortDate, diffDays, monthName, agoText, whenText } from './dates.js';
-import { headline, typeOf, isCalendarType, canEdit, editEvent, byMonth } from './events.js';
+import { headline, typeOf, isCalendarType, canEdit, editEvent, byMonth, copyFromCircle } from './events.js';
+import { listCircles } from './circles.js';
 
 function itemHTML(app, ev, day, t) {
   const trip = ev.endDate && ev.endDate > ev.date && !ev.recurring;
@@ -18,6 +19,7 @@ function itemHTML(app, ev, day, t) {
 }
 
 export function mount(root, app) {
+  let others = []; // your other circles, for "Copy dates from another circle"
   const render = () => {
     const t = today(), st = app.state;
     const months = byMonth(app, { months: 12, from: `${t.slice(0, 7)}-01` });
@@ -26,6 +28,7 @@ export function mount(root, app) {
       <header class="top"><div><div class="eyebrow">${esc(st.circle?.name || '')}</div><h1 class="display">Calendar</h1></div>
         <button class="btn sm" data-add>${icon('plus', 16)} Add</button></header>
       <p class="hint pad-x">Birthdays, anniversaries, big days and trips for the next 12 months.</p>
+      ${others.length ? `<p class="pad-x"><button class="linkish" data-copy style="text-align:left">${icon('plus', 16)} Copy dates from ${others.length === 1 ? esc(others[0].name) : 'another circle'}</button></p>` : ''}
       ${any ? months.map(({ ym, items }) => `
         <section class="block year-month">
           <h2 class="month-head">${esc(monthName(ym))}${ym.slice(0, 4) !== t.slice(0, 4) ? ' ' + ym.slice(0, 4) : ''}</h2>
@@ -38,6 +41,7 @@ export function mount(root, app) {
     const b = e.target.closest('button');
     if (!b) return;
     if (b.hasAttribute('data-add')) return editEvent(app, null, { type: 'trip' });
+    if (b.hasAttribute('data-copy')) return copyFromCircle(app, others);
     if (b.dataset.ev && !b.hasAttribute('data-readonly')) {
       const ev = app.state.events.find((x) => x.id === b.dataset.ev);
       if (ev) editEvent(app, ev);
@@ -46,5 +50,6 @@ export function mount(root, app) {
   root.addEventListener('click', onClick);
   const off = app.on(render);
   render();
+  listCircles(app).then((rows) => { others = rows.filter((c) => !c.current); if (others.length) render(); }).catch(() => {});
   return { destroy: () => { off(); root.removeEventListener('click', onClick); } };
 }
