@@ -7,7 +7,7 @@ import { happeningToday } from './events.js';
 import { today, diffDays } from './dates.js';
 import { checkin } from './hub.js';
 
-const OVER = 10, BRANCH_GAP = 18, SHELF = 560; // OVER: how far neighboring bubbles overlap, like a Venn diagram
+const OVER = 10, SHELF = 560; // OVER: how far neighboring bubbles overlap, like a Venn diagram
 const views = new Map(); // remembered zoom and position, per circle
 
 // How big a bubble is, and how big the photos inside it are: photos fill as much of the circle as they can
@@ -43,60 +43,89 @@ function celebrations(app) {
   return out;
 }
 
-// Positions: each branch as a tree (a parent's children below it; more than three children who have no
-// households under them wrap onto rows of three, so the tree stays narrow enough for a phone). Separate branches
-// are packed side by side onto shelves, so a family that isn't arranged into a tree yet still fits.
+// Positions, like a family tree made of bubbles: every household touches the household it's under, its children
+// fan out around it (pointing away from the head of the circle), and a short settling pass nudges bubbles apart
+// wherever branches crowd, while each child stays attached to its parents. Households that aren't placed under
+// anyone yet sit together below the tree.
 function layout(app) {
   const st = app.state;
   const rows = familyTree(st.households);
-  const node = new Map(rows.map(({ h, depth }) => [h.id, { h, depth, ...spec(app.membersOf(h.id).length), kids: [] }]));
+  const node = new Map(rows.map(({ h, depth }) => [h.id, { h, depth, ...spec(app.membersOf(h.id).length), kids: [], parent: null }]));
   const roots = [];
-  rows.forEach(({ h }) => { const n = node.get(h.id); const p = h.parentId && node.get(h.parentId); if (p && p !== n && n.depth > p.depth) p.kids.push(n); else roots.push(n); });
-  const rowsOf = (n) => {
-    if (!n.kids.length) return [];
-    const wrap = n.kids.length > 3 && n.kids.every((k) => !k.kids.length);
-    const out = [];
-    for (let i = 0; i < n.kids.length; i += wrap ? 3 : n.kids.length) out.push(n.kids.slice(i, i + (wrap ? 3 : n.kids.length)));
-    return out;
-  };
-  const rowW = (r) => r.reduce((a, k) => a + k.w, 0) - OVER * (r.length - 1);
-  const measure = (n) => { n.kids.forEach(measure); n.rows = rowsOf(n); n.w = Math.max(n.d, ...n.rows.map(rowW)); };
-  // Gravity: each bubble drops straight down from above until it just touches (overlapping by OVER) whatever is
-  // already there: its parents, its brothers and sisters, cousins. So nothing overlaps more than that, anywhere.
+  rows.forEach(({ h }) => { const n = node.get(h.id); const p = h.parentId && node.get(h.parentId); if (p && p !== n && n.depth > p.depth) { p.kids.push(n); n.parent = p; } else roots.push(n); });
+  const all = [...node.values()];
+  all.forEach((n) => { n.r = n.d / 2; });
+  const rest = (p, k) => p.r + k.r - OVER; // how far apart a parent and child sit: just touching
+
+  // Each household takes the nearest open spot touching its parents, searching outward from the direction that
+  // points away from the grandparents. If the parents are already surrounded, it takes the nearest open spot
+  // touching a brother or sister. Every spot is checked against every bubble already placed, so nothing overlaps
+  // more than OVER, and nobody ends up away from their family.
   let placed = [];
-  const drop = (x, r, minCy) => {
-    let cy = minCy;
-    for (const p of placed) {
-      const reach = p.r + r - OVER, dx = Math.abs(x - p.x);
-      if (dx < reach) cy = Math.max(cy, p.cy + Math.sqrt(reach * reach - dx * dx));
+  const fits = (x, cy, r) => placed.every((q) => Math.hypot(x - q.x, cy - q.cy) >= q.r + r - OVER - 0.5);
+  const around = (k, anchor, dir, full) => {
+    const R = anchor.r + k.r - OVER;
+    for (let deg = 0; deg <= (full ? 180 : 180); deg += 3) {
+      for (const sign of deg ? [1, -1] : [1]) {
+        const t = dir + (sign * deg * Math.PI) / 180, x = anchor.x + R * Math.cos(t), cy = anchor.cy + R * Math.sin(t);
+        if (fits(x, cy, k.r)) return { x, cy };
+      }
     }
-    return cy;
+    return null;
   };
-  const place = (n, left, minCy) => {
-    n.x = left + n.w / 2;
-    const cy = drop(n.x, n.d / 2, minCy);
-    n.y = cy - n.d / 2;
-    placed.push({ x: n.x, cy, r: n.d / 2 });
-    let bottom = n.y + n.d;
-    n.rows.forEach((r) => {
-      let l = left + (n.w - rowW(r)) / 2;
-      r.forEach((k) => { bottom = Math.max(bottom, place(k, l, cy + n.d * 0.22)); l += k.w - OVER; });
-    });
-    return bottom;
+  const growTree = (root) => {
+    root.x = 0; root.cy = 0; root.dir = Math.PI / 2; placed.push(root);
+    const queue = [root];
+    for (let i = 0; i < queue.length; i++) {
+      const p = queue[i];
+      // Spread the children evenly across the side facing away from the grandparents (the head of the circle spreads
+      // its children from left, through below, to right), so each keeps an open side for its own family.
+      const n = p.kids.length, span = Math.min(p.parent ? Math.PI * 1.25 : Math.PI * 1.15, n * 0.95);
+      p.kids.forEach((k, idx) => {
+        const want = p.dir + span * ((idx + 0.5) / n - 0.5);
+        let spot = around(k, p, want);
+        if (!spot) {
+          // Parents are surrounded: the open spot beside a brother or sister that's closest to the parents.
+          let best = null, bestD = Infinity;
+          for (const sib of p.kids) {
+            if (sib === k || !placed.includes(sib)) continue;
+            const c = around(k, sib, Math.atan2(sib.cy - p.cy, sib.x - p.x), true);
+            if (c) { const d = Math.hypot(c.x - p.x, c.cy - p.cy); if (d < bestD) { best = c; bestD = d; } }
+          }
+          spot = best;
+        }
+        if (!spot) { // last resort: straight out from the parents, past everything
+          let R = p.r + k.r; do { R += 12; } while (!fits(p.x + R * Math.cos(p.dir), p.cy + R * Math.sin(p.dir), k.r));
+          spot = { x: p.x + R * Math.cos(p.dir), cy: p.cy + R * Math.sin(p.dir) };
+        }
+        k.x = spot.x; k.cy = spot.cy; k.dir = Math.atan2(k.cy - p.cy, k.x - p.x);
+        placed.push(k); queue.push(k);
+      });
+    }
+    return queue;
   };
-  roots.forEach(measure);
-  const shelfW = (s) => s.reduce((a, r) => a + r.w, 0) + BRANCH_GAP * (s.length - 1);
-  const shelves = []; let cur = [];
-  roots.forEach((r) => { if (cur.length && shelfW([...cur, r]) > Math.max(SHELF, r.w)) { shelves.push(cur); cur = []; } cur.push(r); });
-  if (cur.length) shelves.push(cur);
-  const maxW = Math.max(0, ...shelves.map(shelfW));
-  let top = 62; // room for the zoom buttons
-  shelves.forEach((s) => {
-    let left = 16 + (maxW - shelfW(s)) / 2, bottom = top;
-    s.forEach((r) => { bottom = Math.max(bottom, place(r, left, top + r.d / 2)); left += r.w + BRANCH_GAP; });
-    top = bottom + 26;
+  const box = (g) => ({ x0: Math.min(...g.map((n) => n.x - n.r)), x1: Math.max(...g.map((n) => n.x + n.r)), y0: Math.min(...g.map((n) => n.cy - n.r)), y1: Math.max(...g.map((n) => n.cy + n.r)) });
+
+  // Trees (households with others under them) first, then everyone not placed yet, packed in rows.
+  const trees = roots.filter((r) => r.kids.length), loose = roots.filter((r) => !r.kids.length);
+  let top = 62, W = 0; const blocks = [];
+  trees.forEach((r) => { placed = []; const g = growTree(r); blocks.push({ g, b: box(g) }); });
+  if (loose.length) {
+    let x = 0, row = [], rows2 = [];
+    loose.forEach((n) => { if (row.length && x + n.d > SHELF) { rows2.push(row); row = []; x = 0; } n.x = x + n.r; n.cy = n.r; x += n.d - OVER; row.push(n); });
+    if (row.length) rows2.push(row);
+    let y = 0; const g = [];
+    rows2.forEach((rw) => { const h = Math.max(...rw.map((n) => n.d)); rw.forEach((n) => { n.cy += y + (h - n.d) / 2; g.push(n); }); y += h + 10; });
+    blocks.push({ g, b: box(g) });
+  }
+  const maxW = Math.max(0, ...blocks.map(({ b }) => b.x1 - b.x0));
+  blocks.forEach(({ g, b }) => {
+    const ox = 16 + (maxW - (b.x1 - b.x0)) / 2 - b.x0, oy = top - b.y0;
+    g.forEach((n) => { n.x += ox; n.y = n.cy + oy - n.r; });
+    top += b.y1 - b.y0 + 30;
   });
-  return { nodes: [...node.values()], W: maxW + 32, H: Math.max(top + 4, 160) };
+  W = maxW + 32;
+  return { nodes: all, W, H: Math.max(top, 160) };
 }
 
 function bubbleHTML(app, n, cel) {

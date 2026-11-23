@@ -68,6 +68,10 @@ export function mount(root, app) {
         </div>
       </section>
 
+      ${(() => { const m = new Date().getMonth(), y = new Date().getFullYear() - (m === 0 ? 1 : 0);
+        return m === 11 || m === 0 ? `<section class="block"><button class="card yr-card" data-act="year">
+          <span class="yr-card-ic" aria-hidden="true">🎬</span><span class="li-main"><span class="li-title">Watch our ${y}</span>
+          <span class="li-sub">A 1, 3 or 5 minute video of the family's year, for the TV at your next gathering</span></span>${icon('next', 18)}</button></section>` : ''; })()}
       <section class="block">
         <div class="seg" role="radiogroup" aria-label="How to show the family" data-on="${famView}">
           <button type="button" role="radio" aria-checked="${famView === 'circles'}" data-act="famview" data-id="circles">${icon('family', 15)} Circles</button>
@@ -128,6 +132,7 @@ export function mount(root, app) {
       }
       case 'alerts': showAlerts(app); break;
       case 'hh-open': openHousehold(app, id, onClick); break;
+      case 'year': import('./yearvideo.js').then((m) => m.openYearVideo(app)); break;
       case 'famview': {
         if (famView === id) break;
         famView = id; try { localStorage.setItem('oc-famview', id); } catch (er) {}

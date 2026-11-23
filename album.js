@@ -26,6 +26,7 @@ function grid(root, app) {
     root.innerHTML = `
       <header class="top"><div><div class="eyebrow">${esc(st.circle?.name || '')}</div><h1 class="display">Family Album</h1></div>
         <button class="btn sm" data-act="share">${icon('plus', 16)} Share</button></header>
+      <p class="pad-x"><button class="linkish" data-act="year" style="text-align:left">${icon('star', 16)} Make our year-in-review video</button></p>
       <p class="hint pad-x">Photos and videos shared here go to the whole family. Originals are kept at full quality.</p>
       <section class="block album-grid">
         ${posts.map((p) => `<a class="album-card" href="#/album/${encodeURIComponent(p.id)}">
@@ -34,7 +35,10 @@ function grid(root, app) {
         </a>`).join('') || `<button class="card empty-card" data-act="share">Share the first photos, like a birthday party or a trip.</button>`}
       </section>`;
   };
-  const onClick = (e) => { if (e.target.closest('[data-act="share"]')) sharePhotos(app); };
+  const onClick = (e) => {
+    if (e.target.closest('[data-act="share"]')) sharePhotos(app);
+    if (e.target.closest('[data-act="year"]')) import('./yearvideo.js').then((m) => m.openYearVideo(app));
+  };
   root.addEventListener('click', onClick);
   const unsub = S.watchColl(app.path('album'), { orderBy: ['at', 'desc'] }, (rows) => { posts = rows; render(); });
   const off = app.on(render);

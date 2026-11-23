@@ -213,6 +213,7 @@ function openMenu() {
   wrap.className = 'menu-wrap';
   wrap.innerHTML = `<nav class="menu-pop" role="menu" aria-label="More">
     ${items.map(([k, label, ic]) => `<a role="menuitem" href="#/${k}" class="${here === k || (k === 'journal' && here === 'book') ? 'on' : ''}">${icon(ic, 20)}<span>${label}</span></a>`).join('')}
+    <button role="menuitem" type="button" data-year>${icon('star', 20)}<span>Year in review video</span></button>
     <button role="menuitem" type="button" data-switch>${icon('family', 20)}<span>Switch family circle</span></button>
     <a role="menuitem" href="tour.html">${icon('next', 20)}<span>Quick tour</span></a>
   </nav>`;
@@ -220,6 +221,7 @@ function openMenu() {
   btn.setAttribute('aria-expanded', 'true');
   wrap.addEventListener('click', (e) => {
     if (e.target.closest('[data-switch]')) { closeMenu(); app.openSwitcher(); return; }
+    if (e.target.closest('[data-year]')) { closeMenu(); import('./yearvideo.js').then((m) => m.openYearVideo(app)); return; }
     if (e.target === wrap || e.target.closest('a')) closeMenu();
   });
   wrap.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeMenu(); btn.focus(); } });

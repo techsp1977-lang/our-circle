@@ -298,3 +298,18 @@ Edit or replace files in the GitHub repository. Changes are published to the app
 **If `firestore.rules` or `storage.rules` change**, GitHub alone doesn't apply them. Open each one, copy all of it, and paste it into Firebase (**Firestore Database → Rules**, and **Storage → Rules**), then click **Publish**.
 
 The `tests` folder checks those rules on a computer before you publish them. With Node and Java installed, open that folder in a terminal and run `npm install`, then `npm test`. Every line should be a ✔. The tests run a copy of Firebase on the computer and never touch your real family data.
+
+## Year in review video: one-time photo setting (2 min)
+
+The Year in review video (☰ menu, or the Album page) plays without this. To **save** the video, the photo storage
+has to allow Our Circle's own web address to read the pictures into a video. In Cloud Shell (from `~/our-circle`):
+
+```bash
+printf '[{"origin":["https://our-circle-3da6a.web.app","https://our-circle-3da6a.firebaseapp.com"],"method":["GET"],"maxAgeSeconds":3600}]' > cors.json
+```
+
+```bash
+gcloud storage buckets update gs://our-circle-3da6a.firebasestorage.app --cors-file=cors.json
+```
+
+This doesn't change who can see any photo. It only lets Our Circle's own pages draw the photos a person can already open into a video.

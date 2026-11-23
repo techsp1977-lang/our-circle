@@ -84,6 +84,7 @@ export function mount(root, app) {
   let otherCircles = [];
 
   const render = () => {
+    const treeUsed = st.households.some((x) => x.parentId);
     root.innerHTML = `
       <header class="top"><a class="icon-btn" href="#/me" aria-label="Back to My page">${icon('back')}</a>
         <div class="grow"><h1 class="h1">Family settings</h1><div class="muted small">You're an organizer</div></div></header>
@@ -103,7 +104,8 @@ export function mount(root, app) {
         <p class="hint">A household is everyone you'd message together, like a couple and their kids. Each person still gets their own login and private journal.</p>
         ${familyTree(st.households).map(({ h, depth }) => `
           <div class="card list mb" style="margin-left:${Math.min(depth, 3) * 14}px">
-            <div class="li"><span class="hh-swatch" style="--hh:${hhColor(h)}" aria-hidden="true"></span><span class="li-main"><span class="li-title">${names(h.name)}</span>${h.parentId && app.household(h.parentId) ? `<span class="li-sub">Under ${esc(app.household(h.parentId).name)}</span>` : ''}</span>
+            <div class="li"><span class="hh-swatch" style="--hh:${hhColor(h)}" aria-hidden="true"></span><span class="li-main"><span class="li-title">${names(h.name)}</span>${h.parentId && app.household(h.parentId) ? `<span class="li-sub">Under ${esc(app.household(h.parentId).name)}</span>`
+              : treeUsed && !st.households.some((x) => x.parentId === h.id) ? `<span class="li-sub warn-text">Not in the family tree yet. Tap the pencil and choose who they're under.</span>` : ''}</span>
               <button class="icon-btn sm" data-act="edit-hh" data-id="${esc(h.id)}" aria-label="Edit ${esc(h.name)}">${icon('edit', 16)}</button></div>
             ${app.membersOf(h.id).map((m) => {
               const acc = accessRows.find((a) => a.memberId === m.id);
