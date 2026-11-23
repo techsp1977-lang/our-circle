@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A 1½-minute tour of Our Circle: create your account, turn on Face ID, add your photo and dates, nudges, the journal lock, the album and switching families.">
+<title>Our Circle · Quick tour</title>
+<link rel="icon" href="oc-icon-192.png" type="image/png">
+<link rel="stylesheet" href="apple-tokens.css">
+<style>
+  :root { --tint: rgb(47 93 74); --tint-text: rgb(47 93 74); --on-tint: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --tint: rgb(98 180 141); --tint-text: rgb(122 201 162); --on-tint: #0b1a13; } }
+  :root[data-theme="dark"] { --tint: rgb(98 180 141); --tint-text: rgb(122 201 162); --on-tint: #0b1a13; }
+  body { margin: 0; background: var(--bg-grouped); color: var(--label); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; line-height: 1.5; -webkit-text-size-adjust: 100%; }
+  main { max-width: 720px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 28px) 16px 64px; }
+  .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--label-secondary); }
+  h1 { font-size: clamp(1.9rem, 6vw, 2.5rem); line-height: 1.1; margin: 4px 0 8px; }
+  .lead { font-size: 1.1rem; color: var(--label-secondary); margin: 0 0 20px; }
+  .layout { display: grid; gap: 20px; grid-template-columns: 1fr; }
+  @media (min-width: 640px) { .layout { grid-template-columns: minmax(0, 300px) 1fr; align-items: start; } }
+  .player { background: #000; border-radius: 28px; overflow: hidden; box-shadow: var(--shadow-card); max-width: 340px; width: 100%; margin: 0 auto; aspect-ratio: 780 / 1688; }
+  .player video { width: 100%; height: 100%; display: block; }
+  .steps { list-style: none; margin: 0; padding: 0; background: var(--card-bg); border-radius: 18px; box-shadow: var(--shadow-card); overflow: hidden; }
+  .steps li + li { border-top: 0.5px solid var(--separator); }
+  .steps button { all: unset; box-sizing: border-box; display: flex; gap: 12px; align-items: flex-start; width: 100%; padding: 12px 14px; cursor: pointer; min-height: 44px; }
+  .steps button:focus-visible { outline: 2px solid var(--tint); outline-offset: -2px; }
+  .steps .n { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--tint); color: var(--on-tint); font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .steps b { display: block; font-size: 16px; }
+  .steps small { display: block; color: var(--label-secondary); font-size: 14px; line-height: 1.4; }
+  .steps .t { margin-left: auto; flex: none; color: var(--tint-text); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; padding-top: 2px; }
+  .steps li.on button { background: color-mix(in srgb, var(--tint) 10%, transparent); }
+  .btn { display: inline-block; margin-top: 20px; padding: 12px 22px; border-radius: 999px; background: var(--tint); color: var(--on-tint); text-decoration: none; font-weight: 600; }
+  .note { font-size: 14px; color: var(--label-secondary); margin-top: 14px; }
+  a { color: var(--tint-text); }
+  footer { margin-top: 40px; font-size: 14px; color: var(--label-secondary); text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Our Circle</div>
+  <h1>Quick tour</h1>
+  <p class="lead">Getting set up takes a couple of minutes. Watch it all, or tap a step to jump there.</p>
+  <div class="layout">
+    <div class="player"><video id="v" src="tour.mp4" poster="tour-poster.jpg" controls playsinline preload="metadata"></video></div>
+    <div>
+      <ol class="steps" id="steps">
+        <li><button data-t="3"><span class="n">1</span><span><b>Create your account</b><small>Open your invite link, pick a password (7+ characters), tap Create account, then Join.</small></span><span class="t">0:03</span></button></li>
+        <li><button data-t="17"><span class="n">2</span><span><b>Turn on Face ID</b><small>My page → This phone → Set up.</small></span><span class="t">0:17</span></button></li>
+        <li><button data-t="27"><span class="n">3</span><span><b>Add your photo</b><small>Tap the photo box on My page. It shows in all your circles.</small></span><span class="t">0:27</span></button></li>
+        <li><button data-t="37"><span class="n">4</span><span><b>Add your important dates</b><small>Birthday, anniversary and other big days.</small></span><span class="t">0:37</span></button></li>
+        <li><button data-t="46"><span class="n">5</span><span><b>Nudges on or off</b><small>My page → My nudges. Pick how often, Off, or untick one household.</small></span><span class="t">0:46</span></button></li>
+        <li><button data-t="55"><span class="n">6</span><span><b>Lock your journal</b><small>Journal → Lock my journal. Save the recovery code.</small></span><span class="t">0:55</span></button></li>
+        <li><button data-t="71"><span class="n">7</span><span><b>Share photos in the Album</b><small>Album → Share, pick photos, name the event.</small></span><span class="t">1:11</span></button></li>
+        <li><button data-t="81"><span class="n">8</span><span><b>Switch families</b><small>Tap your family's name at the top.</small></span><span class="t">1:21</span></button></li>
+      </ol>
+      <a class="btn" href="./">Open Our Circle</a>
+      <p class="note">On iPhone, add it to your Home Screen: in Safari tap Share, then Add to Home Screen.</p>
+    </div>
+  </div>
+  <footer><a href="about.html">Plans, terms and privacy</a> · <a href="mailto:yardagebook.app@gmail.com">yardagebook.app@gmail.com</a></footer>
+</main>
+<script src="tour.js"></script>
+</body>
+</html>

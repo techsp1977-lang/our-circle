@@ -305,7 +305,7 @@ function renderSignIn(msg = '', email = '') {
       <button class="linkish" id="forgot">Forgot password?</button>
       ${webauthnSupported() && !quickFace ? `<p class="muted small center">Want ${esc(faceLabel())}? Sign in with your password once, then go to My page → This phone → Set up. After that, ${esc(faceLabel())} is all you need.</p>
       <button class="linkish" id="faceid">I already set up ${esc(faceLabel())} on this phone</button>` : ''}
-      <p class="muted small center"><a href="about.html">Plans, terms and privacy</a></p>
+      <p class="muted small center"><a href="tour.html">New here? Watch the 1½-minute tour</a> · <a href="about.html">Plans, terms and privacy</a></p>
     </div></div>`;
   const form = $('#auth-form');
   form.onsubmit = async (e) => {

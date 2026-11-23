@@ -76,12 +76,26 @@
             "value": "public, max-age=86400"
           }
         ]
+      },
+      {
+        "source": "tour.@(mp4|jpg)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=86400"
+          }
+        ]
       }
     ],
     "redirects": [
       {
         "source": "/about",
         "destination": "/about.html",
+        "type": 301
+      },
+      {
+        "source": "/tour",
+        "destination": "/tour.html",
         "type": 301
       }
     ]
