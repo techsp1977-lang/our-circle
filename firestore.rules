@@ -21,6 +21,18 @@ service cloud.firestore {
     function okId(id) { return id.matches('^[A-Za-z0-9_-]{1,64}$'); }
     function memberDoc(cid, mid) { return get(/databases/$(database)/documents/circles/$(cid)/members/$(mid)).data; }
     function invitePath(cid, code) { return /databases/$(database)/documents/circles/$(cid)/invites/$(code); }
+    // Household organizers: people an organizer (or a household organizer) named in a household's "managers". They
+    // run that household and the households directly under it: its people, invites, name and color, and the
+    // households they add under it. Nothing family-wide, and never anyone's login or role.
+    function hhDoc(cid, hid) { return get(/databases/$(database)/documents/circles/$(cid)/households/$(hid)).data; }
+    function hhRuns(cid, hid) {
+      return isMember(cid) && hid is string && okId(hid)
+        && exists(/databases/$(database)/documents/circles/$(cid)/households/$(hid))
+        && (me(cid) in hhDoc(cid, hid).get('managers', [])
+            || (hhDoc(cid, hid).get('parentId', null) is string
+                && exists(/databases/$(database)/documents/circles/$(cid)/households/$(hhDoc(cid, hid).parentId))
+                && me(cid) in hhDoc(cid, hhDoc(cid, hid).parentId).get('managers', [])));
+    }
 
     // Face ID passkeys and their one-time challenges: only the passkey server function touches these.
     match /passkeys/{id} { allow read, write: if false; }
@@ -105,7 +117,8 @@ service cloud.firestore {
           && request.resource.data.used == false
           && (request.resource.data.get('organizer', false) == false || isAdmin(cid))
           && memberDoc(cid, request.resource.data.memberId).uid == null
-          && (isAdmin(cid) || (isMember(cid) && me(cid) in memberDoc(cid, request.resource.data.memberId).managedBy));
+          && (isAdmin(cid) || (isMember(cid) && me(cid) in memberDoc(cid, request.resource.data.memberId).managedBy)
+              || hhRuns(cid, memberDoc(cid, request.resource.data.memberId).householdId));
         allow update: if isAdmin(cid) || (
           signedIn() && resource.data.used == false
           && onlyChanges(['used', 'usedBy'])
@@ -122,21 +135,31 @@ service cloud.firestore {
           && me(cid) in request.resource.data.managedBy
           && request.resource.data.uid == null
           && request.resource.data.claimed == false
-          && request.resource.data.householdId == memberDoc(cid, me(cid)).householdId));
+          && request.resource.data.householdId == memberDoc(cid, me(cid)).householdId)
+          // household organizers add people (without a login yet) to households they run
+          || (request.resource.data.uid == null && request.resource.data.claimed == false
+              && hhRuns(cid, request.resource.data.householdId)));
         allow update: if isAdmin(cid)
           // People edit their own name and photo, and parents edit the profiles they manage.
           || (isMember(cid) && (mid == me(cid) || me(cid) in resource.data.managedBy) && onlyChanges(['name', 'photo']))
+          // household organizers edit people in households they run, and can move them between those households
+          || (hhRuns(cid, resource.data.householdId) && hhRuns(cid, request.resource.data.householdId)
+                && onlyChanges(['name', 'photo', 'householdId', 'order', 'managedBy']))
           || (signedIn() && getAfter(accessPath(cid)).data.memberId == mid
                 && onlyChanges(['uid', 'claimed'])
                 && request.resource.data.uid == request.auth.uid);
-        allow delete: if isAdmin(cid) || (isMember(cid) && me(cid) in resource.data.managedBy);
+        allow delete: if isAdmin(cid) || (isMember(cid) && me(cid) in resource.data.managedBy)
+          || (resource.data.uid == null && hhRuns(cid, resource.data.householdId));
       }
 
-      // Households are set up by organizers.
+      // Households are set up by organizers. Household organizers add households under ones they run, and change
+      // the name, color, order and organizers of households they run (never where a household sits in the tree).
       match /households/{hid} {
         allow read: if isMember(cid);
-        allow create: if isAdmin(cid) && okId(hid);
-        allow update, delete: if isAdmin(cid);
+        allow create: if okId(hid) && (isAdmin(cid)
+          || (request.resource.data.get('parentId', null) is string && hhRuns(cid, request.resource.data.parentId)));
+        allow update: if isAdmin(cid) || (hhRuns(cid, hid) && onlyChanges(['name', 'color', 'order', 'managers']));
+        allow delete: if isAdmin(cid);
       }
 
       // Shared dates and events (birthdays, anniversaries, graduations, trips).

@@ -92,7 +92,10 @@ export async function upgradeStorage(app) {
 
 export function mount(root, app) {
   const st = app.state;
-  if (!app.isAdmin()) { root.innerHTML = '<p class="pad muted">Only family organizers can change these settings.</p>'; return {}; }
+  // Family organizers see everything. Household organizers see only the households they run.
+  const admin = app.isAdmin();
+  if (!admin && !app.runsAny()) { root.innerHTML = '<p class="pad muted">Only family organizers and household organizers can change these settings.</p>'; return {}; }
+  const mine = (h) => admin || app.runs(h.id);
   let accessRows = [];
   let otherCircles = [];
 
@@ -100,8 +103,8 @@ export function mount(root, app) {
     const treeUsed = st.households.some((x) => x.parentId);
     root.innerHTML = `
       <header class="top"><a class="icon-btn" href="#/me" aria-label="Back to My page">${icon('back')}</a>
-        <div class="grow"><h1 class="h1">Family settings</h1><div class="muted small">You're an organizer</div></div></header>
-
+        <div class="grow"><h1 class="h1">${admin ? 'Family settings' : 'Household settings'}</h1><div class="muted small">${admin ? "You're an organizer" : "You're a household organizer"}</div></div></header>
+      ${admin ? `
       <section class="block card list">
         <div class="li"><span class="li-main"><span class="li-sub">Family name</span><span class="li-title">${esc(st.circle?.name || '')}</span></span>
           <button class="icon-btn sm" data-act="circle" aria-label="Rename family">${icon('edit', 16)}</button></div>
@@ -109,43 +112,48 @@ export function mount(root, app) {
           <button class="icon-btn sm" data-act="color" aria-label="Change circle color">${icon('edit', 16)}</button></div>
       </section>
 
-      ${planSection(st.circle)}
+      ${planSection(st.circle)}` : ''}
 
       <section class="block">
-        <div class="row-head"><h2>Households</h2><button class="linkish" data-act="add-hh">${icon('plus', 16)} Add household</button></div>
-        ${otherCircles.length ? `<p><button class="linkish" data-act="copy-photos" style="text-align:left">${icon('image', 16)} Copy profile photos from ${otherCircles.length === 1 ? esc(otherCircles[0].name) : 'another circle'}</button></p>` : ''}
-        <p class="hint">A household is everyone you'd message together, like a couple and their kids. Each person still gets their own login and private journal.</p>
-        ${familyTree(st.households).map(({ h, depth }) => `
+        <div class="row-head"><h2>${admin ? 'Households' : 'Your households'}</h2>${admin ? `<button class="linkish" data-act="add-hh">${icon('plus', 16)} Add household</button>` : ''}</div>
+        ${admin && otherCircles.length ? `<p><button class="linkish" data-act="copy-photos" style="text-align:left">${icon('image', 16)} Copy profile photos from ${otherCircles.length === 1 ? esc(otherCircles[0].name) : 'another circle'}</button></p>` : ''}
+        <p class="hint">${admin ? "A household is everyone you'd message together, like a couple and their kids. Each person still gets their own login and private journal." : "You can add and edit people in these households, send their invites, and add households under yours, like a married child's."}</p>
+        ${familyTree(st.households).filter(({ h }) => mine(h)).map(({ h, depth }) => `
           <div class="card list mb" style="margin-left:${Math.min(depth, 3) * 14}px">
             <div class="li"><span class="hh-swatch" style="--hh:${hhColor(h)}" aria-hidden="true"></span><span class="li-main"><span class="li-title">${names(h.name)}</span>${h.parentId && app.household(h.parentId) ? `<span class="li-sub">Under ${esc(app.household(h.parentId).name)}</span>`
               : treeUsed && !st.households.some((x) => x.parentId === h.id) ? `<span class="li-sub warn-text">Not in the family tree yet. Tap the pencil and choose who they're under.</span>` : ''}</span>
               <button class="icon-btn sm" data-act="edit-hh" data-id="${esc(h.id)}" aria-label="Edit ${esc(h.name)}">${icon('edit', 16)}</button></div>
             ${app.membersOf(h.id).map((m) => {
               const acc = accessRows.find((a) => a.memberId === m.id);
-              const status = m.uid ? (acc?.role === 'admin' ? 'Organizer · has login' : 'Has login') : (m.managedBy?.length ? 'Managed by parents' : 'Not joined yet');
+              const lead = (h.managers || []).includes(m.id) ? 'Household organizer · ' : '';
+              const status = lead + (m.uid ? (acc?.role === 'admin' ? 'Organizer · has login' : 'Has login') : (m.managedBy?.length ? 'Managed by parents' : 'Not joined yet'));
               return `<div class="li"><button class="face-btn" data-act="photo" data-id="${esc(m.id)}" aria-label="${m.photo ? 'Change' : 'Add'} ${esc(m.name)}'s photo">${face(m)}<span class="face-cam">${icon('camera', 12)}</span></button><span class="li-main"><span class="li-title">${esc(m.name)}</span><span class="li-sub">${status}</span></span>
                 ${!m.uid ? `<button class="btn sm" data-act="invite" data-id="${esc(m.id)}">${icon('link', 14)} Invite</button>` : ''}
                 <button class="icon-btn sm" data-act="edit-m" data-id="${esc(m.id)}" aria-label="Edit ${esc(m.name)}">${icon('edit', 16)}</button></div>`;
             }).join('')}
             <button class="li add-row" data-act="add-m" data-id="${esc(h.id)}">${icon('plus', 16)} Add a person to ${esc(h.name)}</button>
+            <button class="li add-row" data-act="add-under" data-id="${esc(h.id)}">${icon('family', 16)} Add a household under ${esc(h.name)}</button>
           </div>`).join('')}
       </section>
       <p class="hint pad-x">Tip: add everyone first, with birthdays, then send each person their own invite link. Young kids don't need a link; their parents manage them from My page.</p>
-      <section class="block">
+      ${admin ? `<section class="block">
         <h2>Hand the circle over</h2>
         <p class="hint">Setting this up for someone else? Make them an organizer (tap the pencil next to their name), then step down here. You stay in the family as a regular member.</p>
         <div class="card list"><button class="li add-row" data-act="step-down">${icon('users', 16)} Step down as organizer</button></div>
         ${accessRows.filter((a) => a.role === 'admin' && a.id !== st.uid).length ? '' : '<p class="hint">You are the only organizer right now.</p>'}
-      </section>`;
+      </section>` : ''}`;
   };
 
-  const hhOptions = () => st.households.map((h) => ({ value: h.id, label: h.name }));
+  const hhOptions = () => st.households.filter(mine).map((h) => ({ value: h.id, label: h.name }));
   // "Under which household?" choices: the top of the tree, or any household that isn't this one or one of its own.
   const parentOptions = (id) => {
     const skip = id ? descendantsOf(st.households, id) : new Set();
     return [{ value: '', label: 'Top of the family tree (the head of the circle)' },
       ...familyTree(st.households).filter(({ h }) => h.id !== id && !skip.has(h.id)).map(({ h, depth }) => ({ value: h.id, label: `${'— '.repeat(depth)}${h.name}` }))];
   };
+  // Household organizers: anyone in that household.
+  const managersField = (h) => ({ name: 'managers', label: 'Household organizers (can add people, send invites and add households under this one)', type: 'checks',
+    value: h.managers || [], options: app.membersOf(h.id).map((m) => ({ value: m.id, label: m.name })) });
   const parentField = (id, value) => ({ name: 'parentId', label: 'Under which household? (for the family tree)', type: 'select', value: value || '', options: parentOptions(id),
     hint: 'For example, put a married child\'s household under their parents\' household.' });
 
@@ -195,11 +203,12 @@ export function mount(root, app) {
       }
       case 'edit-hh': {
         const h = app.household(id);
-        const r = await sheet({ title: 'Edit household', danger: app.membersOf(id).length ? null : 'Delete household', fields: [
+        const r = await sheet({ title: 'Edit household', danger: admin && !app.membersOf(id).length ? 'Delete household' : null, fields: [
           { name: 'name', label: 'Household name', value: h.name, required: true },
-          parentField(id, h.parentId),
+          ...(admin ? [parentField(id, h.parentId)] : []),
           { name: 'order', label: 'Position among its brothers and sisters (1 = first)', type: 'number', value: String((h.order ?? 0) + 1) },
           { name: 'color', label: 'Shade', type: 'swatches', value: h.color || HH_COLORS.find((c) => c.value === hhColor(h))?.key, options: HH_COLORS.map((c) => ({ value: c.key, label: c.label, color: c.value })) },
+          ...(app.membersOf(id).length ? [managersField(h)] : []),
         ] });
         if (!r) return;
         if (r.__danger) {
@@ -208,7 +217,18 @@ export function mount(root, app) {
             { op: 'delete', path: app.path('households/' + id) }]);
           return;
         }
-        await S.update(app.path('households/' + id), { name: r.name, parentId: r.parentId || null, order: Math.max(0, Number(r.order || 1) - 1), color: r.color });
+        const upd = { name: r.name, order: Math.max(0, Number(r.order || 1) - 1), color: r.color };
+        if (admin) upd.parentId = r.parentId || null;
+        if (r.managers) upd.managers = r.managers;
+        try { await S.update(app.path('households/' + id), upd); } catch (er) { toast(why('That did not save.', er), 9000); }
+        break;
+      }
+      case 'add-under': {
+        const p = app.household(id);
+        const r = await sheet({ title: `Add a household under ${p.name}`, intro: 'For example a married child and their spouse, or a grown child living on their own.', submit: 'Add', fields: [{ name: 'name', label: 'Household name', required: true }] });
+        if (!r) break;
+        try { await S.add(app.path('households'), { name: r.name, order: st.households.filter((x) => x.parentId === id).length, parentId: id }); toast(`${r.name} added under ${p.name}. Now add the people in it.`); }
+        catch (er) { toast(why('That household did not save.', er), 9000); }
         break;
       }
       case 'add-m': {
@@ -233,16 +253,17 @@ export function mount(root, app) {
           { name: 'name', label: 'Name', value: m.name, required: true },
           { name: 'hid', label: 'Household', type: 'select', value: m.householdId, options: hhOptions() },
         ];
-        if (m.uid && id !== st.me) fields.push({ name: 'admin', label: 'Organizer (can change family settings)', type: 'checkbox', value: acc?.role === 'admin' });
-        const r = await sheet({ title: 'Edit ' + m.name, danger: id === st.me ? null : 'Remove from family', fields });
+        if (admin && m.uid && id !== st.me) fields.push({ name: 'admin', label: 'Organizer (can change family settings)', type: 'checkbox', value: acc?.role === 'admin' });
+        // Household organizers can remove only people who haven't joined yet.
+        const r = await sheet({ title: 'Edit ' + m.name, danger: id === st.me || (!admin && m.uid) ? null : 'Remove from family', fields });
         if (!r) return;
         if (r.__danger) {
           if (!(await confirmBox(`Remove ${m.name}?`, 'They will lose access to the family. Their private journal is not affected.', 'Remove'))) return;
-          if (m.uid) await S.del(app.path('access/' + m.uid)).catch(() => {});
+          if (m.uid && admin) await S.del(app.path('access/' + m.uid)).catch(() => {});
           await S.del(app.path('members/' + id));
           return;
         }
-        await S.update(app.path('members/' + id), { name: r.name, householdId: r.hid });
+        try { await S.update(app.path('members/' + id), { name: r.name, householdId: r.hid }); } catch (er) { toast(why('That did not save.', er), 9000); break; }
         if (m.uid && 'admin' in r && acc) await S.update(app.path('access/' + m.uid), { role: r.admin ? 'admin' : 'member' });
         loadAccess();
         break;
