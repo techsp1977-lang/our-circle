@@ -36,7 +36,7 @@ export function mount(root, app) {
           <h1 class="display"><button class="circle-switch" data-act="switch" aria-label="${esc(st.circle?.name || 'Our family')}. Switch circles">${esc(st.circle?.name || 'Our family')}<span class="chev" aria-hidden="true">${icon('next', 18)}</span></button></h1></div>
         <div class="top-btns">
           <button class="icon-btn bell" data-act="alerts" aria-label="${alerts ? alerts + ' nudge' + (alerts === 1 ? '' : 's') : 'No nudges right now'}">${icon('bell')}${alerts ? `<span class="badge">${alerts}</span>` : ''}</button>
-          ${app.isAdmin() ? `<a class="icon-btn" href="#/manage" aria-label="Family settings">${icon('gear')}</a>` : ''}
+          ${app.isAdmin() || app.runsAny() ? `<a class="icon-btn" href="#/manage" aria-label="${app.isAdmin() ? 'Family' : 'Household'} settings">${icon('gear')}</a>` : ''}
         </div>
       </header>
       ${planNotice(app)}

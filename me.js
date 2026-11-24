@@ -35,7 +35,7 @@ export function mount(root, app) {
 
     root.innerHTML = `
       <header class="top"><div><div class="eyebrow">${esc(st.circle?.name || '')}</div><h1 class="display">My page</h1></div>
-        ${app.isAdmin() ? `<a class="btn ghost sm" href="#/manage">${icon('gear', 16)} Family settings</a>` : ''}</header>
+        ${app.isAdmin() ? `<a class="btn ghost sm" href="#/manage">${icon('gear', 16)} Family settings</a>` : app.runsAny() ? `<a class="btn ghost sm" href="#/manage">${icon('gear', 16)} Household settings</a>` : ''}</header>
 
       <div class="privacy">${icon('lock', 18)}<span><b>Private page.</b> Only you see this page and your journal. Your photo, name and the dates below marked <b>Shared</b> are the only things the family sees.</span></div>
 

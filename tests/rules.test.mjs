@@ -296,6 +296,38 @@ test('attack: reactions: fake someone else\'s, use a made-up value, edit the tex
   await assertFails(updateDoc(doc(as('uC'), `${C}/chats/p_mA_mB/messages/d1`), { 'reactions.mC': '❤️' }));
   await assertFails(setDoc(doc(as('uB'), `${C}/chats/everyone/messages/r2`), { by: 'mB', text: 'hi', media: [], at: 6, reactions: { mA: '❤️' } }));
 });
+test('app: a household organizer runs their household and the households under it', async () => {
+  await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), `${C}/households/h2`), { managers: ['mB'] }));
+  const db = as('uB');
+  await assertSucceeds(updateDoc(doc(db, `${C}/households/h2`), { name: 'B house renamed', color: 'teal', managers: ['mB', 'mD'] }));
+  await assertSucceeds(setDoc(doc(db, `${C}/members/mN`), { name: 'New', householdId: 'h2', order: 5, photo: null, uid: null, claimed: false, managedBy: [], createdAt: 1 }));
+  await assertSucceeds(updateDoc(doc(db, `${C}/members/mD`), { name: 'D renamed' }));
+  await assertSucceeds(setDoc(doc(db, `${C}/invites/hhinv1`), { memberId: 'mD', memberName: 'D', circleName: 'Test family', used: false, createdBy: 'mB', createdAt: 1 }));
+  await assertSucceeds(setDoc(doc(db, `${C}/households/h2a`), { name: 'Married kid', order: 0, parentId: 'h2' }));
+  await assertSucceeds(setDoc(doc(db, `${C}/members/mK2a`), { name: 'Kid', householdId: 'h2a', order: 0, photo: null, uid: null, claimed: false, managedBy: [], createdAt: 1 }));
+  await assertSucceeds(updateDoc(doc(db, `${C}/households/h2a`), { name: 'Married kid & spouse' }));
+  await assertSucceeds(updateDoc(doc(db, `${C}/members/mN`), { householdId: 'h2a' }));
+  await assertSucceeds(deleteDoc(doc(db, `${C}/members/mN`)));
+});
+test('attack: a household organizer reaches beyond their household', async () => {
+  await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), `${C}/households/h2`), { managers: ['mB'] }));
+  const db = as('uB');
+  await assertFails(setDoc(doc(db, `${C}/members/mX`), { name: 'X', householdId: 'h3', order: 5, photo: null, uid: null, claimed: false, managedBy: [], createdAt: 1 }));
+  await assertFails(updateDoc(doc(db, `${C}/households/h3`), { name: 'Not mine' }));
+  await assertFails(updateDoc(doc(db, `${C}/households/h2`), { parentId: 'h3' }));
+  await assertFails(setDoc(doc(db, `${C}/households/top`), { name: 'Top level', order: 0 }));
+  await assertFails(setDoc(doc(db, `${C}/members/mY`), { name: 'Y', householdId: 'h2', order: 5, photo: null, uid: 'uZ', claimed: true, managedBy: [], createdAt: 1 }));
+  await assertFails(updateDoc(doc(db, `${C}/members/mD`), { uid: 'uB2', claimed: true }));
+  await assertFails(updateDoc(doc(db, `${C}/members/mD`), { householdId: 'h3' }));
+  await assertFails(deleteDoc(doc(db, `${C}/members/mB`)));
+  await assertFails(deleteDoc(doc(db, `${C}/households/h2`)));
+  await assertFails(updateDoc(doc(db, `${C}/access/uB`), { role: 'admin' }));
+  await assertFails(setDoc(doc(db, `${C}/invites/hhinv2`), { memberId: 'mD', memberName: 'D', circleName: 'Test family', used: false, organizer: true, createdBy: 'mB', createdAt: 1 }));
+  await assertFails(updateDoc(doc(db, C), { name: 'Renamed family' }));
+  // someone who isn't that household's organizer can't run it
+  await assertFails(updateDoc(doc(as('uC'), `${C}/households/h2`), { name: 'C renames B' }));
+  await assertFails(setDoc(doc(as('uC'), `${C}/members/mZ`), { name: 'Z', householdId: 'h2', order: 5, photo: null, uid: null, claimed: false, managedBy: [], createdAt: 1 }));
+});
 test('app: parent adds, edits, invites and removes a child profile', async () => {
   const db = as('uA');
   await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), `${C}/access/uA`), { role: 'member' }));

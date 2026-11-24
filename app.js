@@ -24,6 +24,14 @@ const app = {
   member: (id) => state.members[id],
   myMember: () => state.members[state.me],
   isAdmin: () => state.access?.role === 'admin',
+  // Household organizers run their household and the ones directly under it (the security rules say the same).
+  runs: (hid) => {
+    const h = state.households.find((x) => x.id === hid);
+    if (!h || !state.me) return false;
+    const parent = h.parentId && state.households.find((x) => x.id === h.parentId);
+    return (h.managers || []).includes(state.me) || !!(parent && (parent.managers || []).includes(state.me));
+  },
+  runsAny: () => state.households.some((h) => app.runs(h.id)),
   membersOf: (hid) => Object.values(state.members).filter((m) => m.householdId === hid).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
   household: (hid) => state.households.find((h) => h.id === hid),
   // 0 means check-in nudges are off; households in prefs.noCheckin never get one.
@@ -208,7 +216,7 @@ function openMenu() {
   const btn = document.getElementById('menu-btn');
   if (document.querySelector('.menu-wrap')) { closeMenu(); return; }
   const here = document.body.dataset.view;
-  const items = [...MENU, ...(app.isAdmin() ? [['manage', 'Family settings', 'gear']] : [])];
+  const items = [...MENU, ...(app.isAdmin() ? [['manage', 'Family settings', 'gear']] : app.runsAny() ? [['manage', 'Household settings', 'gear']] : [])];
   const wrap = document.createElement('div');
   wrap.className = 'menu-wrap';
   wrap.innerHTML = `<nav class="menu-pop" role="menu" aria-label="More">
