@@ -61,48 +61,66 @@ function layout(app) {
   // points away from the grandparents. If the parents are already surrounded, it takes the nearest open spot
   // touching a brother or sister. Every spot is checked against every bubble already placed, so nothing overlaps
   // more than OVER, and nobody ends up away from their family.
+  // Spacing: inside one family branch, bubbles touch (overlapping OVER, like a Venn diagram). The head of the circle
+  // keeps a little open space around it, and separate family branches keep a small gap between them.
+  const HEAD_GAP = 30, BRANCH_GAP = 18;
   let placed = [];
-  const fits = (x, cy, r) => placed.every((q) => Math.hypot(x - q.x, cy - q.cy) >= q.r + r - OVER - 0.5);
-  const around = (k, anchor, dir, full) => {
-    const R = anchor.r + k.r - OVER;
-    for (let deg = 0; deg <= (full ? 180 : 180); deg += 3) {
+  const need = (q, k) => q.isHead || k.isHead ? q.r + k.r + HEAD_GAP : q.branch === k.branch ? q.r + k.r - OVER : q.r + k.r + BRANCH_GAP;
+  const fits = (x, cy, k) => placed.every((q) => Math.hypot(x - q.x, cy - q.cy) >= need(q, k) - 0.5);
+  // The nearest open spot at distance R from an anchor, searching out from a preferred direction.
+  const around = (k, anchor, dir, R) => {
+    for (let deg = 0; deg <= 180; deg += 3) {
       for (const sign of deg ? [1, -1] : [1]) {
         const t = dir + (sign * deg * Math.PI) / 180, x = anchor.x + R * Math.cos(t), cy = anchor.cy + R * Math.sin(t);
-        if (fits(x, cy, k.r)) return { x, cy };
+        if (fits(x, cy, k)) return { x, cy };
       }
     }
     return null;
   };
-  const growTree = (root) => {
-    root.x = 0; root.cy = 0; root.dir = Math.PI / 2; placed.push(root);
-    const queue = [root];
+  const sizeOf = (n) => 1 + n.kids.reduce((a, k) => a + sizeOf(k), 0);
+  // One family: each household's children bunch around it, touching, facing away from the head.
+  const growBranch = (top) => {
+    const queue = [top];
     for (let i = 0; i < queue.length; i++) {
-      const p = queue[i];
-      // Spread the children evenly across the side facing away from the grandparents (the head of the circle spreads
-      // its children from left, through below, to right), so each keeps an open side for its own family.
-      const n = p.kids.length, span = Math.min(p.parent ? Math.PI * 1.25 : Math.PI * 1.15, n * 0.95);
+      const p = queue[i], n = p.kids.length, span = Math.min(Math.PI * 1.3, n * 0.95);
       p.kids.forEach((k, idx) => {
+        k.branch = top.branch;
         const want = p.dir + span * ((idx + 0.5) / n - 0.5);
-        let spot = around(k, p, want);
-        if (!spot) {
-          // Parents are surrounded: the open spot beside a brother or sister that's closest to the parents.
+        let spot = around(k, p, want, p.r + k.r - OVER);
+        if (!spot) { // parents surrounded: beside a brother or sister, as close to the parents as possible
           let best = null, bestD = Infinity;
           for (const sib of p.kids) {
             if (sib === k || !placed.includes(sib)) continue;
-            const c = around(k, sib, Math.atan2(sib.cy - p.cy, sib.x - p.x), true);
+            const c = around(k, sib, Math.atan2(sib.cy - p.cy, sib.x - p.x), sib.r + k.r - OVER);
             if (c) { const d = Math.hypot(c.x - p.x, c.cy - p.cy); if (d < bestD) { best = c; bestD = d; } }
           }
           spot = best;
         }
-        if (!spot) { // last resort: straight out from the parents, past everything
-          let R = p.r + k.r; do { R += 12; } while (!fits(p.x + R * Math.cos(p.dir), p.cy + R * Math.sin(p.dir), k.r));
-          spot = { x: p.x + R * Math.cos(p.dir), cy: p.cy + R * Math.sin(p.dir) };
-        }
+        if (!spot) { let R = p.r + k.r; do { R += 12; } while (!fits(p.x + R * Math.cos(p.dir), p.cy + R * Math.sin(p.dir), k)); spot = { x: p.x + R * Math.cos(p.dir), cy: p.cy + R * Math.sin(p.dir) }; }
         k.x = spot.x; k.cy = spot.cy; k.dir = Math.atan2(k.cy - p.cy, k.x - p.x);
         placed.push(k); queue.push(k);
       });
     }
     return queue;
+  };
+  const growTree = (root) => {
+    root.x = 0; root.cy = 0; root.isHead = true; root.branch = 'head'; placed = [root];
+    // Each first-generation household gets a slice around the head sized by its family; position one starts at
+    // the top and the rest follow clockwise. Each family is laid out in full before the next.
+    const total = root.kids.reduce((a, k) => a + sizeOf(k), 0) || 1;
+    let at = -Math.PI / 2 - (root.kids[0] ? (Math.PI * sizeOf(root.kids[0])) / total : 0); // position one centered at the top
+    const out = [root];
+    root.kids.forEach((k) => {
+      const slice = (2 * Math.PI * sizeOf(k)) / total, mid = root.kids.length === 1 ? Math.PI / 2 : at + slice / 2;
+      at += slice;
+      k.branch = k.h.id;
+      let R = root.r + k.r + HEAD_GAP, spot = null;
+      while (!spot) { spot = around(k, root, mid, R); R += 16; }
+      k.x = spot.x; k.cy = spot.cy; k.dir = Math.atan2(k.cy - root.cy, k.x - root.x);
+      placed.push(k);
+      out.push(...growBranch(k));
+    });
+    return out;
   };
   const box = (g) => ({ x0: Math.min(...g.map((n) => n.x - n.r)), x1: Math.max(...g.map((n) => n.x + n.r)), y0: Math.min(...g.map((n) => n.cy - n.r)), y1: Math.max(...g.map((n) => n.cy + n.r)) });
 
