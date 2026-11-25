@@ -26,7 +26,7 @@ async function refreshAll() {
 
 self.addEventListener('install', (e) => { e.waitUntil(refreshAll().then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE && k !== 'oc-badge').map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', (e) => {
   const u = new URL(e.request.url);
@@ -62,7 +62,14 @@ self.addEventListener('push', (e) => {
       badge: './oc-icon-192.png',
       data: { url: d.url || '#/chats' },
     });
-    try { await self.navigator.setAppBadge?.(); } catch (er) {}
+    // The red number on the Home Screen icon: the chats with unread messages (saved by the app), plus this one.
+    try {
+      const c = await caches.open('oc-badge'), r = await c.match('./__badge');
+      const saved = r ? await r.json() : { chats: [] };
+      const chats = [...new Set([...(saved.chats || []), String(d.tag || 'our-circle').replace(/^chat-/, '')])];
+      await c.put('./__badge', new Response(JSON.stringify({ chats })));
+      await self.navigator.setAppBadge?.(chats.length);
+    } catch (er) { try { await self.navigator.setAppBadge?.(1); } catch (e2) {} }
     // An open app updates its own unread dot and banner from the database; tell it to refresh the badge.
     (await self.clients.matchAll({ type: 'window' })).forEach((c) => c.postMessage({ type: 'push' }));
   })());
