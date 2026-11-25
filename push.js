@@ -61,16 +61,18 @@ export async function turnOffPush(uid) {
 
 // Signing out stops this phone's notifications, so message previews never reach a signed-out phone.
 S.beforeSignOut.add(async () => {
+  setBadge(0);
   const mine = read();
   if (mine && S.auth.uid() === mine.uid) await turnOffPush(mine.uid);
 });
 
-// The number on the Home Screen icon: how many chats have unread messages.
-let lastBadge = -1;
-export function setBadge(n) {
-  if (n === lastBadge) return;
-  lastBadge = n;
+// The red number on the Home Screen icon: how many chats have unread messages. The open app sets the real count
+// and saves which chats are unread; while the app is closed, the service worker adds each new message's chat to
+// that saved list (see sw.js), so the number goes up even when Our Circle isn't open.
+const BADGE_CACHE = 'oc-badge', BADGE_KEY = './__badge';
+export function setBadge(n, chatIds = []) {
   try { n ? navigator.setAppBadge?.(n) : navigator.clearAppBadge?.(); } catch (e) {}
+  try { caches?.open(BADGE_CACHE).then((c) => c.put(BADGE_KEY, new Response(JSON.stringify({ chats: chatIds })))).catch(() => {}); } catch (e) {}
 }
 
 // Keep this phone's notifications working: phones (iPhones especially) sometimes renew or drop their push

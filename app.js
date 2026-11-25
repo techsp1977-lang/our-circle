@@ -251,10 +251,10 @@ function closeMenu() {
 
 const isUnread = (c) => c.lastBy && c.lastBy !== state.me && (c.lastAt || 0) > (c.reads?.[state.me] || 0);
 function updateBadges() {
-  const unread = app.chatList().filter(isUnread).length;
+  const list = app.chatList().filter(isUnread), unread = list.length;
   const dot = document.querySelector('.tabbar a[data-tab="chats"] .dot');
   if (dot) dot.hidden = !unread;
-  setBadge(unread);
+  setBadge(unread, list.map((c) => c.id));
 }
 
 // In-app alert: a banner when a message arrives while you're somewhere other than that chat.
@@ -580,6 +580,8 @@ export async function start() {
     if (e.data?.type === 'push') updateBadges();
     if (e.data?.type === 'updated') useUpdate();
   });
+  // Coming back to the app: put the right number back on the Home Screen icon.
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.ready) updateBadges(); });
   S.auth.onChange(async (user) => {
     stopSubs();
     if (view?.destroy) view.destroy();
