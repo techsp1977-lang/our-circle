@@ -818,3 +818,9 @@ body.has-menu #main > header.top, body.has-menu #main > * > header.top { padding
 .pick { align-self: start; }
 .pick::before { content: ""; display: block; padding-top: 100%; }
 .pick-grid { grid-auto-rows: max-content; }
+.row-links { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.pick.add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.pick.add::before { display: none; }
+.pick.add { aspect-ratio: 1; }
+.pick.add small { font-size: 11px; }
+.pick-wait-card .btn { align-self: center; }

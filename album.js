@@ -55,7 +55,7 @@ function grid(root, app) {
     root.innerHTML = `
       <header class="top"><div><div class="eyebrow">${esc(st.circle?.name || '')}</div><h1 class="display">Family Album</h1></div>
         <button class="btn sm" data-act="share">${icon('plus', 16)} Share</button></header>
-      <p class="pad-x"><button class="linkish" data-act="year" style="text-align:left">${icon('star', 16)} Make our year-in-review video</button></p>
+      <p class="pad-x row-links"><button class="linkish" data-act="share-videos">${icon('plus', 16)} Share videos</button><button class="linkish" data-act="year" style="text-align:left">${icon('star', 16)} Year-in-review video</button></p>
       ${storageBar(app)}
       <p class="hint pad-x">Photos and videos shared here go to the whole family. Originals are kept at full quality.</p>
       <section class="block album-grid">
@@ -68,6 +68,7 @@ function grid(root, app) {
   const onClick = (e) => {
     if (e.target.closest('[data-act="upgrade"]')) upgradeStorage(app);
     if (e.target.closest('[data-act="share"]')) sharePhotos(app);
+    if (e.target.closest('[data-act="share-videos"]')) sharePhotos(app, 'videos');
     if (e.target.closest('[data-act="year"]')) import('./yearvideo.js').then((m) => m.openYearVideo(app));
   };
   root.addEventListener('click', onClick);
@@ -103,7 +104,8 @@ function compose(batch, setListener, { title = '', withTitle = true } = {}) {
           <span class="pick-pic">${prev(j)}</span>
           <span class="pick-bar" aria-hidden="true"><i></i></span><span class="pick-ok" aria-hidden="true">${icon('check', 14)}</span><span class="pick-bad" aria-hidden="true">!</span>
           <button type="button" class="pick-x" data-rm="${i}" aria-label="Remove ${esc(j.file.name || 'this one')}">${icon('x', 14)}</button></span>`).join('')
-        + `<button type="button" class="pick add" data-more aria-label="Pick more">${icon('plus', 22)}</button>`;
+        + `<button type="button" class="pick add" data-more="photos" aria-label="Add more photos">${icon('plus', 22)}<small>Photos</small></button>`
+        + `<button type="button" class="pick add" data-more="videos" aria-label="Add videos">${icon('plus', 22)}<small>Videos</small></button>`;
     };
     const update = () => {
       if (batch.live().length !== shown.length) paintGrid();
@@ -129,7 +131,8 @@ function compose(batch, setListener, { title = '', withTitle = true } = {}) {
       if (e.target === wrap || e.target.closest('[data-x]')) { batch.cancel(); batch.release(); return finish(null); }
       const rm = e.target.closest('[data-rm]');
       if (rm) return batch.remove(shown[+rm.dataset.rm]);
-      if (e.target.closest('[data-more]')) { const more = await pickMedia(); if (more.length) batch.add(more); }
+      const more = e.target.closest('[data-more]');
+      if (more) { const got = await pickMedia(more.dataset.more || 'photos'); if (got.length) batch.add(got); }
     });
     wrap.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -141,9 +144,9 @@ function compose(batch, setListener, { title = '', withTitle = true } = {}) {
 
 // Pick, and upload straight away while the person adds a title. Resolves with { title, caption, batch } once they
 // tap Share (or Add), without waiting for the uploads; saveAsTheyFinish() takes it from there.
-async function pickAndUpload(app, opts) {
+async function pickAndUpload(app, opts, kind = 'photos') {
   if (app.state.circle?.paused) { toast(pausedText(app.state.circle, app.isAdmin()), 9000); return null; }
-  const picked = await pickMedia();
+  const picked = await pickMedia(kind);
   if (!picked.length) return null;
   const hub = { fn: null };
   const batch = startBatch(app, picked, () => hub.fn?.());
@@ -176,8 +179,8 @@ function saveAsTheyFinish(app, { batch, hub }, albumPath) {
   hub.fn();
 }
 
-async function sharePhotos(app) {
-  const r = await pickAndUpload(app);
+async function sharePhotos(app, kind = 'photos') {
+  const r = await pickAndUpload(app, {}, kind);
   if (!r) return;
   try {
     // The album is made right away and opens; photos appear in it as they finish uploading.
@@ -202,7 +205,7 @@ function post(root, app, id) {
       <section class="block photo-wall">
         ${items.map((m, i) => `<button class="wall-item" data-open="${i}" aria-label="Open ${mediaKind(m) === 'video' ? 'video' : 'photo'} ${i + 1} of ${items.length}">${tile(m, 'wall-img')}</button>`).join('') || '<p class="hint">Photos are on their way. They show up here as each one finishes uploading.</p>'}
       </section>
-      <section class="block"><button class="btn ghost wide" data-act="add">${icon('plus', 16)} Add more</button></section>`;
+      <section class="block row-btns"><button class="btn ghost grow" data-act="add">${icon('plus', 16)} Add photos</button><button class="btn ghost grow" data-act="add-videos">${icon('plus', 16)} Add videos</button></section>`;
   };
   const onClick = async (e) => {
     const open = e.target.closest('[data-open]');
@@ -221,8 +224,8 @@ function post(root, app, id) {
       }
       await S.update(app.path('album/' + id), { title: r.title, caption: r.caption });
     }
-    if (b.dataset.act === 'add') {
-      const r = await pickAndUpload(app, { title: p.title, withTitle: false });
+    if (b.dataset.act === 'add' || b.dataset.act === 'add-videos') {
+      const r = await pickAndUpload(app, { title: p.title, withTitle: false }, b.dataset.act === 'add-videos' ? 'videos' : 'photos');
       if (!r) return;
       saveAsTheyFinish(app, r, app.path('album/' + id));
     }

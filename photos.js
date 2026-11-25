@@ -7,29 +7,54 @@ export const MAX_PICK = 200;
 const DISPLAY_PX = 1600, THUMB_PX = 480;
 
 // Open the phone's photo library (must be called straight from a tap). Resolves with the chosen files, or [].
-// After you tap Add, the iPhone takes a few seconds to hand the photos over; a card saying so sits behind the
-// picker, so the screen never looks frozen. Accepting Apple's own photo format (HEIC) lets the iPhone skip
-// converting every photo first, which is most of that wait.
-export function pickMedia() {
+// kind: 'photos' (the default: only photos, the fastest for the iPhone to hand over) or 'videos'. Asking for both
+// at once makes an iPhone prepare videos and Live Photo motion for everything picked, which can stall a Home
+// Screen app. The file field stays on the page (invisible, not hidden): iPhones can lose the result of a hidden,
+// throwaway one. A card shows while the iPhone hands the files over, with a running count and Cancel.
+const ACCEPT = {
+  photos: 'image/*,image/heic,image/heif,.heic,.heif',
+  videos: 'video/*,video/quicktime,.mov,video/mp4,.mp4',
+};
+const fields = {};
+function field(kind) {
+  if (fields[kind]?.isConnected) return fields[kind];
+  const input = document.createElement('input');
+  input.type = 'file'; input.multiple = true; input.accept = ACCEPT[kind] || ACCEPT.photos;
+  input.setAttribute('aria-hidden', 'true'); input.tabIndex = -1;
+  input.style.cssText = 'position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;';
+  document.body.appendChild(input);
+  return (fields[kind] = input);
+}
+export function pickMedia(kind = 'photos') {
   return new Promise((resolve) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*,image/heic,image/heif,.heic,.heif,video/*';
-    input.multiple = true;
-    input.style.display = 'none';
-    document.body.appendChild(input);
+    const input = field(kind);
+    input.value = ''; // so picking the same photos again still counts
+    const noun = kind === 'videos' ? 'videos' : 'photos';
     const wait = document.createElement('div');
     wait.className = 'pick-wait';
     wait.setAttribute('role', 'status');
-    wait.innerHTML = '<div class="pick-wait-card"><span class="spinner" aria-hidden="true"></span><b>Getting your photos from your library…</b><small>With lots of photos this takes a few seconds.</small><button type="button" class="linkish" data-cancel>Cancel</button></div>';
-    let settled = false;
-    const done = (files) => { if (settled) return; settled = true; input.remove(); wait.remove(); resolve(files); };
+    wait.innerHTML = `<div class="pick-wait-card"><span class="spinner" aria-hidden="true"></span><b>Getting your ${noun} from your library… <span data-sec></span></b><small data-tip>Your iPhone copies each one first. Ones stored in iCloud download first.</small><button type="button" class="btn sm ghost" data-cancel>Cancel</button></div>`;
+    let settled = false, timer = 0, shown = 0;
+    const done = (files) => {
+      if (settled) return; settled = true;
+      clearInterval(timer); wait.remove();
+      input.onchange = input.oncancel = null;
+      resolve(files);
+    };
     wait.querySelector('[data-cancel]').onclick = () => done([]);
-    input.addEventListener('change', () => done([...(input.files || [])]));
-    input.addEventListener('cancel', () => done([]));
+    input.onchange = () => done([...(input.files || [])]);
+    input.oncancel = () => done([]);
     input.click();
     // Shown just after the picker opens, so it's what you see the moment the picker closes.
-    setTimeout(() => { if (!settled) document.body.appendChild(wait); }, 400);
+    setTimeout(() => {
+      if (settled) return;
+      document.body.appendChild(wait); shown = Date.now();
+      timer = setInterval(() => {
+        const sec = Math.round((Date.now() - shown) / 1000);
+        wait.querySelector('[data-sec]').textContent = sec >= 3 ? `${sec}s` : '';
+        if (sec >= 20) wait.querySelector('[data-tip]').textContent = `Taking a while? Tap Cancel and pick fewer ${noun} at a time, or turn on Wi-Fi. ${noun === 'photos' ? 'Photos' : 'Videos'} kept in iCloud have to download first.`;
+      }, 1000);
+    }, 400);
   });
 }
 
