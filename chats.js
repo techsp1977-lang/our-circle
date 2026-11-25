@@ -3,6 +3,7 @@ import * as S from './store.js';
 import { esc, icon, face, toast, fmtSize, listJoin, names, safeUrl, mediaKind, hhColor, hhInk, hhEdge, sheet, why } from './ui.js';
 import { ago } from './dates.js';
 import { pausedText } from './plans.js';
+import { pushCard, pushCardClick } from './push.js';
 
 // Reactions on a message: one per person (tap another to change it, the same one again to remove it).
 // The security rules accept only these, so keep the two lists the same.
@@ -25,6 +26,7 @@ function list(root, app) {
     const rows = app.chatList();
     root.innerHTML = `
       <header class="top"><div><div class="eyebrow">${esc(st.circle?.name || '')}</div><h1 class="display">Chats</h1></div></header>
+      ${pushCard()}
       <section class="block"><div class="card list">
         ${rows.map((c) => {
           const unread = c.lastBy && c.lastBy !== st.me && (c.lastAt || 0) > (c.reads?.[st.me] || 0);
@@ -41,9 +43,11 @@ function list(root, app) {
       </div></section>
       <p class="hint center">Start a household or one-on-one chat from the Family tab.</p>`;
   };
+  const onClick = (e) => { pushCardClick(e, st.uid, render, toast); };
+  root.addEventListener('click', onClick);
   const off = app.on(render);
   render();
-  return { destroy: off };
+  return { destroy: () => { off(); root.removeEventListener('click', onClick); } };
 }
 
 function conversation(root, app, chatId) {

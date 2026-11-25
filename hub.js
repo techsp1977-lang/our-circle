@@ -2,6 +2,7 @@
 import * as S from './store.js';
 import { planState, fmtGB, pausedText } from './plans.js';
 import { mapHTML, drawMap, openHousehold } from './familymap.js';
+import { pushCard, pushCardClick } from './push.js';
 import { esc, icon, face, toast, sheet, listJoin, names, hhColor, hhVars, hhLight, why, familyTree } from './ui.js';
 import { pickAndCrop } from './crop.js';
 import { today, monShort, dayNum, whenText, rangeText, diffDays, weekday, shortDate, monthName, agoText, dayOfYear } from './dates.js';
@@ -68,6 +69,7 @@ export function mount(root, app) {
         </div>
       </section>
 
+      ${pushCard()}
       ${(() => { const m = new Date().getMonth(), y = new Date().getFullYear() - (m === 0 ? 1 : 0);
         return m === 11 || m === 0 ? `<section class="block"><button class="card yr-card" data-act="year">
           <span class="yr-card-ic" aria-hidden="true">🎬</span><span class="li-main"><span class="li-title">Watch our ${y}</span>
@@ -111,6 +113,7 @@ export function mount(root, app) {
   };
 
   const onClick = async (e) => {
+    if (await pushCardClick(e, st.uid, render, toast)) return;
     const b = e.target.closest('[data-act]');
     if (!b) return;
     const id = b.dataset.id;
