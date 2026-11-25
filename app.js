@@ -1,7 +1,7 @@
 import { APP_NAME, APP_TAGLINE, DEFAULT_CHECKIN_DAYS } from './config.js';
 import * as S from './store.js';
 import { esc, icon, toast, $, sheet, face } from './ui.js';
-import { setBadge } from './push.js';
+import { setBadge, countOpen, pushState, keepPushFresh } from './push.js';
 import { THEMES, theme, applyTheme, DEFAULT_THEME } from './themes.js';
 import { lockGate, webauthnSupported, phoneHasPasskey, prepared, passkeySignIn, explain, faceLabel } from './lock.js';
 
@@ -309,6 +309,10 @@ async function openCircle(cid) {
     await app.ensureEveryone().catch(() => {});
     route();
     app.fillMyPhoto().catch(() => {});
+    // Notifications: count this visit, check this phone, and keep its notification address current.
+    countOpen();
+    pushState(state.uid).then(() => app.emit()).catch(() => {});
+    keepPushFresh(state.uid);
   };
   const changed = () => { app.emit(); updateBadges(); maybeReady(); };
 
