@@ -45,9 +45,33 @@ function preview(msg) {
   return m.length > 1 ? `Sent ${m.length} photos` : 'Sent a photo';
 }
 
+// "Send me a test notification" (My page): a push to every phone where the caller turned notifications on, so
+// they can check the whole path (server, Apple/Google, the phone's settings) without waiting for a message.
+// At most once every 20 seconds per person.
+const lastTest = new Map();
+async function sendTest(db, uid) {
+  if (Date.now() - (lastTest.get(uid) || 0) < 20000) fail('resource-exhausted', 'Wait a few seconds before sending another test.');
+  lastTest.set(uid, Date.now());
+  const userRef = db.doc(`users/${uid}`);
+  const subs = (await userRef.get()).data()?.pushSubs || {};
+  const keys = await vapidKeys(db);
+  webpush.setVapidDetails(SUBJECT, keys.publicKey, keys.privateKey);
+  const payload = JSON.stringify({ title: 'Our Circle', body: 'Test notification: messages from your family will show up like this.', tag: 'oc-test', url: '#/me' });
+  let sent = 0; const failed = [];
+  await Promise.all(Object.entries(subs).map(async ([subId, sub]) => {
+    if (!sub?.endpoint || !sub?.keys) return;
+    try { await webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, payload, { TTL: 600, urgency: 'high' }); sent++; }
+    catch (e) {
+      failed.push({ subId, device: sub.device || '', code: e.statusCode || 0, why: String(e.body || e.message || '').slice(0, 160) });
+      if (e.statusCode === 404 || e.statusCode === 410) await userRef.update({ [`pushSubs.${subId}`]: FieldValue.delete() }).catch(() => {});
+    }
+  }));
+  return { phones: Object.keys(subs).length, sent, failed };
+}
+
 export const notify = onCall({
   region: 'us-central1',
-  cors: EMULATOR ? true : [ORIGIN],
+  cors: EMULATOR ? true : [ORIGIN, 'https://our-circle-3da6a.firebaseapp.com'],
   maxInstances: 5,
   memory: '256MiB',
   timeoutSeconds: 60,
@@ -58,6 +82,7 @@ export const notify = onCall({
   const data = req.data || {};
 
   if (data.action === 'publicKey') return { publicKey: (await vapidKeys(db)).publicKey };
+  if (data.action === 'test') return sendTest(db, uid);
   if (data.action !== 'send') fail('invalid-argument', 'Unknown action.');
 
   const { cid, chatId, msgId } = data;

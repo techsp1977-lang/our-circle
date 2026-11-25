@@ -5,7 +5,7 @@ import { monShort, dayNum, today, nextOccurrence } from './dates.js';
 import { TYPES, typeOf, editEvent, headline } from './events.js';
 import { inviteLink } from './manage.js';
 import { cropFile } from './crop.js';
-import { pushState, prepareKey, turnOnPush, turnOffPush } from './push.js';
+import { pushState, prepareKey, turnOnPush, turnOffPush, testPush } from './push.js';
 import { faceAvailable, faceLabel, hasPasskey, lockOn, enableLock, disableLock, setupPasskey, removePasskey, prepared, explain } from './lock.js';
 
 const PUSH_TEXT = {
@@ -102,6 +102,8 @@ export function mount(root, app) {
         <div class="card list">
           <div class="li"><span class="li-main"><span class="li-title">New messages on this phone</span><span class="li-sub">${esc(PUSH_TEXT[pushSt])}</span></span>
             ${pushSt === 'on' ? '<button class="btn sm ghost" data-act="push-off">Turn off</button>' : pushSt === 'off' ? '<button class="btn sm" data-act="push-on">Turn on</button>' : ''}</div>
+          ${pushSt === 'on' ? `<div class="li"><span class="li-main"><span class="li-title">Check it works</span><span class="li-sub">Sends a notification to your phones. Close the app or lock your phone to see it arrive.</span></span>
+            <button class="btn sm ghost" data-act="push-test">Send a test</button></div>` : ''}
           <div class="li"><span class="li-main"><span class="li-title">Alerts inside the app</span><span class="li-sub">A banner when a message arrives while you're on another screen</span></span>
             <label class="sr" for="inapp">Alerts inside the app</label>
             <select id="inapp" class="select-pill"><option value="on" ${st.prefs.inAppAlerts === false ? '' : 'selected'}>On</option><option value="off" ${st.prefs.inAppAlerts === false ? 'selected' : ''}>Off</option></select></div>
@@ -165,6 +167,12 @@ export function mount(root, app) {
           console.warn(er);
           toast(window.Notification?.permission === 'denied' ? 'Notifications are blocked. Turn them on in your phone\'s Settings → Notifications → Our Circle.' : `Notifications didn't turn on: ${er?.message || er}`, 9000);
         }
+        pushSt = await pushState(st.uid); render(); break;
+      }
+      case 'push-test': {
+        b.disabled = true; b.textContent = 'Sending…';
+        const r = await testPush(st.uid);
+        toast(r.text, r.ok ? 9000 : 12000);
         pushSt = await pushState(st.uid); render(); break;
       }
       case 'push-off': {
