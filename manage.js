@@ -14,12 +14,14 @@ export async function inviteLink(app, memberId) {
     memberId, memberName: m.name, circleName: st.circle?.name || '', used: false, createdBy: st.me, createdAt: Date.now(),
   });
   const link = `${location.origin}${location.pathname}?join=${st.cid}.${code}`;
-  const text = `${m.name}, join ${st.circle?.name || 'our family'} on our family app: ${link}`;
+  // The one-page setup guide (Home Screen, notifications, tour video) goes with every invite, greeting them by name.
+  const guide = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}welcome.html?${new URLSearchParams({ to: m.name, c: st.circle?.name || '' })}`;
+  const text = `${m.name}, you're invited to join ${st.circle?.name || 'our family'} on Our Circle, our family app.\n\n1) Tap to join: ${link}\n\n2) Quick setup guide (Home Screen, notifications) and a 1½-minute video: ${guide}`;
   const r = await sheet({
     title: `Invite ${m.name}`,
-    intro: 'Send this link by text. It works once and signs them in as ' + m.name + '.',
-    submit: navigator.share ? 'Share link' : 'Copy link',
-    body: `<p class="linkbox">${esc(link)}</p>`,
+    intro: 'Send this by text. The invite link works once and signs them in as ' + m.name + '. The setup guide and tour video are included.',
+    submit: navigator.share ? 'Share invite' : 'Copy invite',
+    body: `<p class="linkbox">${esc(link)}</p><p class="hint">Also sent: <a href="${esc(guide)}" target="_blank" rel="noopener">the setup guide and tour video</a></p>`,
     // Organizers can have someone join as an organizer too (to run their branch of the family).
     fields: app.isAdmin() && !m.managedBy?.length ? [{ name: 'organizer', label: `Make ${m.name} a circle owner when they join`, type: 'checkbox', value: false }] : [],
   });

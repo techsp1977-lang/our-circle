@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Getting started with Our Circle: join, put it on your Home Screen, turn on notifications and watch the quick tour.">
+<title>Welcome to Our Circle</title>
+<link rel="icon" href="oc-icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="oc-apple-touch-icon.png">
+<link rel="stylesheet" href="apple-tokens.css">
+<style>
+  :root { --tint: rgb(47 93 74); --tint-text: rgb(47 93 74); --on-tint: #fff; --tint-soft: rgba(47, 93, 74, .11); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --tint: rgb(98 180 141); --tint-text: rgb(122 201 162); --on-tint: #0b1a13; --tint-soft: rgba(98, 180, 141, .16); } }
+  :root[data-theme="dark"] { --tint: rgb(98 180 141); --tint-text: rgb(122 201 162); --on-tint: #0b1a13; --tint-soft: rgba(98, 180, 141, .16); }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg-grouped); color: var(--label); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; line-height: 1.45; -webkit-text-size-adjust: 100%; }
+  main { max-width: 560px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 24px) 16px calc(env(safe-area-inset-bottom) + 40px); }
+  .hero { display: flex; gap: 14px; align-items: center; }
+  .hero img { width: 60px; height: 60px; border-radius: 14px; box-shadow: 0 4px 14px rgba(0, 0, 0, .14); flex: none; }
+  .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--tint-text); margin: 0; }
+  h1 { font-size: clamp(1.7rem, 7vw, 2.2rem); line-height: 1.1; margin: 2px 0 0; letter-spacing: -.01em; }
+  .lead { font-size: 1.05rem; color: var(--label-secondary); margin: 14px 0 20px; }
+  ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .step { background: var(--card-bg); border-radius: 20px; box-shadow: var(--shadow-card); padding: 16px 16px 16px 14px; display: grid; grid-template-columns: 34px 1fr; gap: 4px 12px; }
+  .n { grid-row: span 2; width: 34px; height: 34px; border-radius: 50%; background: var(--tint); color: var(--on-tint); font-weight: 700; font-size: 17px; display: flex; align-items: center; justify-content: center; }
+  .step h2 { font-size: 18px; line-height: 1.25; margin: 5px 0 2px; }
+  .step p { margin: 0 0 6px; color: var(--label-secondary); font-size: 15px; }
+  .how { display: grid; gap: 8px; margin: 4px 0 8px; }
+  .os { background: var(--tint-soft); border-radius: 14px; padding: 10px 12px; font-size: 15px; }
+  .os b.lbl { display: block; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--tint-text); margin-bottom: 2px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; background: var(--card-bg); border: 0.5px solid var(--separator); font-weight: 600; font-size: 14px; white-space: nowrap; }
+  .chip svg { width: 15px; height: 15px; stroke: var(--tint-text); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .arrow { color: var(--label-secondary); }
+  .tip { font-size: 14px; color: var(--label-secondary); margin: 6px 0 0; }
+  .video { display: flex; gap: 14px; align-items: center; text-decoration: none; color: inherit; background: var(--tint); color: var(--on-tint); border-radius: 20px; padding: 14px 16px; margin-top: 4px; }
+  .video img { width: 64px; height: 88px; object-fit: cover; border-radius: 10px; flex: none; }
+  .video b { display: block; font-size: 17px; }
+  .video span { font-size: 14px; opacity: .9; }
+  .play { margin-left: auto; width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, .22); display: flex; align-items: center; justify-content: center; flex: none; }
+  .play svg { width: 18px; height: 18px; fill: currentColor; margin-left: 3px; }
+  .open { display: block; text-align: center; margin-top: 18px; padding: 14px; border-radius: 999px; border: 1.5px solid var(--tint); color: var(--tint-text); text-decoration: none; font-weight: 600; min-height: 44px; }
+  footer { margin-top: 28px; font-size: 13px; color: var(--label-secondary); text-align: center; }
+  footer a { color: var(--tint-text); }
+  @media print {
+    body { background: #fff; }
+    main { padding: 0; max-width: none; }
+    .step { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; padding: 10px 12px; }
+    ol { gap: 8px; }
+    .open { display: none; }
+    .video { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .video::after { content: " " attr(href); }
+    @page { margin: 12mm; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="hero">
+    <img src="oc-icon-192.png" alt="">
+    <div><p class="eyebrow">Getting started</p><h1 id="title">Welcome to Our Circle</h1></div>
+  </div>
+  <p class="lead" id="lead">Our family's private place for chats, birthdays, photos and a personal journal. Setup takes about 3 minutes.</p>
+
+  <ol>
+    <li class="step"><span class="n">1</span>
+      <h2>Join with your invite link</h2>
+      <div><p>Tap the invite link in the text you got. Enter your email, pick a password (7 or more characters), tap <b>Create account</b>, then <b>Join</b>.</p>
+        <p class="tip">On iPhone, open the link in <b>Safari</b>. If it opened inside another app, look for “Open in Safari”.</p></div>
+    </li>
+
+    <li class="step"><span class="n">2</span>
+      <h2>Put it on your Home Screen</h2>
+      <div><div class="how">
+        <div class="os"><b class="lbl">iPhone (Safari)</b>
+          Tap <span class="chip"><svg viewBox="0 0 24 24"><path d="M12 15V3M8 7l4-4 4 4"/><path d="M5 11v9h14v-9"/></svg>Share</span> <span class="arrow">→</span>
+          <span class="chip"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/></svg>Add to Home Screen</span> <span class="arrow">→</span> <span class="chip">Add</span></div>
+        <div class="os"><b class="lbl">Android (Chrome)</b>
+          Tap <span class="chip">⋮</span> <span class="arrow">→</span> <span class="chip">Add to Home screen</span> or <span class="chip">Install app</span></div>
+      </div>
+      <p class="tip">From now on, open Our Circle from its Home Screen icon. If it asks you to sign in, use the same email and password.</p></div>
+    </li>
+
+    <li class="step"><span class="n">3</span>
+      <h2>Turn on notifications</h2>
+      <div><p>So you know when family texts you or the whole family.</p>
+        <div class="os" style="margin-bottom:8px">Tap <span class="chip">☰</span> (top right) <span class="arrow">→</span> <span class="chip">My page</span> <span class="arrow">→</span> <span class="chip"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Turn on</span> <span class="arrow">→</span> <span class="chip">Allow</span></div>
+        <p class="tip">Then tap <b>Send a test</b> and lock your phone. Nothing showed up? iPhone Settings → Notifications → Our Circle → turn on Allow Notifications, Lock Screen and Banners.</p></div>
+    </li>
+
+    <li class="step"><span class="n">4</span>
+      <h2>Watch the quick tour</h2>
+      <div><p>A 1½-minute video: your photo, important dates, Face ID, nudges, the journal lock, the album and switching families.</p>
+        <a class="video" href="tour.html"><img src="tour-poster.jpg" alt=""><span><b>Play the tour</b><span>1½ minutes</span></span><span class="play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg></span></a></div>
+    </li>
+  </ol>
+
+  <a class="open" href="./">Open Our Circle</a>
+  <footer>Questions? Ask the person who invited you. · <a href="about.html">Plans, terms and privacy</a></footer>
+</main>
+<script src="welcome.js"></script>
+</body>
+</html>

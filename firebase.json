@@ -97,6 +97,11 @@
         "source": "/tour",
         "destination": "/tour.html",
         "type": 301
+      },
+      {
+        "source": "/welcome",
+        "destination": "/welcome.html",
+        "type": 301
       }
     ]
   },
