@@ -1,7 +1,7 @@
 // Family album: posts of photos and videos shared with everyone. Originals are kept untouched for
 // "Download original"; the album itself shows quick-loading previews.
 import * as S from './store.js';
-import { esc, icon, sheet, toast, fmtSize, confirmBox, safeUrl, mediaKind } from './ui.js';
+import { esc, icon, sheet, toast, fmtSize, confirmBox, safeUrl, mediaKind, why } from './ui.js';
 import { shortDate, toISO } from './dates.js';
 import { pickMedia, startBatch, progressCard, MAX_PICK } from './photos.js';
 import { pausedText, planState, fmtGB, PLANS } from './plans.js';
@@ -82,8 +82,9 @@ function grid(root, app) {
 // remove any or pick more, and add a title and caption while it works. Resolves with { title, caption } or null.
 function compose(batch, setListener, { title = '', withTitle = true } = {}) {
   return new Promise((resolve) => {
-    const urls = new Map();
-    const urlOf = (j) => { if (!urls.has(j)) urls.set(j, URL.createObjectURL(j.file)); return urls.get(j); };
+    // Previews are the small copies made for each photo (never the full-size originals, which use a lot of memory).
+    const prev = (j) => String(j.file.type).startsWith('video') ? `<span class="pick-vid"><i aria-hidden="true">▶</i><small>${esc(fmtSize(j.file.size || 0))}</small></span>`
+      : j.preview ? `<img src="${j.preview}" alt="" decoding="async">` : '<span class="pick-wait-ic"><span class="spinner" aria-hidden="true"></span></span>';
     const wrap = document.createElement('div');
     wrap.className = 'sheet-wrap compose-sheet';
     wrap.innerHTML = `<form class="sheet" role="dialog" aria-modal="true" aria-label="Share with the family">
@@ -99,7 +100,7 @@ function compose(batch, setListener, { title = '', withTitle = true } = {}) {
     const paintGrid = () => {
       shown = batch.live();
       grid.innerHTML = shown.map((j, i) => `<span class="pick" data-i="${i}">
-          ${String(j.file.type).startsWith('video') ? `<video src="${urlOf(j)}#t=0.3" muted playsinline preload="metadata"></video><i class="play" aria-hidden="true">▶</i>` : `<img src="${urlOf(j)}" alt="" decoding="async">`}
+          <span class="pick-pic">${prev(j)}</span>
           <span class="pick-bar" aria-hidden="true"><i></i></span><span class="pick-ok" aria-hidden="true">${icon('check', 14)}</span><span class="pick-bad" aria-hidden="true">!</span>
           <button type="button" class="pick-x" data-rm="${i}" aria-label="Remove ${esc(j.file.name || 'this one')}">${icon('x', 14)}</button></span>`).join('')
         + `<button type="button" class="pick add" data-more aria-label="Pick more">${icon('plus', 22)}</button>`;
@@ -108,23 +109,24 @@ function compose(batch, setListener, { title = '', withTitle = true } = {}) {
       if (batch.live().length !== shown.length) paintGrid();
       grid.querySelectorAll('.pick[data-i]').forEach((el) => {
         const j = shown[+el.dataset.i];
+        if (j.preview && !el.querySelector('.pick-pic img')) el.querySelector('.pick-pic').innerHTML = prev(j);
         el.querySelector('.pick-bar i').style.width = Math.round(j.progress * 100) + '%';
         el.classList.toggle('done', j.status === 'done');
         el.classList.toggle('failed', j.status === 'failed');
       });
       const p = batch.progress();
       wrap.querySelector('#ch').textContent = `${p.total} ${p.total === 1 ? 'item' : 'items'}`;
-      wrap.querySelector('#cs').textContent = !p.total ? 'Nothing picked.' : p.done >= p.total ? 'All uploaded. Add a title and share.' : `Uploading now (${p.done} of ${p.total} done). You can add a title while it works.`;
+      wrap.querySelector('#cs').textContent = !p.total ? 'Nothing picked.' : p.done >= p.total ? 'All uploaded.' : `Uploading now (${p.done} of ${p.total} done). You don't have to wait: tap ${withTitle ? 'Share' : 'Add'} and each photo is saved as it finishes.`;
       const go = wrap.querySelector('#go');
       go.textContent = `${withTitle ? 'Share' : 'Add'} ${p.total}`;
       go.disabled = !p.total;
     };
-    const finish = (v) => { setListener(null); urls.forEach((u) => URL.revokeObjectURL(u)); wrap.remove(); resolve(v); };
+    const finish = (v) => { setListener(null); wrap.remove(); resolve(v); };
     paintGrid(); update();
     setListener(update);
     document.body.appendChild(wrap);
     wrap.addEventListener('click', async (e) => {
-      if (e.target === wrap || e.target.closest('[data-x]')) { batch.cancel(); return finish(null); }
+      if (e.target === wrap || e.target.closest('[data-x]')) { batch.cancel(); batch.release(); return finish(null); }
       const rm = e.target.closest('[data-rm]');
       if (rm) return batch.remove(shown[+rm.dataset.rm]);
       if (e.target.closest('[data-more]')) { const more = await pickMedia(); if (more.length) batch.add(more); }
@@ -137,31 +139,52 @@ function compose(batch, setListener, { title = '', withTitle = true } = {}) {
   });
 }
 
-// Pick, upload straight away while the person adds a title, then wait for anything still going.
+// Pick, and upload straight away while the person adds a title. Resolves with { title, caption, batch } once they
+// tap Share (or Add), without waiting for the uploads; saveAsTheyFinish() takes it from there.
 async function pickAndUpload(app, opts) {
   if (app.state.circle?.paused) { toast(pausedText(app.state.circle, app.isAdmin()), 9000); return null; }
   const picked = await pickMedia();
   if (!picked.length) return null;
-  let listener = null;
-  const batch = startBatch(app, picked, () => listener?.());
-  const r = await compose(batch, (fn) => { listener = fn; }, opts);
+  const hub = { fn: null };
+  const batch = startBatch(app, picked, () => hub.fn?.());
+  const r = await compose(batch, (fn) => { hub.fn = fn; }, opts);
   if (!r) return null;
-  const card = progressCard();
-  const tick = () => { const p = batch.progress(); card.set(p.frac, p.done, p.total); };
-  listener = tick; tick();
-  try { return { ...r, ...(await batch.finished()) }; } finally { listener = null; card.close(); }
+  return { ...r, batch, hub };
 }
-const failedNote = (failed) => (failed.length ? ` ${failed.length} didn't upload (${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '…' : ''}). Try those again with Add more.` : '');
+// Each photo is added to the album the moment it finishes (so nothing is lost if the phone stops part way), with a
+// progress card until all are done. Added with "add to list", so photos others add at the same time are kept.
+function saveAsTheyFinish(app, { batch, hub }, albumPath) {
+  const card = progressCard(() => batch.retry());
+  const pending = [];
+  let queue = Promise.resolve(), warned = false;
+  const flush = () => {
+    queue = queue.then(async () => {
+      if (!pending.length) return;
+      const items = pending.splice(0);
+      try { await S.addToList(albumPath, 'media', items.map((j) => j.rec)); }
+      catch (e) { pending.unshift(...items); if (!warned) { warned = true; toast(why('Some photos uploaded but could not be added to the album yet. They will be added when the connection is back.', e), 9000); } setTimeout(flush, 5000); }
+    });
+  };
+  batch.onDone((j) => { pending.push(j); flush(); });
+  let closing = null;
+  hub.fn = () => {
+    const p = batch.progress();
+    card.set(p);
+    clearTimeout(closing);
+    if (p.done >= p.total && !p.failed) closing = setTimeout(() => { card.close(); batch.release(); }, 3500);
+  };
+  hub.fn();
+}
 
 async function sharePhotos(app) {
   const r = await pickAndUpload(app);
   if (!r) return;
-  if (!r.media.length) { toast('Nothing uploaded. Check your connection and try again.', 6000); return; }
   try {
-    const id = await S.add(app.path('album'), { title: r.title, caption: r.caption, by: app.state.me, at: Date.now(), media: r.media });
-    toast(`Shared ${r.media.length} with the family.${failedNote(r.failed)}`, r.failed.length ? 9000 : 3000);
+    // The album is made right away and opens; photos appear in it as they finish uploading.
+    const id = await S.add(app.path('album'), { title: r.title, caption: r.caption, by: app.state.me, at: Date.now(), media: [] });
+    saveAsTheyFinish(app, r, app.path('album/' + id));
     app.go('#/album/' + encodeURIComponent(id));
-  } catch (e) { console.error(e); toast('The album could not be saved. Check your connection and try again.'); }
+  } catch (e) { console.error(e); r.batch.cancel(); toast('The album could not be saved. Check your connection and try again.'); }
 }
 
 function post(root, app, id) {
@@ -177,7 +200,7 @@ function post(root, app, id) {
         ${can ? `<button class="icon-btn" data-act="edit" aria-label="Edit">${icon('edit')}</button>` : ''}</header>
       ${p.caption ? `<p class="pad-x">${esc(p.caption)}</p>` : ''}
       <section class="block photo-wall">
-        ${items.map((m, i) => `<button class="wall-item" data-open="${i}" aria-label="Open ${mediaKind(m) === 'video' ? 'video' : 'photo'} ${i + 1} of ${items.length}">${tile(m, 'wall-img')}</button>`).join('')}
+        ${items.map((m, i) => `<button class="wall-item" data-open="${i}" aria-label="Open ${mediaKind(m) === 'video' ? 'video' : 'photo'} ${i + 1} of ${items.length}">${tile(m, 'wall-img')}</button>`).join('') || '<p class="hint">Photos are on their way. They show up here as each one finishes uploading.</p>'}
       </section>
       <section class="block"><button class="btn ghost wide" data-act="add">${icon('plus', 16)} Add more</button></section>`;
   };
@@ -201,11 +224,7 @@ function post(root, app, id) {
     if (b.dataset.act === 'add') {
       const r = await pickAndUpload(app, { title: p.title, withTitle: false });
       if (!r) return;
-      if (!r.media.length) { toast('Nothing uploaded. Check your connection and try again.', 6000); return; }
-      try {
-        await S.update(app.path('album/' + id), { media: [...(p.media || []), ...r.media] });
-        toast(`Added ${r.media.length}.${failedNote(r.failed)}`, r.failed.length ? 9000 : 3000);
-      } catch (er) { toast('The album could not be updated. Try again.'); }
+      saveAsTheyFinish(app, r, app.path('album/' + id));
     }
   };
   root.addEventListener('click', onClick);
