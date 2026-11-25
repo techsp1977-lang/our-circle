@@ -1,4 +1,4 @@
-// Circle colors. Each circle picks one of twelve colors (circles/{cid}.theme). The app's accent follows it,
+// Circle colors. Each circle picks one of twelve colors, or a two-tone pair (circles/{cid}.theme). The app's accent follows it,
 // and every household gets its own shade of that color, so the Family tab and each chat read as one family.
 // All colors are worked out here so white text on a household shade, and the accent as text, always stay
 // easy to read (at least 4.5:1, the accessibility bar).
@@ -17,6 +17,21 @@ export const THEMES = [
   { key: 'cocoa', label: 'Brown', h: 25, s: 32 },
   { key: 'slate', label: 'Gray', h: 215, s: 14 },
 ];
+// Two-tone circle colors (school and team style colors, named by color only). The app's accent is the first color;
+// households alternate between shades of both. Light shades (white, cream, gold, orange) get dark text: `ink`.
+const TWO_TONE = [
+  { key: 'scarlet', label: 'Scarlet & Gray', tint: '#BB0000', dark: '#FF6B6B', darkText: '#FF9090', ink: '#2B0000',
+    shades: [['#BB0000', 'Scarlet'], ['#666666', 'Gray'], ['#8E0A0A', 'Deep scarlet'], ['#45494E', 'Charcoal'], ['#CC1F26', 'Bright scarlet'], ['#6A6F75', 'Silver gray'], ['#A3241D', 'Brick'], ['#565C64', 'Slate']] },
+  { key: 'royal', label: 'Royal & White', tint: '#0047BA', dark: '#6E9BFF', darkText: '#9CBBFF', ink: '#0B2A5C',
+    shades: [['#0047BA', 'Royal'], ['#EEF2F8', 'White'], ['#002E5D', 'Navy'], ['#DCE5F2', 'Pearl'], ['#1B5FD1', 'Bright royal'], ['#F7F9FC', 'Snow'], ['#003A8C', 'Deep royal'], ['#C9D6EA', 'Silver blue']] },
+  { key: 'crimsoncream', label: 'Crimson & Cream', tint: '#9E1B32', dark: '#FF7A8E', darkText: '#FF9DAC', ink: '#4A0D18',
+    shades: [['#9E1B32', 'Crimson'], ['#F3E9D2', 'Cream'], ['#7A1426', 'Deep crimson'], ['#E6D6B0', 'Sand'], ['#B8233D', 'Bright crimson'], ['#F8F1E2', 'Ivory'], ['#5E1020', 'Wine'], ['#DCC9A0', 'Wheat']] },
+  { key: 'greengold', label: 'Green & Gold', tint: '#1E5631', dark: '#6FCF8C', darkText: '#8FDBA6', ink: '#3A2A00',
+    shades: [['#1E5631', 'Forest'], ['#FFC72C', 'Gold'], ['#2E7D45', 'Green'], ['#F2B300', 'Deep gold'], ['#154025', 'Pine'], ['#FFD866', 'Bright gold'], ['#3B6E4A', 'Sage'], ['#E0A800', 'Old gold']] },
+  { key: 'navyorange', label: 'Navy & Orange', tint: '#0C2340', dark: '#7FA6E0', darkText: '#A3C0EA', ink: '#3A1800',
+    shades: [['#0C2340', 'Navy'], ['#E8650E', 'Orange'], ['#1D3A63', 'Blue navy'], ['#F28C38', 'Light orange'], ['#05162B', 'Midnight'], ['#C4520A', 'Burnt orange'], ['#2E4E7E', 'Steel navy'], ['#F9A65A', 'Peach']] },
+];
+TWO_TONE.forEach((t) => THEMES.push({ key: t.key, label: t.label, two: t }));
 export const DEFAULT_THEME = 'evergreen';
 
 // Household shade keys are the same in every color, so a household keeps its place when the circle's color changes.
@@ -48,7 +63,13 @@ export function theme(key) {
   const t = THEMES.find((x) => x.key === key) || THEMES[0];
   if (cache.has(t.key)) return cache.get(t.key);
   let out;
-  if (t.key === 'evergreen') {
+  const unhex = (x) => [1, 3, 5].map((i) => parseInt(x.slice(i, i + 2), 16));
+  if (t.two) {
+    const T = t.two, dt = unhex(T.dark);
+    // dark-mode text on the accent: the darkest of the theme's own colors that reads well on it
+    out = { light: { tint: unhex(T.tint), text: unhex(T.tint), on: WHITE }, dark: { tint: dt, text: unhex(T.darkText), on: contrast(dt, [12, 12, 14]) >= 4.5 ? [12, 12, 14] : WHITE },
+      shades: T.shades.map(([c]) => c), labels: T.shades.map(([, l]) => l), ink: T.ink, swatch2: T.shades[1][0] };
+  } else if (t.key === 'evergreen') {
     out = { light: { tint: [47, 93, 74], text: [47, 93, 74], on: WHITE }, dark: { tint: [98, 180, 141], text: [122, 201, 162], on: [8, 28, 20] }, shades: EVERGREEN_SHADES };
   } else {
     const lt = until(t.h, t.s, 46, WHITE, 5, -1);                        // white text on it, and it as text on white
@@ -57,16 +78,22 @@ export function theme(key) {
     const shades = SHADES.map(([, , dh, ds, dl]) => hex(until(t.h + dh, t.s + ds, 40 + dl, WHITE, 4.6, -1)));
     out = { light: { tint: lt, text: lt, on: WHITE }, dark: { tint: dt, text: dx, on: hsl(t.h, 45, 9) }, shades };
   }
-  out.key = t.key; out.label = t.label; out.swatch = hex(out.light.tint);
+  out.key = t.key; out.label = t.label; out.swatch = hex(out.light.tint); out.swatch2 = out.swatch2 || null;
   cache.set(t.key, out);
   return out;
 }
 
 // The shades for households in the current circle (same keys as before colors existed).
+// Each shade also says what color text reads on it (white, or the theme's dark ink on light shades), and gives
+// light shades an edge so a white bubble still shows on a white page.
 export function shades(key) {
-  const sh = theme(key).shades;
-  return SHADES.map(([k, label], i) => ({ key: k, label, value: sh[i] }));
+  const t = theme(key), sh = t.shades;
+  return SHADES.map(([k, label], i) => {
+    const value = sh[i], light = contrast(unhexColor(value), WHITE) < 4.5;
+    return { key: k, label: t.labels?.[i] || label, value, light, ink: light ? (t.ink || '#111') : '#fff', edge: light ? hex(t.light.tint) : 'transparent' };
+  });
 }
+const unhexColor = (x) => [1, 3, 5].map((i) => parseInt(x.slice(i, i + 2), 16));
 
 let current = DEFAULT_THEME;
 export const currentTheme = () => current;

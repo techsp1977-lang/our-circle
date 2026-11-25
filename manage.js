@@ -1,6 +1,6 @@
 // Family settings for organizers: households, people, invite links.
 import * as S from './store.js';
-import { esc, icon, face, sheet, toast, confirmBox, names, listJoin, HH_COLORS, hhColor, why, familyTree, descendantsOf } from './ui.js';
+import { esc, icon, face, sheet, toast, confirmBox, names, listJoin, HH_COLORS, hhColor, hhVars, why, familyTree, descendantsOf } from './ui.js';
 import { THEMES, theme, applyTheme } from './themes.js';
 import { pickAndCrop } from './crop.js';
 import { listCircles } from './circles.js';
@@ -120,7 +120,7 @@ export function mount(root, app) {
         <p class="hint">${admin ? "A household is everyone you'd message together, like a couple and their kids. Each person still gets their own login and private journal." : "You can add and edit people in these households, send their invites, and add households under yours, like a married child's."}</p>
         ${familyTree(st.households).filter(({ h }) => mine(h)).map(({ h, depth }) => `
           <div class="card list mb" style="margin-left:${Math.min(depth, 3) * 14}px">
-            <div class="li"><span class="hh-swatch" style="--hh:${hhColor(h)}" aria-hidden="true"></span><span class="li-main"><span class="li-title">${names(h.name)}</span>${h.parentId && app.household(h.parentId) ? `<span class="li-sub">Under ${esc(app.household(h.parentId).name)}</span>`
+            <div class="li"><span class="hh-swatch" style="${hhVars(h)}" aria-hidden="true"></span><span class="li-main"><span class="li-title">${names(h.name)}</span>${h.parentId && app.household(h.parentId) ? `<span class="li-sub">Under ${esc(app.household(h.parentId).name)}</span>`
               : treeUsed && !st.households.some((x) => x.parentId === h.id) ? `<span class="li-sub warn-text">Not in the family tree yet. Tap the pencil and choose who they're under.</span>` : ''}</span>
               <button class="icon-btn sm" data-act="edit-hh" data-id="${esc(h.id)}" aria-label="Edit ${esc(h.name)}">${icon('edit', 16)}</button></div>
             ${app.membersOf(h.id).map((m) => {
@@ -177,7 +177,7 @@ export function mount(root, app) {
       case 'color': {
         const was = st.circle?.theme;
         const pending = sheet({ title: 'Circle color', intro: 'Everyone in the circle sees this color. Each household gets its own shade of it, and so do its chats.', submit: 'Use this color', fields: [
-          { name: 'theme', label: 'Color', type: 'swatches', value: theme(was).key, options: THEMES.map((t) => ({ value: t.key, label: t.label, color: theme(t.key).swatch })) },
+          { name: 'theme', label: 'Color', type: 'swatches', value: theme(was).key, options: THEMES.map((t) => ({ value: t.key, label: t.label, color: theme(t.key).swatch, color2: theme(t.key).swatch2 })) },
         ] });
         // Show the color on the page behind as it's tapped.
         [...document.querySelectorAll('.sheet-wrap')].at(-1)?.addEventListener('change', (ev) => { if (ev.target.name === 'theme') applyTheme(ev.target.value); });

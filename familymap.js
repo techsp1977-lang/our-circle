@@ -2,7 +2,7 @@
 // laid out like a family tree (the head of the circle at the top, each generation below the one it came from).
 // Pinch (or the − + buttons) to zoom, drag sideways to look around. A bubble celebrates on a birthday,
 // an anniversary or another big day, and welcomes a new baby, with its own animation.
-import { esc, icon, face, names, hhColor, familyTree } from './ui.js';
+import { esc, icon, face, names, hhColor, hhVars, hhLight, familyTree } from './ui.js';
 import { happeningToday } from './events.js';
 import { today, diffDays } from './dates.js';
 import { checkin } from './hub.js';
@@ -152,8 +152,8 @@ function bubbleHTML(app, n, cel) {
   const due = !mine && checkin(app, h.id)?.overdue;
   const c = cel[h.id];
   const sparks = c ? (c.kind === 'bday' ? ['🎈', '🎂', '🎉', '🎈', '🎁'] : c.kind === 'anniv' ? ['💕', '💗', '💞', '💖', '💕'] : c.kind === 'new' ? ['✨', '👶', '🍼', '✨', '💫'] : ['🎉', '✨', '🎊', '🎓', '✨']) : [];
-  return `<button type="button" class="fam-bub ${mine ? 'mine' : ''} ${c ? 'cel cel-' + c.kind : ''}" data-act="hh-open" data-id="${esc(h.id)}"
-      style="left:${Math.round(n.x - n.d / 2)}px;top:${Math.round(n.y)}px;width:${n.d}px;height:${n.d}px;--hh:${hhColor(h)}"
+  return `<button type="button" class="fam-bub ${hhLight(h) ? 'light' : ''} ${mine ? 'mine' : ''} ${c ? 'cel cel-' + c.kind : ''}" data-act="hh-open" data-id="${esc(h.id)}"
+      style="left:${Math.round(n.x - n.d / 2)}px;top:${Math.round(n.y)}px;width:${n.d}px;height:${n.d}px;${hhVars(h)}"
       aria-label="${esc(h.name)}${mine ? ', your household' : ''}${c ? ', ' + esc(c.text) : ''}${due ? ', time to check in' : ''}. Open">
       ${c ? '<span class="bub-halo" aria-hidden="true"></span>' : ''}
       <span class="bub-fill" aria-hidden="true"></span>
@@ -285,7 +285,7 @@ export function openHousehold(app, hid, act) {
   document.querySelectorAll('.sheet-wrap.hh-sheet').forEach((w) => w.remove());
   const wrap = document.createElement('div');
   wrap.className = 'sheet-wrap hh-sheet';
-  wrap.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(h.name)}" style="--hh:${hhColor(h)}">
+  wrap.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(h.name)}" style="${hhVars(h)}">
     <div class="sheet-head"><h2>${names(h.name)}</h2><button type="button" class="icon-btn" data-x aria-label="Close">${icon('x')}</button></div>
     ${cel ? `<p class="hh-cel">${esc(cel.text)}</p>` : ''}
     ${ci ? `<p class="muted small">${ci.overdue ? (ci.last ? `Last messaged ${ci.days} days ago. Time to check in.` : 'Not messaged yet. Time to check in.') : `Checked in ${ci.days === 0 ? 'today' : ci.days + ' days ago'}.`}</p>` : ''}

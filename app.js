@@ -444,7 +444,7 @@ async function renderOnboarding(msg = '', opts = {}) {
         <label class="field" for="cn"><span>Family name</span><input id="cn" required placeholder="The Bennetts"></label>
         <label class="field" for="yn"><span>Your first name</span><input id="yn" required placeholder="Michael" value="${esc(opts.myName || '')}"></label>
         <label class="field" for="hn"><span>Your household</span><input id="hn" required placeholder="Michael & Sarah"><small>Everyone who lives with you, as you'd write it on a card.</small></label>
-        <fieldset class="swatches"><legend>Circle color</legend>${THEMES.map((t, j) => `<label class="swatch" for="tc_${j}" style="--sw:${theme(t.key).swatch}"><input type="radio" id="tc_${j}" name="theme" value="${t.key}" ${j === 0 ? 'checked' : ''}><span class="sw-dot" aria-hidden="true"></span><span class="sw-name">${t.label}</span></label>`).join('')}</fieldset>
+        <fieldset class="swatches"><legend>Circle color</legend>${THEMES.map((t, j) => `<label class="swatch" for="tc_${j}" style="--sw:${theme(t.key).swatch}${theme(t.key).swatch2 ? `;--sw2:${theme(t.key).swatch2}` : ''}"><input type="radio" id="tc_${j}" name="theme" value="${t.key}" ${j === 0 ? 'checked' : ''}><span class="sw-dot" aria-hidden="true"></span><span class="sw-name">${t.label}</span></label>`).join('')}</fieldset>
         <p class="muted small">Each household gets its own shade of this color. You can change it later in Family settings.</p>
         <button class="btn wide" type="submit">Create our circle</button>
       </form>
