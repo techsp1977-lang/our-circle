@@ -2,7 +2,7 @@
 import * as S from './store.js';
 import { planState, fmtGB, pausedText } from './plans.js';
 import { mapHTML, drawMap, openHousehold } from './familymap.js';
-import { esc, icon, face, toast, sheet, listJoin, names, hhColor, why, familyTree } from './ui.js';
+import { esc, icon, face, toast, sheet, listJoin, names, hhColor, hhVars, hhLight, why, familyTree } from './ui.js';
 import { pickAndCrop } from './crop.js';
 import { today, monShort, dayNum, whenText, rangeText, diffDays, weekday, shortDate, monthName, agoText, dayOfYear } from './dates.js';
 import { upcoming, happeningToday, headline, editEvent, canEdit, isCalendarType, typeOf, byMonth } from './events.js';
@@ -44,7 +44,7 @@ export function mount(root, app) {
       ${due.length ? `<section class="block"><div class="card checkin-strip">
         <div class="cs-head">${icon('bell', 18)}<b>Check in this week</b><small>${due.length} household${due.length === 1 ? '' : 's'}</small></div>
         <div class="cs-chips">${due.map((h) => { const ppl = app.membersOf(h.id); const single = ppl.length === 1;
-          return `<button class="cs-chip" style="--hh:${hhColor(h)}" data-act="${single ? 'msg-member' : 'msg-household'}" data-id="${esc(single ? ppl[0].id : h.id)}">${names(h.name)}</button>`; }).join('')}</div>
+          return `<button class="cs-chip" style="${hhVars(h)}" data-act="${single ? 'msg-member' : 'msg-household'}" data-id="${esc(single ? ppl[0].id : h.id)}">${names(h.name)}</button>`; }).join('')}</div>
       </div></section>` : ''}
 
       <section class="block">
@@ -256,7 +256,7 @@ function householdCard(app, h, mine = false) {
       <small>${ci.overdue ? 'Due' : 'Good'}</small>
     </button>`;
   }
-  return `<div class="hh-row ${mine ? 'is-mine' : ''}" style="--hh:${hhColor(h)}">
+  return `<div class="hh-row ${mine ? 'is-mine' : ''}" style="${hhVars(h)}">
     <div class="card hh">
       <div class="hh-head">
         <span class="hh-title">${mine ? '<small class="hh-you">Your household</small>' : ''}<b>${names(h.name)}</b>${people.length > 1 ? `<small>${people.length} people</small>` : ''}</span>

@@ -381,7 +381,7 @@ body[data-view="chat"] .demo-bar { display: none; }
 .cs-head b { color: var(--label); font-weight: var(--weight-semibold); }
 .cs-head small { margin-left: auto; color: var(--label-secondary); font-size: var(--text-footnote); }
 .cs-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.cs-chip { min-height: 40px; padding: 4px 14px; border-radius: var(--radius-full); border: 0; background: var(--hh, var(--tint)); color: #fff; font-weight: var(--weight-semibold); font-size: var(--text-footnote); text-align: left; line-height: 1.25; transition: transform var(--dur-fast) var(--ease); }
+.cs-chip { min-height: 40px; padding: 4px 14px; border-radius: var(--radius-full); border: 0; background: var(--hh, var(--tint)); color: var(--hh-ink, #fff); box-shadow: inset 0 0 0 1.5px var(--hh-edge, transparent); font-weight: var(--weight-semibold); font-size: var(--text-footnote); text-align: left; line-height: 1.25; transition: transform var(--dur-fast) var(--ease); }
 .cs-chip:active { transform: scale(.97); }
 .alert-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .alert-list li { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3) 0; border-bottom: 0.5px solid var(--separator); color: var(--label); }
@@ -390,9 +390,9 @@ body[data-view="chat"] .demo-bar { display: none; }
 /* ---------- each household in its own green ---------- */
 .hh-row { --hh: var(--tint); }
 .hh { border-top: 0; overflow: hidden; padding: 0; }
-.hh-head { background: var(--hh); color: #fff; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3); }
+.hh-head { background: var(--hh); color: var(--hh-ink, #fff); box-shadow: inset 0 -1.5px 0 var(--hh-edge, transparent); padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3); }
 .hh-title small { color: rgba(255, 255, 255, 0.82); }
-.hh .msg-btn { background: rgba(255, 255, 255, 0.18); color: #fff; }
+.hh .msg-btn { background: color-mix(in srgb, var(--hh-ink, #fff) 16%, transparent); color: var(--hh-ink, #fff); }
 .hh-tiles { padding: var(--space-2); background: var(--hh-wash, transparent); }
 .hh-row .tile { background: linear-gradient(rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.86)), var(--hh); }
 .hh-row .face.tile-img { color: var(--hh); background: transparent; }
@@ -400,9 +400,9 @@ body[data-view="chat"] .demo-bar { display: none; }
   :root:not([data-theme="light"]) .hh-row .tile { background: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55)), var(--hh); }
   :root:not([data-theme="light"]) .hh-row .face.tile-img { color: rgb(226 240 231); }
 }
-.mine-card { background: var(--hh, var(--tint)); color: #fff; box-shadow: var(--shadow-card); }
+.mine-card { background: var(--hh, var(--tint)); color: var(--hh-ink, #fff); box-shadow: var(--shadow-card); }
 .mine-card .eyebrow { color: rgba(255, 255, 255, 0.82); }
-.mine-name { color: #fff; }
+.mine-name { color: var(--hh-ink, #fff); }
 .mine-tile .face.tile-img { color: var(--hh, var(--tint)); }
 .hh-swatch { width: 14px; height: 14px; border-radius: 50%; background: var(--hh); flex-shrink: 0; }
 .face-btn { position: relative; border: 0; background: none; padding: 0; border-radius: var(--radius-sm); }
@@ -571,7 +571,7 @@ body[data-view="journal"] #main { overflow-x: clip; }
 .swatch input:checked ~ .sw-name { color: var(--label); font-weight: var(--weight-semibold); }
 .swatch input:focus-visible + .sw-dot { outline: 2px solid var(--link, #0a84ff); outline-offset: 5px; }
 /* Each chat takes its household's shade. */
-.convo[style*="--chat"] .msg.mine .bubble, .convo[style*="--chat"] .composer .send { background: var(--chat); color: #fff; }
+.convo[style*="--chat"] .msg.mine .bubble, .convo[style*="--chat"] .composer .send { background: var(--chat); color: var(--chat-ink, #fff); }
 .convo[style*="--chat"] .convo-head { box-shadow: inset 0 -3px 0 var(--chat); }
 .convo[style*="--chat"] .composer textarea:focus { border-color: var(--chat); }
 
@@ -650,17 +650,17 @@ body[data-view="journal"] #main { overflow-x: clip; }
   box-shadow: inset 0 -10px 22px color-mix(in srgb, var(--hh) 45%, transparent), inset 0 6px 14px rgba(255, 255, 255, 0.55), 0 0 0 2.5px var(--card-bg), 0 8px 22px color-mix(in srgb, var(--hh) 28%, transparent);
   opacity: 0.97; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .bub-fill { background:
+  :root:not([data-theme="light"]) .fam-bub:not(.light) .bub-fill { background:
     radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.5) 0 5%, rgba(255, 255, 255, 0) 20%),
     radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--hh) 30%, #111) 0%, color-mix(in srgb, var(--hh) 50%, #111) 55%, var(--hh) 100%); }
 }
 .fam-bub.mine .bub-fill { box-shadow: inset 0 -10px 22px color-mix(in srgb, var(--hh) 45%, transparent), inset 0 6px 14px rgba(255, 255, 255, 0.55), 0 0 0 2.5px var(--card-bg), 0 0 0 6px color-mix(in srgb, var(--hh) 75%, #fff), 0 8px 22px color-mix(in srgb, var(--hh) 28%, transparent); }
 .bub-people { position: relative; z-index: 2; display: flex; flex-wrap: wrap; justify-content: center; align-content: center; gap: 0; }
-.bub-hh { width: 100%; text-align: center; font-size: 13px; font-weight: 700; line-height: 1.2; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+.bub-hh { width: 100%; text-align: center; font-size: 13px; font-weight: 700; line-height: 1.2; color: var(--hh-ink, #fff); text-shadow: 0 1px 2px var(--hh-shadow, rgba(0, 0, 0, 0.5)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
 .bub-p { width: calc(var(--a) + 6px); height: calc(var(--a) + 20px); display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .face.bub-face { width: var(--a); height: var(--a); border-radius: 50%; font-size: calc(var(--a) * 0.4); background: rgba(255, 255, 255, 0.92); color: var(--hh); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 2px 6px rgba(0, 0, 0, 0.15); }
-.bub-name { max-width: calc(var(--a) + 12px); font-size: 13px; line-height: 1.15; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bub-name { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); } }
+.bub-name { max-width: calc(var(--a) + 12px); font-size: 13px; line-height: 1.15; font-weight: 700; color: var(--hh-ink, #fff); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px var(--hh-shadow, rgba(0, 0, 0, 0.55)); }
+
 .bub-empty { font-size: 11px; color: #4a524d; }
 .bub-due { position: absolute; z-index: 5; top: 8%; right: 8%; width: 28px; height: 28px; border-radius: 50%; background: var(--due-bg, #dc2634); color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--card-bg); }
 .bub-badge { position: absolute; z-index: 6; left: -8px; top: 38%; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; background: var(--cel-ring); box-shadow: 0 0 0 2.5px var(--card-bg), 0 4px 12px rgba(0, 0, 0, 0.22); pointer-events: none; animation: cel-badge 1s ease-in-out var(--plays); }
@@ -783,3 +783,16 @@ body.has-menu #main > header.top, body.has-menu #main > * > header.top { padding
 .storage-note { margin: 0; font-size: var(--text-footnote); color: var(--label-secondary); }
 .storage-card.full .storage-note { color: var(--due-bg, #c4232f); }
 .storage-card .btn { align-self: flex-start; }
+
+/* ---------- two-tone circles: light household shades (white, cream, gold, orange) ---------- */
+.fam-bub.light .bub-fill { box-shadow: inset 0 -10px 22px color-mix(in srgb, var(--hh-edge) 14%, transparent), inset 0 0 0 2px color-mix(in srgb, var(--hh-edge) 45%, transparent), 0 0 0 2.5px var(--card-bg), 0 8px 22px rgba(0, 0, 0, 0.12); }
+.fam-bub.light.mine .bub-fill { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--hh-edge) 45%, transparent), 0 0 0 2.5px var(--card-bg), 0 0 0 6px var(--hh-edge), 0 8px 22px rgba(0, 0, 0, 0.12); }
+.hh-swatch { box-shadow: inset 0 0 0 1.5px var(--hh-edge, transparent); }
+.mine-card .eyebrow, .hh-title small { color: color-mix(in srgb, var(--hh-ink, #fff) 82%, transparent); }
+/* two-tone swatches in the color pickers */
+.swatch[style*="--sw2"] .sw-dot { background: linear-gradient(135deg, var(--sw) 0 50%, var(--sw2) 50% 100%); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14); }
+.swatch[style*="--sw2"] input:checked + .sw-dot { box-shadow: 0 0 0 3px var(--card-bg, #fff), 0 0 0 5px var(--sw); }
+
+/* initials in a household's color stay readable on light shades (white, cream, gold) */
+.face.bub-face, .hh-row .face.tile-img, .mine-tile .face.tile-img { color: var(--hh-text, var(--hh, var(--tint))); }
+.convo[style*="--chat"] .msg.mine .bubble, .convo[style*="--chat"] .composer .send { box-shadow: inset 0 0 0 1.5px var(--chat-edge, transparent); }

@@ -69,7 +69,7 @@ export function sheet({ title, intro = '', fields = [], submit = 'Save', danger 
       } else if (f.type === 'checkbox') {
         return `<label class="check" for="${id}"><input type="checkbox" id="${id}" name="${f.name}" ${f.value ? 'checked' : ''}> <span>${esc(f.label)}</span></label>`;
       } else if (f.type === 'swatches') {
-        return `<fieldset class="swatches"><legend>${esc(f.label)}</legend>${f.options.map((o, j) => `<label class="swatch" for="${id}_${j}" style="--sw:${esc(o.color)}"><input type="radio" id="${id}_${j}" name="${f.name}" value="${esc(o.value)}" ${o.value === f.value ? 'checked' : ''}><span class="sw-dot" aria-hidden="true"></span><span class="sw-name">${esc(o.label)}</span></label>`).join('')}</fieldset>`;
+        return `<fieldset class="swatches"><legend>${esc(f.label)}</legend>${f.options.map((o, j) => `<label class="swatch" for="${id}_${j}" style="--sw:${esc(o.color)}${o.color2 ? `;--sw2:${esc(o.color2)}` : ''}"><input type="radio" id="${id}_${j}" name="${f.name}" value="${esc(o.value)}" ${o.value === f.value ? 'checked' : ''}><span class="sw-dot" aria-hidden="true"></span><span class="sw-name">${esc(o.label)}</span></label>`).join('')}</fieldset>`;
       } else if (f.type === 'checks') {
         return `<fieldset class="checks"><legend>${esc(f.label)}</legend>${f.options.map((o, j) => `<label class="check" for="${id}_${j}"><input type="checkbox" id="${id}_${j}" name="${f.name}" value="${esc(o.value)}" ${(f.value || []).includes(o.value) ? 'checked' : ''}> <span>${esc(o.label)}</span></label>`).join('')}</fieldset>`;
       } else {
@@ -151,6 +151,19 @@ export function listJoin(names) {
 // Every shade carries white text at 4.5:1 or better.
 // Household colors are shades of the circle's color (themes.js). HH_COLORS is the current circle's set.
 export const HH_COLORS = { find: (fn) => shades(currentTheme()).find(fn), map: (fn) => shades(currentTheme()).map(fn) };
+// The household's shade as style variables: --hh (the color), --hh-ink (text on it), --hh-edge (an outline for
+// light shades), --hh-shadow (a soft shadow under text on it).
+export function hhVars(h, index = 0) {
+  const list = shades(currentTheme());
+  const pick = list.find((c) => c.key === h?.color);
+  const n = Math.trunc(Number(h?.order ?? index)) || 0;
+  const c = pick || list[((n % list.length) + list.length) % list.length];
+  // --hh-text: the household color as text on white (light shades use their dark ink instead)
+  return `--hh:${c.value};--hh-ink:${c.ink};--hh-edge:${c.edge};--hh-text:${c.light ? c.ink : c.value};--hh-shadow:${c.light ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}`;
+}
+export function hhInk(h) { const m = /--hh-ink:([^;]+)/.exec(hhVars(h)); return m ? m[1] : '#fff'; }
+export const hhLight = (h) => hhInk(h) !== '#fff';
+export function hhEdge(h) { const m = /--hh-edge:([^;]+)/.exec(hhVars(h)); return m ? m[1] : 'transparent'; }
 export function hhColor(h, index = 0) {
   const list = shades(currentTheme());
   const pick = list.find((c) => c.key === h?.color);

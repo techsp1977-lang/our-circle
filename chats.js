@@ -1,6 +1,6 @@
 // Chats list and a single conversation.
 import * as S from './store.js';
-import { esc, icon, face, toast, fmtSize, listJoin, names, safeUrl, mediaKind, hhColor, sheet, why } from './ui.js';
+import { esc, icon, face, toast, fmtSize, listJoin, names, safeUrl, mediaKind, hhColor, hhInk, hhEdge, sheet, why } from './ui.js';
 import { ago } from './dates.js';
 import { pausedText } from './plans.js';
 
@@ -81,7 +81,7 @@ function conversation(root, app, chatId) {
     const hids = [...new Set((c.memberIds || []).filter((id) => id !== st.me).map((id) => app.member(id)?.householdId).filter(Boolean))];
     const hh = c.kind === 'everyone' ? null : app.household(c.householdId) || (hids.length === 1 ? app.household(hids[0]) : null);
     const convo = root.querySelector('.convo');
-    if (hh) convo.style.setProperty('--chat', hhColor(hh)); else convo.style.removeProperty('--chat');
+    if (hh) { convo.style.setProperty('--chat', hhColor(hh)); convo.style.setProperty('--chat-ink', hhInk(hh)); convo.style.setProperty('--chat-edge', hhEdge(hh)); } else { convo.style.removeProperty('--chat'); convo.style.removeProperty('--chat-ink'); convo.style.removeProperty('--chat-edge'); }
     const names = c.kind === 'everyone' ? 'The whole family' : listJoin((c.memberIds || []).map((id) => (id === st.me ? 'You' : app.member(id)?.name)).filter(Boolean));
     root.querySelector('#cs').textContent = names;
   };
