@@ -48,6 +48,8 @@ export const add = (path, data) => impl.add(path, data);
 export const del = (path) => impl.del(path);
 // Remove one field (dotted path, like "pushSubs.abc") from a document.
 export const removeField = (path, field) => impl.removeField(path, field);
+// Add items to a list in a document without dropping what others added at the same moment.
+export const addToList = (path, field, items) => impl.addToList(path, field, items);
 export const beforeSignOut = new Set();
 export const batch = (ops) => impl.batch(ops);
 export const watchDoc = (path, cb) => impl.watchDoc(path, cb);
@@ -78,7 +80,7 @@ async function firebaseImpl() {
   const st = S.getStorage(app);
   // Give up on a stuck upload after a minute (the default keeps retrying for 10 minutes), so one bad
   // photo on a weak connection doesn't freeze the progress bar; the rest still upload.
-  st.maxUploadRetryTime = 60 * 1000;
+  st.maxUploadRetryTime = 10 * 60 * 1000; // keep retrying through a weak signal for up to 10 minutes
 
   const withId = (snap) => (snap.exists() ? { id: snap.id, ...snap.data() } : null);
   const buildQuery = (path, q) => {
@@ -120,6 +122,7 @@ async function firebaseImpl() {
     add: async (path, data) => (await F.addDoc(F.collection(db, path), data)).id,
     del: (path) => F.deleteDoc(F.doc(db, path)),
     removeField: (path, field) => F.updateDoc(F.doc(db, path), { [field]: F.deleteField() }),
+    addToList: (path, field, items) => F.updateDoc(F.doc(db, path), { [field]: F.arrayUnion(...items) }),
     batch: async (ops) => {
       const b = F.writeBatch(db);
       for (const o of ops) {
@@ -227,6 +230,11 @@ async function demoImpl() {
     update: async (path, data) => { if (!db[path]) throw new Error('Not found: ' + path); db[path] = applyUpdate(db[path], data); notify(path); },
     add: async (path, data) => { const id = newId(); db[path + '/' + id] = clone(data); notify(path + '/' + id); return id; },
     del: async (path) => { delete db[path]; notify(path); },
+    addToList: async (path, field, items) => {
+      if (!db[path]) throw new Error('Not found: ' + path);
+      const have = db[path][field] || [], key = (x) => JSON.stringify(x);
+      db[path][field] = [...have, ...items.filter((x) => !have.some((h) => key(h) === key(x))).map(clone)]; notify(path);
+    },
     removeField: async (path, field) => {
       const segs = field.split('.'); let o = db[path];
       for (const s of segs.slice(0, -1)) o = o?.[s];

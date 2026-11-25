@@ -804,3 +804,17 @@ body.has-menu #main > header.top, body.has-menu #main > * > header.top { padding
 .push-main b { display: block; font-size: var(--text-headline); }
 .push-main p { margin: 4px 0 10px; color: var(--label-secondary); font-size: var(--text-footnote); line-height: 1.4; }
 .push-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---------- faster album uploads ---------- */
+.pick-pic { position: absolute; inset: 0; display: block; }
+.pick-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pick-wait-ic, .pick-vid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; background: var(--fill-tertiary); color: var(--label-secondary); }
+.pick-vid i { font-style: normal; font-size: 20px; }
+.pick-vid small { font-size: 10px; }
+.pick-wait-ic .spinner { width: 18px; height: 18px; }
+.upload-btns { display: flex; gap: 8px; }
+.upload-btns:empty { display: none; }
+/* each picked item keeps a square shape even before its preview is ready */
+.pick { align-self: start; }
+.pick::before { content: ""; display: block; padding-top: 100%; }
+.pick-grid { grid-auto-rows: max-content; }
