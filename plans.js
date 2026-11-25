@@ -22,5 +22,5 @@ export const fmtGB = (b) => (b >= GB ? (b / GB).toFixed(b >= 10 * GB ? 0 : 1) + 
 export const money = (cents) => '$' + (Math.round(cents) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 // isOrganizer: the person reading can fix it themselves (in Family settings).
 export const pausedText = (c, isOrganizer) => (c?.paused === 'storage'
-  ? `Photo and video uploads are paused because this family's storage is full. ${isOrganizer ? 'You can move to a bigger plan in Family settings.' : 'A family organizer can move to a bigger plan.'}`
-  : `Photo and video uploads are paused until ${isOrganizer ? 'you choose' : 'a family organizer chooses'} a plan${isOrganizer ? ' in Family settings' : ''}. Everything else still works.`);
+  ? `Photo and video uploads are paused because this family's storage is full. ${isOrganizer ? 'You can move to a bigger plan in Family settings.' : 'A circle owner can move to a bigger plan.'}`
+  : `Photo and video uploads are paused until ${isOrganizer ? 'you choose' : 'a circle owner chooses'} a plan${isOrganizer ? ' in Family settings' : ''}. Everything else still works.`);

@@ -21,17 +21,17 @@ export async function inviteLink(app, memberId) {
     submit: navigator.share ? 'Share link' : 'Copy link',
     body: `<p class="linkbox">${esc(link)}</p>`,
     // Organizers can have someone join as an organizer too (to run their branch of the family).
-    fields: app.isAdmin() && !m.managedBy?.length ? [{ name: 'organizer', label: `Make ${m.name} an organizer when they join`, type: 'checkbox', value: false }] : [],
+    fields: app.isAdmin() && !m.managedBy?.length ? [{ name: 'organizer', label: `Make ${m.name} a circle owner when they join`, type: 'checkbox', value: false }] : [],
   });
   if (!r) return;
   if (r.organizer) {
     try { await S.update(app.path('invites/' + code), { organizer: true }); }
-    catch (e) { toast(why("Couldn't mark the invite for an organizer.", e), 9000); return; }
+    catch (e) { toast(why("Couldn't mark the invite for a circle owner.", e), 9000); return; }
   }
   try {
     if (navigator.share) await navigator.share({ title: 'Join our family', text });
     else { await navigator.clipboard.writeText(text); toast('Invite copied. Paste it into a text message.'); }
-    if (r.organizer) toast(`${m.name} will be an organizer when they join.`, 4000);
+    if (r.organizer) toast(`${m.name} will be a circle owner when they join.`, 4000);
   } catch (e) { toast('Copy the link above and text it.'); }
 }
 
@@ -54,7 +54,7 @@ function planSection(c) {
         ${p.plan === 'gift' ? '' : p.paid && p.active ? `<button class="btn ghost grow" data-act="billing">Manage billing</button>${p.plan === 'family' ? '<button class="btn grow" data-act="billing">Get more storage</button>' : ''}`
           : `<button class="btn grow" data-act="plans">Choose a plan</button>${p.paid ? '<button class="btn ghost grow" data-act="billing">Manage billing</button>' : ''}`}
       </div>
-      <p class="hint">One plan covers everyone in this circle. Only organizers see this.</p>
+      <p class="hint">One plan covers everyone in this circle. Only circle owners see this.</p>
     </div>
   </section>`;
 }
@@ -94,22 +94,33 @@ export function mount(root, app) {
   const st = app.state;
   // Family organizers see everything. Household organizers see only the households they run.
   const admin = app.isAdmin();
-  if (!admin && !app.runsAny()) { root.innerHTML = '<p class="pad muted">Only family organizers and household organizers can change these settings.</p>'; return {}; }
+  if (!admin && !app.runsAny()) { root.innerHTML = '<p class="pad muted">Only circle owners and household managers can change these settings.</p>'; return {}; }
   const mine = (h) => admin || app.runs(h.id);
   let accessRows = [];
+  let ownerInvites = []; // invites that make someone a circle owner when they join
   let otherCircles = [];
 
   const render = () => {
     const treeUsed = st.households.some((x) => x.parentId);
     root.innerHTML = `
       <header class="top"><a class="icon-btn" href="#/me" aria-label="Back to My page">${icon('back')}</a>
-        <div class="grow"><h1 class="h1">${admin ? 'Family settings' : 'Household settings'}</h1><div class="muted small">${admin ? "You're an organizer" : "You're a household organizer"}</div></div></header>
+        <div class="grow"><h1 class="h1">${admin ? 'Family settings' : 'Household settings'}</h1><div class="muted small">${admin ? "You're a circle owner" : "You're a household manager"}</div></div></header>
       ${admin ? `
       <section class="block card list">
         <div class="li"><span class="li-main"><span class="li-sub">Family name</span><span class="li-title">${esc(st.circle?.name || '')}</span></span>
           <button class="icon-btn sm" data-act="circle" aria-label="Rename family">${icon('edit', 16)}</button></div>
         <div class="li"><span class="hh-swatch" style="--hh:${theme(st.circle?.theme).swatch}" aria-hidden="true"></span><span class="li-main"><span class="li-sub">Circle color</span><span class="li-title">${esc(theme(st.circle?.theme).label)}</span></span>
           <button class="icon-btn sm" data-act="color" aria-label="Change circle color">${icon('edit', 16)}</button></div>
+      </section>
+
+      <section class="block">
+        <div class="row-head"><h2>Circle owners</h2><button class="linkish" data-act="add-owner">${icon('plus', 16)} Add a circle owner</button></div>
+        <p class="hint">Circle owners can change anything in the whole circle: households, people, the family tree, the color and the plan. Household managers (set in each household below) can change things only inside their own family.</p>
+        <div class="card list">
+          ${accessRows.filter((a) => a.role === 'admin').map((a) => { const m = app.member(a.memberId); return m ? `<div class="li">${face(m)}<span class="li-main"><span class="li-title">${esc(m.name)}${a.id === st.uid ? ' (you)' : ''}</span><span class="li-sub">Circle owner</span></span>
+            ${a.id === st.uid ? '' : `<button class="btn sm ghost" data-act="remove-owner" data-id="${esc(a.id)}">Remove</button>`}</div>` : ''; }).join('')}
+          ${ownerInvites.map((i) => { const m = app.member(i.memberId); return m && !m.uid ? `<div class="li">${face(m)}<span class="li-main"><span class="li-title">${esc(m.name)}</span><span class="li-sub">Invited as a circle owner · not joined yet</span></span></div>` : ''; }).join('')}
+        </div>
       </section>
 
       ${planSection(st.circle)}` : ''}
@@ -125,8 +136,8 @@ export function mount(root, app) {
               <button class="icon-btn sm" data-act="edit-hh" data-id="${esc(h.id)}" aria-label="Edit ${esc(h.name)}">${icon('edit', 16)}</button></div>
             ${app.membersOf(h.id).map((m) => {
               const acc = accessRows.find((a) => a.memberId === m.id);
-              const lead = (h.managers || []).includes(m.id) ? 'Household organizer · ' : '';
-              const status = lead + (m.uid ? (acc?.role === 'admin' ? 'Organizer · has login' : 'Has login') : (m.managedBy?.length ? 'Managed by parents' : 'Not joined yet'));
+              const lead = (h.managers || []).includes(m.id) ? 'Household manager · ' : '';
+              const status = lead + (m.uid ? (acc?.role === 'admin' ? 'Circle owner · has login' : 'Has login') : (m.managedBy?.length ? 'Managed by parents' : 'Not joined yet'));
               return `<div class="li"><button class="face-btn" data-act="photo" data-id="${esc(m.id)}" aria-label="${m.photo ? 'Change' : 'Add'} ${esc(m.name)}'s photo">${face(m)}<span class="face-cam">${icon('camera', 12)}</span></button><span class="li-main"><span class="li-title">${esc(m.name)}</span><span class="li-sub">${status}</span></span>
                 ${!m.uid ? `<button class="btn sm" data-act="invite" data-id="${esc(m.id)}">${icon('link', 14)} Invite</button>` : ''}
                 <button class="icon-btn sm" data-act="edit-m" data-id="${esc(m.id)}" aria-label="Edit ${esc(m.name)}">${icon('edit', 16)}</button></div>`;
@@ -138,9 +149,9 @@ export function mount(root, app) {
       <p class="hint pad-x">Tip: add everyone first, with birthdays, then send each person their own invite link. Young kids don't need a link; their parents manage them from My page.</p>
       ${admin ? `<section class="block">
         <h2>Hand the circle over</h2>
-        <p class="hint">Setting this up for someone else? Make them an organizer (tap the pencil next to their name), then step down here. You stay in the family as a regular member.</p>
-        <div class="card list"><button class="li add-row" data-act="step-down">${icon('users', 16)} Step down as organizer</button></div>
-        ${accessRows.filter((a) => a.role === 'admin' && a.id !== st.uid).length ? '' : '<p class="hint">You are the only organizer right now.</p>'}
+        <p class="hint">Setting this up for someone else? Make them a circle owner (in Circle owners above), then step down here. You stay in the family as a regular member.</p>
+        <div class="card list"><button class="li add-row" data-act="step-down">${icon('users', 16)} Step down as circle owner</button></div>
+        ${accessRows.filter((a) => a.role === 'admin' && a.id !== st.uid).length ? '' : '<p class="hint">You are the only circle owner right now.</p>'}
       </section>` : ''}`;
   };
 
@@ -152,7 +163,7 @@ export function mount(root, app) {
       ...familyTree(st.households).filter(({ h }) => h.id !== id && !skip.has(h.id)).map(({ h, depth }) => ({ value: h.id, label: `${'— '.repeat(depth)}${h.name}` }))];
   };
   // Household organizers: anyone in that household.
-  const managersField = (h) => ({ name: 'managers', label: 'Household organizers (can add people, send invites and add households under this one)', type: 'checks',
+  const managersField = (h) => ({ name: 'managers', label: 'Household managers (can add people, send invites and add households under this one, only inside this family)', type: 'checks',
     value: h.managers || [], options: app.membersOf(h.id).map((m) => ({ value: m.id, label: m.name })) });
   const parentField = (id, value) => ({ name: 'parentId', label: 'Under which household? (for the family tree)', type: 'select', value: value || '', options: parentOptions(id),
     hint: 'For example, put a married child\'s household under their parents\' household.' });
@@ -187,12 +198,33 @@ export function mount(root, app) {
         catch (er) { applyTheme(was); toast('The color did not save. Try again.'); }
         break;
       }
+      case 'add-owner': {
+        const can = Object.values(st.members).filter((m) => m.uid && accessRows.some((a) => a.memberId === m.id && a.role !== 'admin'));
+        const waiting = Object.values(st.members).filter((m) => !m.uid && !m.managedBy?.length);
+        const r = await sheet({ title: 'Add a circle owner', submit: 'Make circle owner',
+          intro: `Circle owners can change anything in the whole circle.${waiting.length ? ` Someone who hasn't joined yet (like ${listJoin(waiting.slice(0, 3).map((m) => m.name))})? Tap Invite next to their name below and tick "Make them a circle owner when they join".` : ''}`,
+          fields: can.length ? [{ name: 'who', label: 'People who have joined', type: 'checks', value: [], options: can.map((m) => ({ value: m.id, label: m.name })) }] : [] });
+        if (!r || !r.who?.length) break;
+        try {
+          await S.batch(r.who.map((mid) => ({ op: 'update', path: app.path('access/' + accessRows.find((a) => a.memberId === mid).id), data: { role: 'admin' } })));
+          toast(`${listJoin(r.who.map((mid) => app.member(mid)?.name))} ${r.who.length === 1 ? 'is' : 'are'} now ${r.who.length === 1 ? 'a circle owner' : 'circle owners'}.`);
+        } catch (er) { toast(why('That did not save.', er), 9000); }
+        loadAccess();
+        break;
+      }
+      case 'remove-owner': {
+        const a = accessRows.find((x) => x.id === id), m = a && app.member(a.memberId);
+        if (!m || !(await confirmBox(`Remove ${m.name} as a circle owner?`, `${m.name} stays in the family, with their chats, photos and journal, but can no longer change things for the whole circle.`, 'Remove'))) break;
+        try { await S.update(app.path('access/' + id), { role: 'member' }); toast(`${m.name} is no longer a circle owner.`); } catch (er) { toast(why('That did not save.', er), 9000); }
+        loadAccess();
+        break;
+      }
       case 'step-down': {
         const others = accessRows.filter((a) => a.role === 'admin' && a.id !== st.uid);
-        if (!others.length) { toast('Make someone else an organizer first, so the circle always has one.'); break; }
+        if (!others.length) { toast('Make someone else a circle owner first, so the circle always has one.'); break; }
         const who = listJoin(others.map((a) => app.member(a.memberId)?.name).filter(Boolean));
-        if (!(await confirmBox('Step down as organizer?', `${who} will run the circle. You stay in the family, with your chats, photos and journal, but you won't be able to change family settings. An organizer can make you one again.`, 'Step down'))) break;
-        try { await S.update(app.path('access/' + st.uid), { role: 'member' }); st.access = { ...st.access, role: 'member' }; toast('You are no longer an organizer.'); location.hash = '#/me'; }
+        if (!(await confirmBox('Step down as circle owner?', `${who} will run the circle. You stay in the family, with your chats, photos and journal, but you won't be able to change family settings. Another circle owner can make you one again.`, 'Step down'))) break;
+        try { await S.update(app.path('access/' + st.uid), { role: 'member' }); st.access = { ...st.access, role: 'member' }; toast('You are no longer a circle owner.'); location.hash = '#/me'; }
         catch (er) { toast('That did not work. Try again.'); }
         break;
       }
@@ -253,7 +285,7 @@ export function mount(root, app) {
           { name: 'name', label: 'Name', value: m.name, required: true },
           { name: 'hid', label: 'Household', type: 'select', value: m.householdId, options: hhOptions() },
         ];
-        if (admin && m.uid && id !== st.me) fields.push({ name: 'admin', label: 'Organizer (can change family settings)', type: 'checkbox', value: acc?.role === 'admin' });
+        if (admin && m.uid && id !== st.me) fields.push({ name: 'admin', label: 'Circle owner (can change anything in the whole circle)', type: 'checkbox', value: acc?.role === 'admin' });
         // Household organizers can remove only people who haven't joined yet.
         const r = await sheet({ title: 'Edit ' + m.name, danger: id === st.me || (!admin && m.uid) ? null : 'Remove from family', fields });
         if (!r) return;
@@ -268,7 +300,7 @@ export function mount(root, app) {
         loadAccess();
         break;
       }
-      case 'invite': await inviteLink(app, id); break;
+      case 'invite': await inviteLink(app, id); loadAccess(); break;
       case 'copy-photos': {
         const others = (await listCircles(app).catch(() => [])).filter((c) => !c.current);
         if (!others.length) { toast('You are only in this one circle.'); break; }
@@ -303,7 +335,10 @@ export function mount(root, app) {
     }
   };
 
-  const loadAccess = () => S.getColl(app.path('access')).then((rows) => { accessRows = rows; render(); }).catch(() => {});
+  const loadAccess = () => {
+    S.getColl(app.path('access')).then((rows) => { accessRows = rows; render(); }).catch(() => {});
+    if (admin) S.getColl(app.path('invites')).then((rows) => { ownerInvites = rows.filter((i) => i.organizer === true && !i.used); render(); }).catch(() => {});
+  };
   root.addEventListener('click', onClick);
   const off = app.on(render);
   render();
