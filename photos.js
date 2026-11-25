@@ -14,14 +14,16 @@ export function pickMedia() {
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'image/*,image/heic,image/heif,.heic,.heif,video/*';
+    // List the iPhone's own formats (HEIC photos, MOV/HEVC videos) so it hands them over as they are, instead of
+    // converting each one first.
+    input.accept = 'image/*,image/heic,image/heif,.heic,.heif,image/jpeg,image/png,video/*,video/quicktime,.mov,video/mp4,.mp4';
     input.multiple = true;
     input.style.display = 'none';
     document.body.appendChild(input);
     const wait = document.createElement('div');
     wait.className = 'pick-wait';
     wait.setAttribute('role', 'status');
-    wait.innerHTML = '<div class="pick-wait-card"><span class="spinner" aria-hidden="true"></span><b>Getting your photos from your library…</b><small>With lots of photos this takes a few seconds.</small><button type="button" class="linkish" data-cancel>Cancel</button></div>';
+    wait.innerHTML = '<div class="pick-wait-card"><span class="spinner" aria-hidden="true"></span><b>Getting your photos from your library…</b><small>Your iPhone copies each photo first. Photos stored in iCloud download first, which can take a while.</small><button type="button" class="linkish" data-cancel>Cancel</button></div>';
     let settled = false;
     const done = (files) => { if (settled) return; settled = true; input.remove(); wait.remove(); resolve(files); };
     wait.querySelector('[data-cancel]').onclick = () => done([]);
