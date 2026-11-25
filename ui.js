@@ -47,6 +47,7 @@ export function toast(msg, ms = 2600) {
   let t = $('#toast');
   if (!t) { t = document.createElement('div'); t.id = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
   t.textContent = msg;
+  t.classList.toggle('long', String(msg).length > 60);
   t.classList.add('show');
   clearTimeout(t._h);
   t._h = setTimeout(() => t.classList.remove('show'), ms);
