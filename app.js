@@ -69,11 +69,14 @@ const app = {
     return app.chatFor(ids, { name: h?.name || '', kind: 'household', householdId: hid });
   },
   // Go to another of your circles; it's remembered as the one to open next time.
-  async switchCircle(cid) {
-    await S.set(`users/${state.uid}`, { current: cid }, true).catch(() => {});
-    location.hash = '#/family';
-    if (!(await openCircle(cid))) toast('That circle is no longer available on this account.');
+  async switchCircle(cid, name = '') {
+    S.set(`users/${state.uid}`, { current: cid }, true).catch(() => {});
+    // Change the address without redrawing the circle we're leaving.
+    history.replaceState(null, '', location.pathname + location.search + '#/family');
+    if (!(await openCircle(cid, { smooth: true, name }))) toast('That circle is no longer available on this account.');
   },
+  // Load another circle's family in the background (when the switcher opens), so switching to it is instant.
+  prefetchCircle: (cid) => prefetch(cid),
   // Your photo is the same in every circle you belong to.
   async setMyPhoto(url) {
     await S.update(app.path('members/' + state.me), { photo: url });
@@ -196,6 +199,12 @@ async function route() {
 }
 
 function shell() {
+  // Already drawn (switching circles): keep the tab bar and menu, and only change the circle's name.
+  if (document.querySelector('.tabbar') && document.getElementById('main')) {
+    const n = document.querySelector('.side-brand span'); if (n) n.textContent = state.circle?.name || APP_NAME;
+    renderDemoBar();
+    return;
+  }
   document.body.innerHTML = `
     <div id="demo-bar"></div>
     <main id="main" tabindex="-1"></main>
@@ -288,26 +297,71 @@ function renderDemoBar() {
 // ───────────── data subscriptions ─────────────
 function stopSubs() { subs.forEach((u) => u && u()); subs = []; }
 
-async function openCircle(cid) {
+// What each circle looked like when last seen (or pre-loaded), so switching to it shows it straight away.
+const snaps = new Map();
+const snapOf = () => ({ circle: state.circle, members: state.members, households: state.households, events: state.events, chats: state.chats, access: state.access });
+async function loadSnap(cid, access) {
+  const p = `circles/${cid}`;
+  const [circle, members, households, events, mine, everyone] = await Promise.all([
+    S.getFast(p), S.getColl(`${p}/members`), S.getColl(`${p}/households`, { orderBy: ['order', 'asc'] }), S.getColl(`${p}/events`),
+    S.getColl(`${p}/chats`, { where: [['memberIds', 'array-contains', access.memberId]] }).catch(() => []), S.getFast(`${p}/chats/everyone`).catch(() => null)]);
+  const chats = Object.fromEntries(mine.map((c) => [c.id, c])); if (everyone) chats.everyone = everyone;
+  return { circle, members: Object.fromEntries(members.map((m) => [m.id, m])), households, events, chats, access };
+}
+async function prefetch(cid) {
+  if (!cid || cid === state.cid || snaps.has(cid)) return;
+  try { const access = await S.getFast(`circles/${cid}/access/${state.uid}`); if (access) snaps.set(cid, await loadSnap(cid, access)); } catch (e) {}
+}
+
+async function openCircle(cid, { smooth = false, name = '' } = {}) {
   // Check access first, so a circle that's gone leaves you where you are.
   const access = await S.getFast(`circles/${cid}/access/${state.uid}`).catch(() => null);
   if (!access) return false;
-  stopSubs();
-  if (view?.destroy) view.destroy();
-  view = null;
-  Object.assign(state, { cid, circle: null, members: {}, households: [], events: [], chats: {}, ready: false });
-  state.access = access;
-  state.me = access.memberId;
+  // Switching: the page we're on stays (dimmed, "Opening …") until the other circle is loaded, then cross-fades.
+  let snap = null;
+  if (smooth) {
+    if (state.cid) snaps.set(state.cid, snapOf());
+    snap = snaps.get(cid) || null;
+    if (!snap) {
+      document.body.classList.add('switching');
+      const note = document.createElement('div'); note.className = 'switch-note'; note.setAttribute('role', 'status');
+      note.innerHTML = `<span class="spinner" aria-hidden="true"></span> Opening ${esc(name || 'circle')}…`;
+      document.body.appendChild(note);
+      try { snap = await loadSnap(cid, access); } catch (e) { snap = null; }
+      note.remove();
+    }
+  }
+  const swap = () => new Promise((done) => {
+    stopSubs();
+    if (view?.destroy) view.destroy();
+    view = null;
+    Object.assign(state, { cid, circle: snap?.circle || null, members: snap?.members || {}, households: snap?.households || [], events: snap?.events || [], chats: snap?.chats || {}, ready: false });
+    state.access = access;
+    state.me = access.memberId;
+    if (snap?.circle) applyTheme(snap.circle.theme);
+    startCircle(cid, !!snap, done);
+  });
+  if (!smooth) { swap(); return true; } // first open: draw as soon as the family arrives, as before
+  if (document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    try { await document.startViewTransition(swap).finished; } catch (e) { /* the swap still happened */ }
+  } else await swap();
+  document.body.classList.remove('switching');
+  return true;
+}
 
+// Watch the circle's family live. ready(): called once the page for it is drawn.
+function startCircle(cid, haveSnap, ready) {
   lastSeen = {}; openedAt = Date.now();
-  let first = { circle: false, members: false, households: false };
+  let first = { circle: haveSnap, members: haveSnap, households: haveSnap };
   const maybeReady = async () => {
     if (state.ready || !first.circle || !first.members || !first.households) return;
     state.ready = true;
     shell();
     document.title = (state.circle?.name || APP_NAME);
-    await app.ensureEveryone().catch(() => {});
-    route();
+    if (!haveSnap) await app.ensureEveryone().catch(() => {});
+    else app.ensureEveryone().catch(() => {});
+    await route();
+    ready?.(); ready = null;
     app.fillMyPhoto().catch(() => {});
     // Notifications: count this visit, check this phone, and keep its notification address current.
     countOpen();
@@ -331,7 +385,7 @@ async function openCircle(cid) {
   subs.push(S.watchDoc(`circles/${cid}/access/${state.uid}`, (a) => { if (a && a.role !== state.access?.role) { state.access = a; changed(); } }));
   subs.push(S.watchDoc(`users/${state.uid}`, (u) => { state.prefs = u?.prefs || {}; changed(); }));
   subs.push(S.watchDoc('config/billing', (b) => { state.billingOn = !!b?.on; changed(); }));
-  return true;
+  if (haveSnap) maybeReady();
 }
 
 // ───────────── sign in & onboarding ─────────────

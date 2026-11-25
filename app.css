@@ -838,3 +838,13 @@ body.has-menu #main > header.top, body.has-menu #main > * > header.top { padding
 .storage-line b { font-size: var(--text-footnote); }
 .storage-card .progress { height: 6px; }
 .row-links { margin-bottom: 4px; }
+
+/* ---------- switching circles ---------- */
+body.switching #main { opacity: 0.45; pointer-events: none; transition: opacity .18s ease-out; }
+.switch-note { position: fixed; z-index: 60; left: 50%; top: 40%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 999px; background: var(--card-bg); color: var(--label); font-weight: var(--weight-semibold); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
+.switch-note .spinner { width: 18px; height: 18px; border-width: 2.5px; }
+/* the page cross-fades into the other circle; the tab bar stays put */
+.tabbar { view-transition-name: tabbar; }
+.menu-btn { view-transition-name: menubtn; }
+::view-transition { pointer-events: none; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .28s; animation-timing-function: ease-out; }

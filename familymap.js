@@ -3,8 +3,7 @@
 // Pinch (or the − + buttons) to zoom, drag sideways to look around. A bubble celebrates on a birthday,
 // an anniversary or another big day, and welcomes a new baby, with its own animation.
 import { esc, icon, face, names, hhColor, hhVars, hhLight, familyTree } from './ui.js';
-import { happeningToday } from './events.js';
-import { today, diffDays } from './dates.js';
+import { today, diffDays, addDays, nextOccurrence } from './dates.js';
 import { checkin } from './hub.js';
 
 const OVER = 10, SHELF = 560; // OVER: how far neighboring bubbles overlap, like a Venn diagram
@@ -25,12 +24,23 @@ function celebrations(app) {
   const out = {};
   const t = today();
   const put = (hid, kind, text) => { if (hid && !out[hid]) out[hid] = { kind, text }; };
-  for (const ev of happeningToday(app)) {
+  // The event day and the 3 days after it, so a birthday keeps sparkling for a few days.
+  const seen = new Set(), recent = [];
+  for (let back = 0; back <= 3; back++) {
+    const d = addDays(t, -back);
+    for (const ev of app.state.events) {
+      if (seen.has(ev.id)) continue;
+      const o = nextOccurrence(ev, d);
+      if (o && o.start <= d && o.end >= d) { seen.add(ev.id); recent.push([ev, back]); }
+    }
+  }
+  const when = (back) => back === 0 ? '' : back === 1 ? ' · yesterday' : ` · ${back} days ago`;
+  for (const [ev, back] of recent) {
     const kind = ev.type === 'birthday' ? 'bday' : ev.type === 'anniversary' ? 'anniv' : ['trip', 'event'].includes(ev.type) ? null : 'big';
     if (!kind) continue;
     const ppl = (ev.memberIds || []).map((id) => app.member(id)).filter(Boolean);
     const who = ppl.map((m) => m.name).join(' & ');
-    const text = kind === 'bday' ? `🎂 ${who}'s birthday` : kind === 'anniv' ? `💕 ${who}'s anniversary` : `🎉 ${ev.title}`;
+    const text = (kind === 'bday' ? `🎂 ${who}'s birthday` : kind === 'anniv' ? `💕 ${who}'s anniversary` : `🎉 ${ev.title}`) + when(back);
     ppl.forEach((m) => put(m.householdId, kind, text));
   }
   // A new baby: someone whose birthday was in the last 60 days.
