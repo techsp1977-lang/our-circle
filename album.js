@@ -28,7 +28,7 @@ function storageBar(app) {
   const basic = p.plan === 'family' || p.plan === 'trial';
   const near = p.used >= p.limit * NEAR, full = p.used >= p.limit;
   const note = full ? 'Storage is full. New photos and videos are paused until there is more room.'
-    : near && basic ? (app.isAdmin() ? 'Almost full. Family Plus has 4 times the room.' : 'Almost full. An organizer can move the family to Family Plus for 4 times the room.')
+    : near && basic ? (app.isAdmin() ? 'Almost full. Family Plus has 4 times the room.' : 'Almost full. A circle owner can move the family to Family Plus for 4 times the room.')
     : near ? 'Almost full.' : '';
   return `<section class="block"><div class="card storage-card ${full ? 'full' : near ? 'near' : ''}">
     <div class="storage-line"><b>${fmtGB(Math.max(0, p.limit - p.used))} left</b><span class="muted small">${fmtGB(p.used)} of ${fmtGB(p.limit)} used</span></div>

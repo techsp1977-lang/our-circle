@@ -52,7 +52,7 @@ const app = {
       const existing = await S.get(app.path('chats/' + id));
       // Never reuse a chat that doesn't match exactly these people (one set up ahead of time by someone else).
       if (existing && (existing.kind === 'everyone' || [...(existing.memberIds || [])].sort().join('_') !== ids.join('_'))) {
-        throw new Error('This conversation looks wrong. Ask a family organizer to check it.');
+        throw new Error('This conversation looks wrong. Ask a circle owner to check it.');
       }
       if (!existing) {
         await S.set(app.path('chats/' + id), {
@@ -439,7 +439,7 @@ async function renderOnboarding(msg = '', opts = {}) {
     ` : `
       ${join ? '<p class="error">That invite link has already been used or is no longer valid. Ask for a new one.</p>' : ''}
       <h1>${opts.back ? 'Start a new circle' : 'Start your family circle'}</h1>
-      <p class="muted">You'll be the organizer. You can add everyone else next.${opts.back ? ' Your other circles stay as they are; switch between them from the family name at the top.' : ''}</p>
+      <p class="muted">You'll be the circle owner. You can add everyone else next.${opts.back ? ' Your other circles stay as they are; switch between them from the family name at the top.' : ''}</p>
       <form id="start" class="stack">
         <label class="field" for="cn"><span>Family name</span><input id="cn" required placeholder="The Bennetts"></label>
         <label class="field" for="yn"><span>Your first name</span><input id="yn" required placeholder="Michael" value="${esc(opts.myName || '')}"></label>

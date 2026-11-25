@@ -216,7 +216,7 @@ async function editWords(app) {
       goal: r.goal ? { title: r.goal.slice(0, 200), due: r.due || null, progress } : null,
     });
     toast('Saved for the whole family.');
-  } catch (e) { toast('Only family organizers can change these.'); }
+  } catch (e) { toast('Only circle owners can change these.'); }
 }
 
 function todayCard(app, ev) {
