@@ -57,11 +57,11 @@ function grid(root, app) {
         <button class="btn sm" data-act="share">${icon('plus', 16)} Share</button></header>
       <p class="pad-x row-links"><button class="linkish" data-act="share-videos">${icon('plus', 16)} Share videos</button><button class="linkish" data-act="year" style="text-align:left">${icon('star', 16)} Year-in-review video</button></p>
       ${storageBar(app)}
-      <p class="hint pad-x">Photos and videos shared here go to the whole family. Originals are kept at full quality.</p>
+      ${posts.length ? '' : '<p class="hint pad-x">Photos and videos shared here go to the whole family. Originals are kept at full quality.</p>'}
       <section class="block album-grid">
-        ${posts.map((p) => `<a class="album-card" href="#/album/${encodeURIComponent(p.id)}">
+        ${posts.map((p) => `<a class="album-card" href="#/album/${encodeURIComponent(p.id)}" aria-label="${esc(p.title || 'Untitled')}, ${(p.media || []).length} item${(p.media || []).length === 1 ? '' : 's'}, by ${esc(app.member(p.by)?.name || 'family')}">
           ${tile(p.media?.[0])}
-          <span class="album-meta"><b>${esc(p.title || 'Untitled')}</b><small>${(p.media || []).length} item${(p.media || []).length === 1 ? '' : 's'} · ${esc(app.member(p.by)?.name || '')} · ${shortDate(toISO(new Date(p.at)))}</small></span>
+          <span class="album-meta"><b>${esc(p.title || 'Untitled')}</b><small>${(p.media || []).length} · ${shortDate(toISO(new Date(p.at)))}</small></span>
         </a>`).join('') || `<button class="card empty-card" data-act="share">Share the first photos, like a birthday party or a trip.</button>`}
       </section>`;
   };

@@ -42,8 +42,8 @@ export async function openSwitcher(app) {
     const b = e.target.closest('[data-cid]');
     if (!b) return;
     close();
-    if (b.dataset.cid !== app.state.cid) await app.switchCircle(b.dataset.cid);
+    if (b.dataset.cid !== app.state.cid) await app.switchCircle(b.dataset.cid, b.querySelector('.li-title')?.textContent || '');
   });
-  try { paint(await listCircles(app)); }
+  try { const rows = await listCircles(app); paint(rows); rows.filter((c) => !c.current).forEach((c) => app.prefetchCircle(c.id)); }
   catch (e) { toast('Could not load your circles. Check your connection.'); }
 }

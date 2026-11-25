@@ -824,3 +824,27 @@ body.has-menu #main > header.top, body.has-menu #main > * > header.top { padding
 .pick.add { aspect-ratio: 1; }
 .pick.add small { font-size: 11px; }
 .pick-wait-card .btn { align-self: center; }
+
+/* ---------- album list: a compact grid of covers (3 across on a phone, more on wider screens) ---------- */
+.album-grid { grid-template-columns: repeat(auto-fill, minmax(min(30%, 104px), 1fr)); gap: 14px 10px; }
+@media (min-width: 700px) { .album-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); } }
+.album-card { background: none; box-shadow: none; border-radius: 0; overflow: visible; gap: 6px; }
+.album-card .cover { aspect-ratio: 1 / 1; border-radius: 14px; box-shadow: var(--shadow-card); }
+.album-meta { padding: 0 2px; gap: 0; min-width: 0; }
+.album-meta b { font-size: var(--text-footnote); line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.album-meta small { font-size: var(--text-caption1, 12px); }
+/* a slimmer storage line above the album grid */
+.storage-card { padding: 9px 12px; gap: 6px; }
+.storage-line b { font-size: var(--text-footnote); }
+.storage-card .progress { height: 6px; }
+.row-links { margin-bottom: 4px; }
+
+/* ---------- switching circles ---------- */
+body.switching #main { opacity: 0.45; pointer-events: none; transition: opacity .18s ease-out; }
+.switch-note { position: fixed; z-index: 60; left: 50%; top: 40%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 999px; background: var(--card-bg); color: var(--label); font-weight: var(--weight-semibold); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
+.switch-note .spinner { width: 18px; height: 18px; border-width: 2.5px; }
+/* the page cross-fades into the other circle; the tab bar stays put */
+.tabbar { view-transition-name: tabbar; }
+.menu-btn { view-transition-name: menubtn; }
+::view-transition { pointer-events: none; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .28s; animation-timing-function: ease-out; }
