@@ -134,3 +134,30 @@ export async function pushCardClick(e, uid, rerender, toast) {
   }
   await pushState(uid); rerender(); return true;
 }
+
+// "Send me a test notification": asks the server to push to this person's phones, and says in plain words
+// which step is broken if it doesn't work. Returns { ok, text }.
+export async function testPush(uid) {
+  let r;
+  try { r = await S.callFn('notify', { action: 'test' }); }
+  catch (e) {
+    const code = String(e?.code || '').replace('functions/', '');
+    if (code === 'resource-exhausted') return { ok: false, text: 'Wait a few seconds before sending another test.' };
+    if (code === 'unauthenticated') return { ok: false, text: 'Sign in again, then try the test.' };
+    return { ok: false, text: "The notification server didn't answer. The circle's owner needs to finish the one-time \"Message notifications\" setup (SETUP.md). Check your connection too." };
+  }
+  const mine = read();
+  const mineFailed = r.failed?.find((f) => f.subId === mine?.id);
+  if (mineFailed && (mineFailed.code === 404 || mineFailed.code === 410)) {
+    // Apple or Google forgot this phone: sign it up again and try once more.
+    try { await turnOnPush(uid); r = await S.callFn('notify', { action: 'test' }).catch(() => r); } catch (e) {}
+  }
+  if (!r.phones) return { ok: false, text: "This phone isn't signed up for notifications on the server yet. Tap Turn off, then Turn on again." };
+  if (!r.sent) {
+    const f = r.failed?.[0];
+    return { ok: false, text: `The notification couldn't be delivered${f?.code ? ` (error ${f.code})` : ''}. Tap Turn off, then Turn on again, and try once more.` };
+  }
+  return { ok: true, text: isApple()
+    ? 'Sent! It should pop up within a few seconds, even with the app closed. If it doesn\'t: iPhone Settings → Notifications → Our Circle → turn on Allow Notifications, Lock Screen and Banners, and check Focus/Do Not Disturb is off.'
+    : 'Sent! It should pop up within a few seconds. If it doesn\'t, check this device allows notifications from Our Circle.' };
+}
