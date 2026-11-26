@@ -885,3 +885,5 @@ body.switching #main { opacity: 0.45; pointer-events: none; transition: opacity 
 .yr-fullbar.turned { top: auto; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); transform-origin: 100% 100%; transform: rotate(90deg) translateY(100%); }
 .yr-theater .yr-stage canvas { transition: opacity .2s ease-out; }
 .yr-fullbar [hidden] { display: none; }
+.yr-songbtn { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.14); color: #fff; font-size: var(--text-footnote); font-weight: 600; cursor: pointer; }
+.yr-songbtn:focus-within { box-shadow: var(--focus-ring); }
