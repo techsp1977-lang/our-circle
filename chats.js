@@ -112,6 +112,10 @@ function conversation(root, app, chatId) {
 
   const renderMsgs = () => {
     const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+    // Keep your place when older messages are added above (or anything changes) while you're reading back.
+    const top = box.getBoundingClientRect().top;
+    const anchor = nearBottom ? null : [...box.querySelectorAll('.msg')].find((x) => x.getBoundingClientRect().bottom > top) || null;
+    const anchorId = anchor ? anchor.dataset.mid : null, anchorOff = anchor ? anchor.getBoundingClientRect().top - top : 0;
     let prev = null;
     box.innerHTML = msgs.length ? msgs.map((m) => {
       const mine = m.by === st.me;
@@ -126,7 +130,9 @@ function conversation(root, app, chatId) {
           <div class="bubble">${m.text ? `<p>${esc(m.text)}</p>` : ''}${media(m)}</div>${reacts(m)}</div>
       </div>`;
     }).join('') : '<p class="hint center pad">Say hello. Messages stay here for the family.</p>';
-    if (nearBottom || !box.dataset.init) { box.scrollTop = box.scrollHeight; box.dataset.init = '1'; }
+    const back = anchorId && box.querySelector(`.msg[data-mid="${CSS.escape(anchorId)}"]`);
+    if (back) box.scrollTop += back.getBoundingClientRect().top - box.getBoundingClientRect().top - anchorOff;
+    else if (nearBottom || !box.dataset.init) { box.scrollTop = box.scrollHeight; box.dataset.init = '1'; }
   };
 
   const markRead = () => {
@@ -231,9 +237,21 @@ function conversation(root, app, chatId) {
     sheet({ title: 'Reactions', submit: 'Done', body: `<div class="card list">${rows.map(([e, w]) => `<div class="li"><span class="react-big" aria-hidden="true">${e}</span><span class="li-main"><span class="li-title">${esc(listJoin(w))}</span></span></div>`).join('')}</div>`, fields: [] });
   };
 
-  const unsub = S.watchColl(app.path(`chats/${chatId}/messages`), { orderBy: ['at', 'desc'], limit: 300 }, (rows) => {
-    msgs = rows.reverse(); renderMsgs(); markRead();
-  });
+  // The newest messages first (quick to open even in a long chat); scrolling up to the top loads older ones,
+  // keeping your place.
+  const PAGE = 60;
+  let shown = PAGE, unsub = () => {}, loadingOlder = false;
+  const listen = () => {
+    unsub();
+    unsub = S.watchColl(app.path(`chats/${chatId}/messages`), { orderBy: ['at', 'desc'], limit: shown }, (rows) => {
+      msgs = rows.reverse(); loadingOlder = false; renderMsgs(); markRead();
+    });
+  };
+  listen();
+  box.addEventListener('scroll', () => {
+    if (loadingOlder || box.scrollTop > 150 || msgs.length < shown) return;
+    loadingOlder = true; shown += PAGE; listen();
+  }, { passive: true });
   const off = app.on(() => { head(); markRead(); });
   head();
   return { destroy: () => { unsub(); off(); closeBar(); } };

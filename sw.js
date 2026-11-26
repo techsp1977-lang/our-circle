@@ -1,11 +1,24 @@
 // Opens the app instantly from the copy saved on the phone. Each time the app is opened,
 // it downloads the newest version of every file in the background and swaps the whole set
 // in at once, so the next open has your latest update (never a mix of old and new files).
-// Firebase traffic (messages, photos, sign-in) is never touched here.
+// Firebase traffic (messages, photos, sign-in) is never touched here; only Firebase's code files are saved.
 const CACHE = 'our-circle-shell';
 const SHELL = ['./index.html', './start.js', './apple-tokens.css', './app.css', './app.js', './config.js', './store.js', './ui.js', './themes.js', './dates.js',
   './events.js', './crop.js', './lock.js', './push.js', './photos.js', './jkey.js', './plans.js', './admin.js', './calendar.js', './circles.js', './hub.js', './familymap.js', './yearvideo.js', './birthdays.js', './chats.js', './album.js', './journal.js', './me.js', './manage.js', './demo-seed.js',
   './manifest.webmanifest', './oc-icon-192.png'];
+
+// Firebase's own code (about 700 KB) is kept here too. Its address includes its version number, so a saved copy
+// never goes stale; when the app moves to a new version, the new files are fetched once and the old ones dropped.
+const LIB = 'our-circle-firebase';
+const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
+const LIB_FILES = ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js', 'firebase-storage.js', 'firebase-functions.js'].map((f) => FB + f);
+async function keepLib() {
+  try {
+    const c = await caches.open(LIB);
+    await Promise.all(LIB_FILES.map(async (u) => { if (!(await c.match(u))) { const r = await fetch(u, { mode: 'cors' }); if (r.ok) await c.put(u, r); } }));
+    (await c.keys()).filter((q) => !q.url.startsWith(FB)).forEach((q) => c.delete(q));
+  } catch (e) { /* offline: try again next time */ }
+}
 
 async function refreshAll() {
   const fresh = await Promise.all(SHELL.map((p) => fetch(p, { cache: 'no-cache' }).then((r) => (r.ok ? [p, r] : null)).catch(() => null)));
@@ -24,12 +37,16 @@ async function refreshAll() {
   }
 }
 
-self.addEventListener('install', (e) => { e.waitUntil(refreshAll().then(() => self.skipWaiting())); });
+self.addEventListener('install', (e) => { e.waitUntil(Promise.all([refreshAll(), keepLib()]).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE && k !== 'oc-badge').map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => ![CACHE, LIB, 'oc-badge', 'oc-yr-music'].includes(k)).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', (e) => {
   const u = new URL(e.request.url);
+  if (e.request.method === 'GET' && e.request.url.startsWith(FB)) { // Firebase's code: the saved copy, else fetch and save it
+    e.respondWith(caches.open(LIB).then(async (c) => (await c.match(e.request.url)) || fetch(e.request).then((r) => { if (r.ok) c.put(e.request.url, r.clone()); return r; })));
+    return;
+  }
   if (e.request.method !== 'GET' || u.origin !== location.origin) return;
   // Videos stream straight from the web (phones fetch them in pieces).
   if (e.request.headers.has('range') || /\.(mp4|webm|mov)$/i.test(u.pathname)) return;
@@ -41,7 +58,7 @@ self.addEventListener('fetch', (e) => {
   e.respondWith((async () => {
     const saved = await caches.match(key, { ignoreSearch: true });
     if (saved) {
-      if (isPage) e.waitUntil(refreshAll());
+      if (isPage) e.waitUntil(Promise.all([refreshAll(), keepLib()]));
       return saved;
     }
     return fetch(e.request);

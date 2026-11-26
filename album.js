@@ -51,7 +51,7 @@ async function maybeAskUpgrade(app) {
 function grid(root, app) {
   const st = app.state;
   let posts = [];
-  const render = () => {
+  let render = () => {
     root.innerHTML = `
       <header class="top"><div><div class="eyebrow">${esc(st.circle?.name || '')}</div><h1 class="display">Family Album</h1></div>
         <button class="btn sm" data-act="share">${icon('plus', 16)} Share</button></header>
@@ -72,11 +72,24 @@ function grid(root, app) {
     if (e.target.closest('[data-act="year"]')) import('./yearvideo.js').then((m) => m.openYearVideo(app));
   };
   root.addEventListener('click', onClick);
-  const unsub = S.watchColl(app.path('album'), { orderBy: ['at', 'desc'] }, (rows) => { posts = rows; render(); });
+  // The newest albums first; more load as you scroll to the bottom (quick to open even after years of albums).
+  const PAGE = 24;
+  let shown = PAGE, unsub = () => {}, more = null;
+  const listen = () => { unsub(); unsub = S.watchColl(app.path('album'), { orderBy: ['at', 'desc'], limit: shown }, (rows) => { posts = rows; render(); }); };
+  const watchEnd = () => {
+    more?.disconnect();
+    const last = root.querySelector('.album-card:last-of-type');
+    if (!last || posts.length < shown || !('IntersectionObserver' in window)) return;
+    more = new IntersectionObserver((es) => { if (es.some((x) => x.isIntersecting)) { more.disconnect(); shown += PAGE; listen(); } }, { rootMargin: '600px' });
+    more.observe(last);
+  };
+  const paint = render;
+  render = () => { paint(); watchEnd(); };
+  listen();
   setTimeout(() => maybeAskUpgrade(app), 600);
   const off = app.on(render);
   render();
-  return { destroy: () => { unsub(); off(); root.removeEventListener('click', onClick); } };
+  return { destroy: () => { unsub(); off(); more?.disconnect(); root.removeEventListener('click', onClick); } };
 }
 
 // After picking: the photos are already uploading. Previews of everything chosen (each with its own progress),
