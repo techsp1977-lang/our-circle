@@ -8,7 +8,8 @@ import { icon, toast, safeUrl, mediaKind } from './ui.js';
 import { theme } from './themes.js';
 
 let W = 1920, H = 1080, U = 1, WIDE = true; // the video's shape: wide for a TV (default) or tall for a phone
-const setShape = (wide) => { WIDE = wide; W = wide ? 1920 : 1080; H = wide ? 1080 : 1920; U = 1; };
+// The saved video is 1920×1080 or 1080×1920; full screen uses the screen's own shape (see openYearVideo).
+const setShape = (wide, w, h) => { WIDE = wide; W = w || (wide ? 1920 : 1080); H = h || (wide ? 1080 : 1920); U = 1; };
 const FADE = 0.5;
 export const LENGTHS = [60, 180, 300]; // 1, 3 or 5 minutes
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -64,41 +65,69 @@ async function gather(app, year) {
   return { albums, days, people: Object.values(st.members) };
 }
 
+// An album that goes with a big moment: one whose title names someone in it, or the kind of day ("wedding",
+// "baby"…), shared within about six weeks of the day. Its photos play right after the announcement, and its
+// first photo sits behind the words.
+const KIND_WORDS = { '💍': /wedding|married|bride|reception/i, '👶': /\bbaby\b|\bborn\b|newborn|\bbirth\b/i, '🎓': /grad/i, '🌎': /mission/i, '🕊️': /baptism|baptized/i, '💕': /anniversary/i, '🎂': /birthday|bday/i };
+function albumFor(day, albums, used) {
+  const when = new Date(day.date + 'T12:00:00').getTime();
+  const firsts = day.who.map((m) => String(m.name || '').trim().split(/\s+/)[0].toLowerCase()).filter((n) => n.length > 1);
+  let best = null, bestScore = 0;
+  for (const a of albums) {
+    if (used.has(a)) continue;
+    const t = String(a.title || '').toLowerCase(), days = Math.abs(a.at - when) / 864e5;
+    const nameHit = firsts.some((n) => new RegExp(`\\b${n.replace(/[^a-z0-9]/g, '')}`).test(t)), kindHit = KIND_WORDS[day.emoji]?.test(t);
+    if (!(nameHit || kindHit) || days > 45) continue;
+    if (day.emoji === '🎂' && !nameHit) continue; // someone's birthday party only goes with their birthday
+    const score = (nameHit ? 2 : 0) + (kindHit ? 2 : 0) + (1 - days / 45);
+    if (score > bestScore) { best = a; bestScore = score; }
+  }
+  return best;
+}
+
 // ───────── the running order, sized to the length picked (1, 3 or 5 minutes) ─────────
+// Month by month: the big moments are announced in words where they happened in the year, each followed by
+// its album when there is one, and the other albums and days fill in around them.
 function plan(app, year, data, target) {
   const c = app.state.circle || {};
   const photosTotal = data.albums.reduce((a, x) => a + x.photos.length, 0);
   const months = new Map();
   const add = (m, item) => { if (!months.has(m)) months.set(m, []); months.get(m).push(item); };
-  data.days.forEach((d) => add(Number(d.date.slice(5, 7)) - 1, { kind: 'day', ...d }));
-  data.albums.forEach((a) => add(new Date(a.at).getMonth(), { kind: 'album', ...a }));
+  const used = new Set();
+  const days = data.days.map((d) => { const album = d.big ? albumFor(d, data.albums, used) : null; if (album) used.add(album); return { kind: 'day', ...d, album }; });
+  days.forEach((d) => add(Number(d.date.slice(5, 7)) - 1, d));
+  data.albums.filter((a) => !used.has(a)).forEach((a) => add(new Date(a.at).getMonth(), { kind: 'album', ...a, sortAt: a.at }));
+  months.forEach((list) => list.sort((x, y) => (x.sortAt || new Date(x.date + 'T12:00:00').getTime()) - (y.sortAt || new Date(y.date + 'T12:00:00').getTime())));
   const dayCount = data.days.length, monthCount = months.size;
-  const bigs = data.days.filter((d) => d.big), bigCount = bigs.length, smallCount = dayCount - bigCount;
-  const top = bigs.slice(0, 6), hiDur = top.length ? Math.min(6.5, 2.4 + 0.7 * top.length) : 0;
+  const bigCount = data.days.filter((d) => d.big).length, smallCount = dayCount - bigCount;
   // A busy year in a short video: big days and month titles go a little quicker so photos still get room.
   let dayDur = 3.2, bigDur = 5, monthDur = 1.6;
-  const ends = 3.5 + 4 + 5 + hiDur;
+  const ends = 3.5 + 4 + 5;
   if (ends + smallCount * dayDur + bigCount * bigDur + monthCount * monthDur > target * 0.55) { dayDur = 2.2; bigDur = 3.8; monthDur = 1.1; }
   const fixed = ends + smallCount * dayDur + bigCount * bigDur + monthCount * monthDur;
   // Photos fill the rest. A longer video shows more of each album and lingers a little longer on each photo.
   const budget = Math.max(0, target - fixed), pace = target >= 300 ? 3.1 : target >= 180 ? 2.8 : 2.4;
   const perPhoto = photosTotal * pace > budget ? pace : Math.min(4.5, Math.max(pace, budget / Math.max(1, photosTotal)));
   const room = Math.max(Math.min(photosTotal, data.albums.length), Math.floor(budget / perPhoto));
+  const photosOf = (a, withTitle) => {
+    const share = Math.max(1, Math.round((room * a.photos.length) / Math.max(1, photosTotal)));
+    const pick = a.photos.length <= share ? a.photos : Array.from({ length: share }, (_, i) => a.photos[Math.floor((i * a.photos.length) / share)]);
+    return pick.map((url, i) => ({ kind: 'photo', dur: perPhoto, url, title: withTitle && i === 0 ? a.title : '', sub: withTitle && i === 0 ? new Date(a.at).toLocaleDateString('en-US', { month: 'long', day: 'numeric' }) : '', n: i }));
+  };
   const slides = [{ kind: 'intro', dur: 3.5, name: c.name || 'Our family', year }];
   slides.push({ kind: 'stats', dur: 4, stats: [
     [data.albums.length, data.albums.length === 1 ? 'album' : 'albums'], [photosTotal, photosTotal === 1 ? 'photo' : 'photos'],
     [dayCount, dayCount === 1 ? 'big day' : 'big days'], [data.people.length, 'in the family']] });
-  // The year's biggest moments, in words, before the month-by-month story.
-  if (top.length) slides.push({ kind: 'highlights', dur: hiDur, year, items: top.map((d) => ({ emoji: d.emoji, line: d.line })), more: bigCount - top.length });
   [...months.keys()].sort((a, b) => a - b).forEach((m) => {
     slides.push({ kind: 'month', dur: monthDur, label: MONTHS[m] });
     months.get(m).forEach((it) => {
-      if (it.kind === 'day') slides.push({ ...it, kind: it.big ? 'big' : 'day', dur: it.big ? bigDur : dayDur });
-      else {
-        const share = Math.max(1, Math.round((room * it.photos.length) / Math.max(1, photosTotal)));
-        const pick = it.photos.length <= share ? it.photos : Array.from({ length: share }, (_, i) => it.photos[Math.floor((i * it.photos.length) / share)]);
-        pick.forEach((url, i) => slides.push({ kind: 'photo', dur: perPhoto, url, title: i === 0 ? it.title : '', sub: i === 0 ? new Date(it.at).toLocaleDateString('en-US', { month: 'long', day: 'numeric' }) : '', n: i }));
-      }
+      if (it.kind === 'album') { slides.push(...photosOf(it, true)); return; }
+      if (!it.big) { slides.push({ ...it, kind: 'day', dur: dayDur }); return; }
+      // The announcement, with its album's first photo behind the words, then the album (titled quietly, since
+      // the announcement already said what it is).
+      const pics = it.album ? photosOf(it.album, false) : [];
+      slides.push({ ...it, kind: 'big', dur: bigDur, bgUrl: it.album?.photos[0] || null });
+      if (pics.length) { pics[0].title = it.album.title; pics[0].sub = ''; slides.push(...pics); }
     });
   });
   slides.push({ kind: 'outro', dur: 5, next: year + 1, motto: c.motto || '', people: data.people });
@@ -144,13 +173,13 @@ function cover(ctx, img, zoom, panX, panY) {
 // The whole photo, never cropped or zoomed, over a soft blurred copy of itself that fills the rest of the screen.
 // (The blur is the photo drawn tiny and stretched, which works on every phone.)
 const softCache = new WeakMap();
-function soft(img) {
-  const hit = softCache.get(img);
-  if (hit && hit.wide === WIDE) return hit.c;
-  const c = document.createElement('canvas'); c.width = 32; c.height = Math.max(8, Math.round(32 * H / W));
+function soft(img, size = 32) {
+  const key = `${W}x${H}@${size}`, hits = softCache.get(img) || {};
+  if (hits[key]) return hits[key];
+  const c = document.createElement('canvas'); c.width = size; c.height = Math.max(8, Math.round(size * H / W));
   const x = c.getContext('2d'), s = Math.max(c.width / img.width, c.height / img.height);
   x.drawImage(img, (c.width - img.width * s) / 2, (c.height - img.height * s) / 2, img.width * s, img.height * s);
-  softCache.set(img, { c, wide: WIDE });
+  hits[key] = c; softCache.set(img, hits);
   return c;
 }
 function wholePhoto(ctx, img) {
@@ -251,7 +280,11 @@ function drawSlide(ctx, s, t, env) {
     ctx.restore();
   } else if (s.kind === 'big') {
     // A worded slide for the year's really big moments: a new baby, a wedding, a milestone anniversary or birthday.
-    if (s.gold) { // golden and later anniversaries: a warm gold background instead of the circle's color
+    const back = s.bgUrl && imgs.get(s.bgUrl);
+    if (back) { // a photo from the album that goes with it, softly blurred behind the words
+      ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(soft(back, 140), -W * 0.03, -H * 0.03, W * 1.06, H * 1.06);
+      ctx.fillStyle = s.gold ? 'rgba(70,48,4,0.55)' : 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, W, H); ctx.restore();
+    } else if (s.gold) { // golden and later anniversaries: a warm gold background instead of the circle's color
       const g = ctx.createLinearGradient(0, 0, W * 0.4, H); g.addColorStop(0, '#9A7414'); g.addColorStop(1, '#3B2A06');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
       const x = W * (0.3 + 0.4 * Math.sin(env.clock * 0.35)), r = ctx.createRadialGradient(x, H * 0.3, 0, x, H * 0.3, W * 0.9);
@@ -290,26 +323,6 @@ function drawSlide(ctx, s, t, env) {
     ctx.save(); ctx.globalAlpha *= at(1.3);
     who.forEach((m, i) => faceCircle(ctx, imgs.get(m.photo), m.name, W / 2 - total / 2 + r + i * (r * 2 + fg), fy, r, tint));
     ctx.restore();
-  } else if (s.kind === 'highlights') {
-    text(ctx, `The big moments of ${s.year}`, W / 2, H * (WIDE ? 0.14 : 0.14), WIDE ? 88 : 84, { weight: 800, maxW: W - 160 });
-    const size = WIDE ? 58 : 56, step = WIDE ? 108 : 150;
-    let y = H * (WIDE ? 0.3 : 0.27);
-    s.items.forEach((it, i) => {
-      const a = ease((t - 0.5 - i * 0.45) / 0.5);
-      ctx.save(); ctx.globalAlpha *= a;
-      ctx.font = `${size * 1.1}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      if (WIDE) {
-        ctx.textAlign = 'left'; ctx.fillText(it.emoji, W * 0.2, y);
-        text(ctx, it.line, W * 0.2 + size * 1.6, y + (1 - a) * 16, size, { weight: 600, align: 'left', maxW: W * 0.62 });
-        y += step;
-      } else {
-        ctx.fillText(it.emoji, W / 2, y);
-        const h = text(ctx, it.line, W / 2, y + size * 1.25 + (1 - a) * 16, size, { weight: 600, maxW: W - 140 });
-        y += Math.max(step, h + size * 1.5 + 30);
-      }
-      ctx.restore();
-    });
-    if (s.more > 0) { ctx.save(); ctx.globalAlpha *= ease((t - 0.5 - s.items.length * 0.45) / 0.5); text(ctx, `and ${s.more} more`, W / 2, Math.min(H - 80, y + 10), 46, { weight: 500, color: 'rgba(255,255,255,0.8)' }); ctx.restore(); }
   } else if (s.kind === 'outro') {
     const ppl = s.people.slice(0, WIDE ? 36 : 30), n = ppl.length;
     const cols = WIDE ? (n <= 6 ? n : n <= 16 ? Math.ceil(n / 2) : Math.ceil(n / 3)) : (n <= 4 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : 5);
@@ -433,7 +446,7 @@ export async function openYearVideo(app) {
   document.body.appendChild(wrap);
   const canvas = wrap.querySelector('canvas'), ctx = canvas.getContext('2d'), status = wrap.querySelector('.yr-status');
   const playBtn = wrap.querySelector('[data-play]'), saveBtn = wrap.querySelector('[data-save]'), fullBtn = wrap.querySelector('[data-full]');
-  let show = null, raf = 0, ac = null, recording = null, alive = true;
+  let show = null, raf = 0, ac = null, recording = null, alive = true, nowT = 0;
   const env = { tint, imgs: new Map(), still, clock: 0, tainted: false };
   const years_ = new Map(); // what happened, per year (fetched once)
 
@@ -445,7 +458,7 @@ export async function openYearVideo(app) {
     if (!years_.has(year)) years_.set(year, await gather(app, year));
     const data = years_.get(year);
     show = plan(app, year, data, length);
-    const urls = [...new Set([...show.slides.filter((s) => s.kind === 'photo').map((s) => s.url), ...Object.values(st.members).map((m) => m.photo && safeUrl(m.photo)).filter(Boolean)])].filter((u) => !env.imgs.has(u));
+    const urls = [...new Set([...show.slides.filter((s) => s.kind === 'photo').map((s) => s.url), ...show.slides.map((s) => s.bgUrl).filter(Boolean), ...Object.values(st.members).map((m) => m.photo && safeUrl(m.photo)).filter(Boolean)])].filter((u) => !env.imgs.has(u));
     let done = 0;
     await Promise.all(urls.map(async (u) => { const img = await loadImg(u, env); if (img) env.imgs.set(u, img); status.textContent = `Getting photos ready… ${++done} of ${urls.length}`; }));
     if (!alive) return;
@@ -483,8 +496,8 @@ export async function openYearVideo(app) {
     const t0 = performance.now();
     const tick = () => {
       const t = (performance.now() - t0) / 1000;
-      if (t >= show.total) { frame(show.total - 0.01); playBtn.innerHTML = `${icon('next', 16)} Play again`; onEnd?.(); resolve(); return; }
-      frame(t); raf = requestAnimationFrame(tick);
+      if (t >= show.total) { nowT = show.total - 0.01; frame(nowT); playBtn.innerHTML = `${icon('next', 16)} Play again`; onEnd?.(); resolve(); return; }
+      nowT = t; frame(t); raf = requestAnimationFrame(tick);
     };
     playBtn.innerHTML = `${icon('next', 16)} Restart`;
     tick();
@@ -534,37 +547,48 @@ export async function openYearVideo(app) {
     g.querySelectorAll('button').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
     prepare();
   });
-  // Full screen: the video fills the whole screen, on iPhone too (where web pages can't use the browser's own
-  // full screen). A TV-shaped video on a phone held upright turns sideways to fill the screen, so it works even
-  // with rotation lock on; turning the phone puts it upright. Tap to show Exit and Play again.
+  // Full screen: the video fills the whole screen on iPhone too (where web pages can't use the browser's own
+  // full screen). It lays itself out to the screen's exact shape as the phone is held: tall when upright, wide
+  // when sideways, with no black bars, and keeps playing as the phone turns. With rotation lock on, "Sideways"
+  // turns it to fill the screen sideways. Tap the screen for the buttons.
   const stage = wrap.querySelector('.yr-stage');
   const bar = document.createElement('div');
   bar.className = 'yr-fullbar';
-  bar.innerHTML = `<button type="button" data-again aria-label="Play again">${icon('next', 18)} Play again</button><button type="button" data-exit aria-label="Exit full screen">${icon('x', 18)}</button>`;
-  let inFull = false, hideBar = 0, lockFull = null;
+  bar.innerHTML = `<button type="button" data-turn>${icon('refresh', 18)} <span>Sideways</span></button><button type="button" data-again aria-label="Play again">${icon('next', 18)} Play again</button><button type="button" data-exit aria-label="Exit full screen">${icon('x', 18)}</button>`;
+  let inFull = false, hideBar = 0, lockFull = null, sideways = false;
   const fit = () => {
     if (!inFull) { canvas.style.width = canvas.style.height = canvas.style.transform = ''; return; }
-    const vw = innerWidth, vh = innerHeight, turn = wide && vh > vw;
-    const sc = turn ? Math.min(vh / W, vw / H) : Math.min(vw / W, vh / H);
-    canvas.style.width = `${Math.floor(W * sc)}px`; canvas.style.height = `${Math.floor(H * sc)}px`;
-    canvas.style.transform = turn ? 'rotate(90deg)' : '';
-    bar.classList.toggle('turned', turn);
+    const vw = innerWidth, vh = innerHeight, upright = vh > vw, turned = sideways && upright;
+    const sw = turned ? vh : vw, sh = turned ? vw : vh; // the screen as the viewer sees it
+    const land = sw > sh, ratio = Math.min(2.4, Math.max(sw, sh) / Math.min(sw, sh));
+    const w = land ? Math.round(1080 * ratio) : 1080, h = land ? 1080 : Math.round(1080 * ratio);
+    if (w !== W || h !== H || land !== WIDE) {
+      setShape(land, w, h); canvas.width = w; canvas.height = h;
+      canvas.style.opacity = '0'; requestAnimationFrame(() => { canvas.style.opacity = '1'; });
+      frame(nowT);
+    }
+    canvas.style.width = `${sw}px`; canvas.style.height = `${sh}px`;
+    canvas.style.transform = turned ? 'rotate(90deg)' : '';
+    bar.classList.toggle('turned', turned);
+    const tb = bar.querySelector('[data-turn]'); tb.hidden = !upright; tb.querySelector('span').textContent = turned ? 'Upright' : 'Sideways';
   };
-  const flashBar = (stay) => { bar.classList.add('on'); clearTimeout(hideBar); if (!stay) hideBar = setTimeout(() => bar.classList.remove('on'), 2800); };
+  const refit = () => { fit(); setTimeout(fit, 250); }; // phones report the new size a moment after turning
+  const flashBar = (stay) => { bar.classList.add('on'); clearTimeout(hideBar); if (!stay) hideBar = setTimeout(() => bar.classList.remove('on'), 3500); };
   const enterFull = async () => {
     if (inFull || !show || playBtn.disabled) return;
-    inFull = true; wrap.classList.add('yr-theater'); stage.appendChild(bar); fit();
+    inFull = true; sideways = false; wrap.classList.add('yr-theater'); stage.appendChild(bar);
     const go = wrap.requestFullscreen || wrap.webkitRequestFullscreen; // computers, Android and iPad; not iPhone
-    if (go) { try { await go.call(wrap); if (wide) await screen.orientation?.lock?.('landscape').catch(() => {}); } catch (e) {} }
+    if (go) { try { await go.call(wrap); } catch (e) {} }
     try { lockFull = await navigator.wakeLock?.request('screen'); } catch (e) {}
-    setTimeout(fit, 300);
+    refit();
     flashBar();
     play(() => flashBar(true));
   };
   const exitFull = () => {
     if (!inFull) return;
     inFull = false; cancelAnimationFrame(raf); stopMusic?.(); stopMusic = null;
-    wrap.classList.remove('yr-theater'); bar.remove(); fit(); lockFull?.release?.(); lockFull = null;
+    wrap.classList.remove('yr-theater'); bar.remove(); lockFull?.release?.(); lockFull = null;
+    setShape(wide); canvas.width = W; canvas.height = H; fit(); frame(nowT);
     if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {});
     playBtn.innerHTML = `${icon('next', 16)} Play`;
   };
@@ -572,13 +596,14 @@ export async function openYearVideo(app) {
   bar.addEventListener('click', (e) => {
     e.stopPropagation();
     if (e.target.closest('[data-exit]')) exitFull();
+    else if (e.target.closest('[data-turn]')) { sideways = !sideways; fit(); flashBar(); }
     else if (e.target.closest('[data-again]')) { flashBar(); play(() => flashBar(true)); }
   });
   stage.addEventListener('click', () => { if (inFull) flashBar(); });
-  addEventListener('resize', fit);
+  addEventListener('resize', refit);
   const onFs = () => { if (inFull && !(document.fullscreenElement || document.webkitFullscreenElement) && (wrap.requestFullscreen || wrap.webkitRequestFullscreen)) exitFull(); };
   document.addEventListener('fullscreenchange', onFs); document.addEventListener('webkitfullscreenchange', onFs);
-  const close = () => { alive = false; exitFull(); cancelAnimationFrame(raf); stopMusic?.(); ac?.close?.(); removeEventListener('resize', fit); document.removeEventListener('fullscreenchange', onFs); document.removeEventListener('webkitfullscreenchange', onFs); wrap.remove(); };
+  const close = () => { alive = false; exitFull(); cancelAnimationFrame(raf); stopMusic?.(); ac?.close?.(); removeEventListener('resize', refit); document.removeEventListener('fullscreenchange', onFs); document.removeEventListener('webkitfullscreenchange', onFs); wrap.remove(); };
   wrap.addEventListener('click', (e) => { if (inFull) return; if (e.target === wrap || e.target.closest('[data-x]')) close(); });
   document.addEventListener('keydown', function esc(e) { if (!alive) { document.removeEventListener('keydown', esc); return; } if (e.key === 'Escape') { if (inFull) exitFull(); else close(); } });
   wrap.yr = { frame: (t) => frame(t), slides: () => show?.slides || [] }; // for checking frames while testing
