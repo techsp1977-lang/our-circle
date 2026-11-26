@@ -446,12 +446,12 @@ export async function openYearVideo(app) {
       <span class="grow"></span>
       <label class="sr" for="yr-music">Music</label>
       <select id="yr-music" class="select-pill" aria-label="Music"></select>
-      <input type="file" accept="audio/*,.mp3,.m4a,.aac,.wav" id="yr-song" hidden>
       <button class="icon-btn" data-x aria-label="Close">${icon('x')}</button>
     </div>
     <div class="yr-opts">
       ${seg('Length', LENGTHS.map((v) => [v, `${v / 60} min`]), length)}
       ${seg('Shape', [['tv', 'TV'], ['phone', 'Phone']], wide ? 'tv' : 'phone')}
+      <label class="yr-songbtn" for="yr-song">♪ <span>Use your own song</span><input type="file" accept="audio/*,.mp3,.m4a,.aac,.wav" id="yr-song" class="sr"></label>
     </div>
     <div class="yr-stage"><canvas aria-label="Year in review video"></canvas><p class="yr-status" aria-live="polite"></p></div>
     <div class="yr-actions">
@@ -561,7 +561,8 @@ export async function openYearVideo(app) {
   const fillMusic = () => {
     const opts = [...Object.entries(STYLES).map(([k, v]) => [k, '♪ ' + v.label])];
     if (song) opts.push(['own', `♪ ${song.name.replace(/\.[a-z0-9]+$/i, '').slice(0, 28)}`]);
-    opts.push(['pick', song ? 'Choose a different song…' : 'Choose your own song…'], ['off', 'No music']);
+    opts.push(['off', 'No music']);
+    wrap.querySelector('.yr-songbtn span').textContent = song ? 'Change your song' : 'Use your own song';
     musicSel.innerHTML = opts.map(([k, l]) => `<option value="${k}" ${k === style ? 'selected' : ''}>${esc(l)}</option>`).join('');
   };
   const audio = () => { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); return ac; };
@@ -573,9 +574,10 @@ export async function openYearVideo(app) {
   };
   // Picking a style plays a few seconds of it, so it can be heard before the video starts.
   musicSel.addEventListener('change', () => {
-    if (musicSel.value === 'pick') { audio(); fillMusic(); songInput.value = ''; songInput.click(); return; }
     style = musicSel.value; keep('oc-yr-music', style); preview();
   });
+  // The song picker opens from a real tap on the button (a label for the file input): iPhones only allow that.
+  songInput.addEventListener('click', () => { audio(); songInput.value = ''; });
   songInput.addEventListener('change', async () => {
     const f = songInput.files?.[0]; if (!f) return;
     try {
