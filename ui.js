@@ -39,6 +39,7 @@ export const icon = (name, size = 20) => {
     x: '<path d="M18 6 6 18M6 6l12 12"/>',
     refresh: '<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/>',
     check: '<path d="M20 6 9 17l-5-5"/>',
+    expand: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
   }[name] || '';
   return `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 };
