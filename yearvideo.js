@@ -1,7 +1,7 @@
 // Year in Review: a 1, 3 or 5 minute video of the family's year (wide for a TV, or tall for a phone), made on
 // the phone from what's already in
 // the circle: the year in numbers, then month by month its big days (graduations, weddings, trips, new babies,
-// milestone anniversaries) and its albums (photos with a slow zoom), then everyone's faces. It plays on screen;
+// milestone anniversaries, each really big one in words) and its albums (every photo shown whole), then everyone's faces. It plays on screen;
 // "Save video" records it into a real video file to keep or share. Optional soft music is generated here too.
 import * as S from './store.js';
 import { icon, toast, safeUrl, mediaKind } from './ui.js';
@@ -14,6 +14,11 @@ export const LENGTHS = [60, 180, 300]; // 1, 3 or 5 minutes
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const EMOJI = { graduation: '🎓', mission: '🌎', baptism: '🕊️', wedding: '💍', trip: '✈️', event: '🎉', other: '✨', baby: '👶', anniversary: '💕' };
 const FONT = '-apple-system, "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif';
+// Milestones that get a worded slide.
+const BIG_BIRTHDAYS = [1, 16, 18, 21, 30, 40, 50, 60, 70, 75, 80, 90, 100];
+const ANNIV = { 1: 'First anniversary', 25: 'Silver anniversary', 30: 'Pearl anniversary', 40: 'Ruby anniversary', 50: 'Golden anniversary', 60: 'Diamond anniversary', 70: 'Platinum anniversary', 75: 'Diamond jubilee' };
+const ordinal = (n) => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+const join = (a) => a.length <= 1 ? (a[0] || '') : a.length === 2 ? `${a[0]} & ${a[1]}` : `${a.slice(0, -1).join(', ')} & ${a.at(-1)}`;
 
 // ───────── what happened this year ─────────
 async function gather(app, year) {
@@ -25,15 +30,34 @@ async function gather(app, year) {
     .filter((a) => a.photos.length)
     .sort((a, b) => a.at - b.at);
   const days = [];
+  const md = (d) => d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+  const named = (who, ev) => who.length ? join(who.map((m) => m.name)) : String(ev.title || '').replace(/\s*·.*$/, '');
+  const knownYr = (d) => Number(String(d).slice(0, 4)) > 1904;
+  const couples = new Set(); // weddings already shown, so a wedding and a new anniversary date don't both appear
   for (const ev of st.events) {
     const who = (ev.memberIds || []).map((id) => app.member(id)).filter(Boolean);
+    const key = who.map((m) => m.id).sort().join(',');
     if (!ev.recurring && ev.type !== 'birthday' && ev.type !== 'anniversary' && inYear(ev.date)) {
-      days.push({ date: ev.date, emoji: EMOJI[ev.type] || '✨', title: ev.title, who });
-    } else if (ev.type === 'anniversary' && ev.date) {
-      const yrs = Number(ev.date.slice(0, 4)) > 1904 ? year - Number(ev.date.slice(0, 4)) : 0;
-      if (yrs > 0 && yrs % 5 === 0) days.push({ date: `${year}${ev.date.slice(4)}`, emoji: EMOJI.anniversary, title: `${who.map((m) => m.name).join(' & ') || ev.title} · ${yrs} years`, who });
-    } else if (ev.type === 'birthday' && inYear(ev.date)) {
-      who.forEach((m) => days.push({ date: ev.date, emoji: EMOJI.baby, title: `Welcome, ${m.name}!`, who: [m] }));
+      // The really big ones get a worded slide of their own.
+      const big = ev.type === 'wedding' ? { eyebrow: 'Just married', head: named(who, ev) }
+        : ev.type === 'graduation' ? { eyebrow: 'Graduated', head: named(who, ev) }
+        : ev.type === 'mission' ? { eyebrow: 'Called to serve', head: named(who, ev) }
+        : ev.type === 'baptism' ? { eyebrow: 'Baptized', head: named(who, ev) } : null;
+      if (ev.type === 'wedding' && key) couples.add(key);
+      days.push({ date: ev.date, emoji: EMOJI[ev.type] || '✨', title: ev.title, who, big, line: big ? `${big.head} · ${big.eyebrow.toLowerCase()}` : ev.title });
+    } else if (ev.type === 'anniversary' && ev.date && knownYr(ev.date)) {
+      const yrs = year - Number(ev.date.slice(0, 4)), date = `${year}${ev.date.slice(4)}`, names = named(who, ev);
+      if (yrs === 0 && !couples.has(key)) days.push({ date, emoji: '💍', title: `${names} were married`, who, big: { eyebrow: 'Just married', head: names }, line: `${names} · just married` });
+      else if (yrs === 1 || (yrs > 0 && yrs % 5 === 0)) {
+        const label = ANNIV[yrs] || `${ordinal(yrs)} anniversary`;
+        days.push({ date, emoji: EMOJI.anniversary, title: `${names} · ${yrs} years`, who, gold: yrs >= 50, big: { eyebrow: label, head: `${yrs} ${yrs === 1 ? 'year' : 'years'} married`, sub: names }, line: `${names} · ${yrs} ${yrs === 1 ? 'year' : 'years'} married` });
+      }
+    } else if (ev.type === 'birthday' && ev.date) {
+      if (inYear(ev.date)) who.forEach((m) => days.push({ date: ev.date, emoji: EMOJI.baby, title: `Welcome, ${m.name}!`, who: [m], big: { eyebrow: 'Welcome to the family', head: m.name, sub: `Born ${md(new Date(ev.date + 'T12:00:00'))}` }, line: `Welcome, ${m.name}` }));
+      else if (knownYr(ev.date)) {
+        const age = year - Number(ev.date.slice(0, 4));
+        if (BIG_BIRTHDAYS.includes(age)) who.forEach((m) => days.push({ date: `${year}${ev.date.slice(4)}`, emoji: '🎂', title: `${m.name} turned ${age}`, who: [m], big: { eyebrow: 'A milestone birthday', head: `${m.name} turned ${age}` }, line: `${m.name} turned ${age}` }));
+      }
     }
   }
   days.sort((a, b) => a.date.localeCompare(b.date));
@@ -49,11 +73,13 @@ function plan(app, year, data, target) {
   data.days.forEach((d) => add(Number(d.date.slice(5, 7)) - 1, { kind: 'day', ...d }));
   data.albums.forEach((a) => add(new Date(a.at).getMonth(), { kind: 'album', ...a }));
   const dayCount = data.days.length, monthCount = months.size;
+  const bigs = data.days.filter((d) => d.big), bigCount = bigs.length, smallCount = dayCount - bigCount;
+  const top = bigs.slice(0, 6), hiDur = top.length ? Math.min(6.5, 2.4 + 0.7 * top.length) : 0;
   // A busy year in a short video: big days and month titles go a little quicker so photos still get room.
-  let dayDur = 3.2, monthDur = 1.6;
-  const ends = 3.5 + 4 + 5;
-  if (ends + dayCount * dayDur + monthCount * monthDur > target * 0.55) { dayDur = 2.2; monthDur = 1.1; }
-  const fixed = ends + dayCount * dayDur + monthCount * monthDur;
+  let dayDur = 3.2, bigDur = 5, monthDur = 1.6;
+  const ends = 3.5 + 4 + 5 + hiDur;
+  if (ends + smallCount * dayDur + bigCount * bigDur + monthCount * monthDur > target * 0.55) { dayDur = 2.2; bigDur = 3.8; monthDur = 1.1; }
+  const fixed = ends + smallCount * dayDur + bigCount * bigDur + monthCount * monthDur;
   // Photos fill the rest. A longer video shows more of each album and lingers a little longer on each photo.
   const budget = Math.max(0, target - fixed), pace = target >= 300 ? 3.1 : target >= 180 ? 2.8 : 2.4;
   const perPhoto = photosTotal * pace > budget ? pace : Math.min(4.5, Math.max(pace, budget / Math.max(1, photosTotal)));
@@ -62,10 +88,12 @@ function plan(app, year, data, target) {
   slides.push({ kind: 'stats', dur: 4, stats: [
     [data.albums.length, data.albums.length === 1 ? 'album' : 'albums'], [photosTotal, photosTotal === 1 ? 'photo' : 'photos'],
     [dayCount, dayCount === 1 ? 'big day' : 'big days'], [data.people.length, 'in the family']] });
+  // The year's biggest moments, in words, before the month-by-month story.
+  if (top.length) slides.push({ kind: 'highlights', dur: hiDur, year, items: top.map((d) => ({ emoji: d.emoji, line: d.line })), more: bigCount - top.length });
   [...months.keys()].sort((a, b) => a - b).forEach((m) => {
     slides.push({ kind: 'month', dur: monthDur, label: MONTHS[m] });
     months.get(m).forEach((it) => {
-      if (it.kind === 'day') slides.push({ kind: 'day', dur: dayDur, ...it });
+      if (it.kind === 'day') slides.push({ ...it, kind: it.big ? 'big' : 'day', dur: it.big ? bigDur : dayDur });
       else {
         const share = Math.max(1, Math.round((room * it.photos.length) / Math.max(1, photosTotal)));
         const pick = it.photos.length <= share ? it.photos : Array.from({ length: share }, (_, i) => it.photos[Math.floor((i * it.photos.length) / share)]);
@@ -113,6 +141,42 @@ function cover(ctx, img, zoom, panX, panY) {
   const s = Math.max(W / img.width, H / img.height) * zoom, w = img.width * s, h = img.height * s;
   ctx.drawImage(img, (W - w) / 2 + panX, (H - h) / 2 + panY, w, h);
 }
+// The whole photo, never cropped or zoomed, over a soft blurred copy of itself that fills the rest of the screen.
+// (The blur is the photo drawn tiny and stretched, which works on every phone.)
+const softCache = new WeakMap();
+function soft(img) {
+  const hit = softCache.get(img);
+  if (hit && hit.wide === WIDE) return hit.c;
+  const c = document.createElement('canvas'); c.width = 32; c.height = Math.max(8, Math.round(32 * H / W));
+  const x = c.getContext('2d'), s = Math.max(c.width / img.width, c.height / img.height);
+  x.drawImage(img, (c.width - img.width * s) / 2, (c.height - img.height * s) / 2, img.width * s, img.height * s);
+  softCache.set(img, { c, wide: WIDE });
+  return c;
+}
+function wholePhoto(ctx, img) {
+  ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(soft(img), -W * 0.05, -H * 0.05, W * 1.1, H * 1.1);
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, 0, W, H);
+  const s = Math.min(W / img.width, H / img.height), w = img.width * s, h = img.height * s;
+  ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 40;
+  ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+  ctx.restore();
+}
+// Falling confetti for the big moments (still sprinkles when the phone asks for less motion).
+const CONFETTI = Array.from({ length: 70 }, (_, i) => ({ x: (i * 0.6180339) % 1, d: 0.5 + ((i * 0.37) % 1) * 0.8, sp: 0.6 + ((i * 0.71) % 1) * 0.7, c: ['#FFD54F', '#FF8A80', '#80D8FF', '#B9F6CA', '#FFFFFF', '#F8BBD0'][i % 6], r: (i * 1.7) % 6.28 }));
+function confetti(ctx, t, still) {
+  ctx.save();
+  const base = ctx.globalAlpha;
+  for (const p of CONFETTI) {
+    const y = still ? ((p.x * 7.3) % 1) * H : ((t * p.sp * 0.22 + p.x * 3.1) % 1.2 - 0.1) * H;
+    const x = p.x * W + (still ? 0 : Math.sin(t * 1.6 * p.sp + p.r) * 30);
+    ctx.translate(x, y); ctx.rotate(p.r + (still ? 0 : t * 2 * p.sp));
+    ctx.fillStyle = p.c; ctx.globalAlpha = base * 0.85; ctx.fillRect(-9 * p.d, -4 * p.d, 18 * p.d, 8 * p.d);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  ctx.restore();
+}
+
 function bg(ctx, tint, t) {
   const g = ctx.createLinearGradient(0, 0, W * 0.4, H);
   g.addColorStop(0, `rgb(${tint.map((v) => Math.round(v * 0.75)).join(',')})`);
@@ -140,7 +204,7 @@ function drawSlide(ctx, s, t, env) {
   if (s.kind === 'photo') {
     const img = imgs.get(s.url);
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-    if (img) { const dir = s.n % 2 ? 1 : -1; cover(ctx, img, 1.04 + 0.1 * k, dir * 40 * (k - 0.5), -30 * (k - 0.5)); }
+    if (img) wholePhoto(ctx, img);
     if (s.title) {
       const g = ctx.createLinearGradient(0, H * 0.6, 0, H); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.72)');
       ctx.fillStyle = g; ctx.fillRect(0, H * 0.6, W, H * 0.4);
@@ -185,6 +249,67 @@ function drawSlide(ctx, s, t, env) {
     const who = s.who.slice(0, WIDE ? 7 : 5), r = WIDE ? 80 : 95, gap = 30, total = who.length * r * 2 + (who.length - 1) * gap;
     who.forEach((m, i) => faceCircle(ctx, imgs.get(m.photo), m.name, W / 2 - total / 2 + r + i * (r * 2 + gap), H * (WIDE ? 0.8 : 0.75), r, tint));
     ctx.restore();
+  } else if (s.kind === 'big') {
+    // A worded slide for the year's really big moments: a new baby, a wedding, a milestone anniversary or birthday.
+    if (s.gold) { // golden and later anniversaries: a warm gold background instead of the circle's color
+      const g = ctx.createLinearGradient(0, 0, W * 0.4, H); g.addColorStop(0, '#9A7414'); g.addColorStop(1, '#3B2A06');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      const x = W * (0.3 + 0.4 * Math.sin(env.clock * 0.35)), r = ctx.createRadialGradient(x, H * 0.3, 0, x, H * 0.3, W * 0.9);
+      r.addColorStop(0, 'rgba(255,236,170,0.28)'); r.addColorStop(1, 'rgba(255,236,170,0)'); ctx.fillStyle = r; ctx.fillRect(0, 0, W, H);
+    }
+    confetti(ctx, t, still);
+    const at = (d, len = 0.6) => ease((t - d) / len);
+    const gap = WIDE ? 28 : 44, em = WIDE ? 130 : 200, eb = WIDE ? 52 : 58, hs = WIDE ? 136 : 150, ss = WIDE ? 64 : 70, ds = WIDE ? 48 : 54;
+    const who = s.who.slice(0, WIDE ? 6 : 4), r = WIDE ? 78 : 110, fg = 30;
+    const maxW = W - (WIDE ? 260 : 140);
+    ctx.font = `800 ${hs}px ${FONT}`;
+    const hh = wrap(ctx, s.big.head, maxW).length * hs * 1.1;
+    ctx.font = `600 ${ss}px ${FONT}`;
+    const sh = s.big.sub ? wrap(ctx, s.big.sub, W - 200).length * ss * 1.15 : 0;
+    const showDate = !/^Born /.test(s.big.sub || '');
+    // Everything centered on the screen as one block.
+    const block = em + gap + eb + gap * 0.8 + hh + gap + (sh ? sh + gap * 0.5 : 0) + (showDate ? ds * 1.15 : 0) + (who.length ? gap * 2 + r * 2 : 0);
+    let y = Math.max(40, (H - block) / 2);
+    ctx.save(); ctx.globalAlpha *= at(0, 0.5);
+    ctx.font = `${em * (0.85 + 0.15 * at(0, 0.7))}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(s.emoji, W / 2, y + em / 2); ctx.restore();
+    y += em + gap;
+    ctx.save(); ctx.globalAlpha *= at(0.25);
+    text(ctx, s.big.eyebrow.toUpperCase(), W / 2, y + eb / 2, eb, { weight: 700, color: s.gold ? '#FFE9A8' : 'rgba(255,255,255,0.88)' });
+    ctx.restore();
+    y += eb + gap * 0.8;
+    ctx.save(); ctx.globalAlpha *= at(0.5, 0.7);
+    text(ctx, s.big.head, W / 2, y + hh / 2 + (1 - at(0.5, 0.7)) * 30, hs, { weight: 800, maxW, lh: 1.1 });
+    ctx.restore();
+    y += hh + gap;
+    ctx.save(); ctx.globalAlpha *= at(1);
+    if (sh) { text(ctx, s.big.sub, W / 2, y + sh / 2, ss, { weight: 600, maxW: W - 200 }); y += sh + gap * 0.5; }
+    if (showDate) { text(ctx, new Date(s.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' }), W / 2, y + ds / 2, ds, { weight: 500, color: 'rgba(255,255,255,0.8)' }); y += ds * 1.15; }
+    ctx.restore();
+    const total = who.length * r * 2 + (who.length - 1) * fg, fy = Math.min(y + gap * 2 + r, H - r - 30);
+    ctx.save(); ctx.globalAlpha *= at(1.3);
+    who.forEach((m, i) => faceCircle(ctx, imgs.get(m.photo), m.name, W / 2 - total / 2 + r + i * (r * 2 + fg), fy, r, tint));
+    ctx.restore();
+  } else if (s.kind === 'highlights') {
+    text(ctx, `The big moments of ${s.year}`, W / 2, H * (WIDE ? 0.14 : 0.14), WIDE ? 88 : 84, { weight: 800, maxW: W - 160 });
+    const size = WIDE ? 58 : 56, step = WIDE ? 108 : 150;
+    let y = H * (WIDE ? 0.3 : 0.27);
+    s.items.forEach((it, i) => {
+      const a = ease((t - 0.5 - i * 0.45) / 0.5);
+      ctx.save(); ctx.globalAlpha *= a;
+      ctx.font = `${size * 1.1}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (WIDE) {
+        ctx.textAlign = 'left'; ctx.fillText(it.emoji, W * 0.2, y);
+        text(ctx, it.line, W * 0.2 + size * 1.6, y + (1 - a) * 16, size, { weight: 600, align: 'left', maxW: W * 0.62 });
+        y += step;
+      } else {
+        ctx.fillText(it.emoji, W / 2, y);
+        const h = text(ctx, it.line, W / 2, y + size * 1.25 + (1 - a) * 16, size, { weight: 600, maxW: W - 140 });
+        y += Math.max(step, h + size * 1.5 + 30);
+      }
+      ctx.restore();
+    });
+    if (s.more > 0) { ctx.save(); ctx.globalAlpha *= ease((t - 0.5 - s.items.length * 0.45) / 0.5); text(ctx, `and ${s.more} more`, W / 2, Math.min(H - 80, y + 10), 46, { weight: 500, color: 'rgba(255,255,255,0.8)' }); ctx.restore(); }
   } else if (s.kind === 'outro') {
     const ppl = s.people.slice(0, WIDE ? 36 : 30), n = ppl.length;
     const cols = WIDE ? (n <= 6 ? n : n <= 16 ? Math.ceil(n / 2) : Math.ceil(n / 3)) : (n <= 4 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : 5);
@@ -296,7 +421,7 @@ export async function openYearVideo(app) {
     <div class="yr-stage"><canvas aria-label="Year in review video"></canvas><p class="yr-status" aria-live="polite"></p></div>
     <div class="yr-actions">
       <button class="btn ghost" data-play>${icon('next', 16)} Play</button>
-      <button class="btn ghost" data-full>${icon('family', 16)} Full screen</button>
+      <button class="btn ghost" data-full>${icon('expand', 16)} Full screen</button>
       <button class="btn" data-save>${icon('download', 16)} Save video</button>
     </div>
     <details class="yr-help"><summary>Watch it on your TV</summary>
@@ -409,16 +534,53 @@ export async function openYearVideo(app) {
     g.querySelectorAll('button').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
     prepare();
   });
-  // Full screen for a TV or a computer. iPhones don't allow it for this, so the TV tips open instead.
-  fullBtn.addEventListener('click', async () => {
-    const stage = wrap.querySelector('.yr-stage');
-    const go = stage.requestFullscreen || stage.webkitRequestFullscreen;
-    if (!go) { wrap.querySelector('.yr-help').open = true; toast('On iPhone, turn your phone sideways while screen mirroring; the video fills the TV.', 7000); return; }
-    try { await go.call(stage); if (wide) await screen.orientation?.lock?.('landscape').catch(() => {}); } catch (e) {}
-    play();
+  // Full screen: the video fills the whole screen, on iPhone too (where web pages can't use the browser's own
+  // full screen). A TV-shaped video on a phone held upright turns sideways to fill the screen, so it works even
+  // with rotation lock on; turning the phone puts it upright. Tap to show Exit and Play again.
+  const stage = wrap.querySelector('.yr-stage');
+  const bar = document.createElement('div');
+  bar.className = 'yr-fullbar';
+  bar.innerHTML = `<button type="button" data-again aria-label="Play again">${icon('next', 18)} Play again</button><button type="button" data-exit aria-label="Exit full screen">${icon('x', 18)}</button>`;
+  let inFull = false, hideBar = 0, lockFull = null;
+  const fit = () => {
+    if (!inFull) { canvas.style.width = canvas.style.height = canvas.style.transform = ''; return; }
+    const vw = innerWidth, vh = innerHeight, turn = wide && vh > vw;
+    const sc = turn ? Math.min(vh / W, vw / H) : Math.min(vw / W, vh / H);
+    canvas.style.width = `${Math.floor(W * sc)}px`; canvas.style.height = `${Math.floor(H * sc)}px`;
+    canvas.style.transform = turn ? 'rotate(90deg)' : '';
+    bar.classList.toggle('turned', turn);
+  };
+  const flashBar = (stay) => { bar.classList.add('on'); clearTimeout(hideBar); if (!stay) hideBar = setTimeout(() => bar.classList.remove('on'), 2800); };
+  const enterFull = async () => {
+    if (inFull || !show || playBtn.disabled) return;
+    inFull = true; wrap.classList.add('yr-theater'); stage.appendChild(bar); fit();
+    const go = wrap.requestFullscreen || wrap.webkitRequestFullscreen; // computers, Android and iPad; not iPhone
+    if (go) { try { await go.call(wrap); if (wide) await screen.orientation?.lock?.('landscape').catch(() => {}); } catch (e) {} }
+    try { lockFull = await navigator.wakeLock?.request('screen'); } catch (e) {}
+    setTimeout(fit, 300);
+    flashBar();
+    play(() => flashBar(true));
+  };
+  const exitFull = () => {
+    if (!inFull) return;
+    inFull = false; cancelAnimationFrame(raf); stopMusic?.(); stopMusic = null;
+    wrap.classList.remove('yr-theater'); bar.remove(); fit(); lockFull?.release?.(); lockFull = null;
+    if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {});
+    playBtn.innerHTML = `${icon('next', 16)} Play`;
+  };
+  fullBtn.addEventListener('click', enterFull);
+  bar.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (e.target.closest('[data-exit]')) exitFull();
+    else if (e.target.closest('[data-again]')) { flashBar(); play(() => flashBar(true)); }
   });
-  const close = () => { alive = false; cancelAnimationFrame(raf); stopMusic?.(); ac?.close?.(); wrap.remove(); };
-  wrap.addEventListener('click', (e) => { if (e.target === wrap || e.target.closest('[data-x]')) close(); });
-  wrap.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  stage.addEventListener('click', () => { if (inFull) flashBar(); });
+  addEventListener('resize', fit);
+  const onFs = () => { if (inFull && !(document.fullscreenElement || document.webkitFullscreenElement) && (wrap.requestFullscreen || wrap.webkitRequestFullscreen)) exitFull(); };
+  document.addEventListener('fullscreenchange', onFs); document.addEventListener('webkitfullscreenchange', onFs);
+  const close = () => { alive = false; exitFull(); cancelAnimationFrame(raf); stopMusic?.(); ac?.close?.(); removeEventListener('resize', fit); document.removeEventListener('fullscreenchange', onFs); document.removeEventListener('webkitfullscreenchange', onFs); wrap.remove(); };
+  wrap.addEventListener('click', (e) => { if (inFull) return; if (e.target === wrap || e.target.closest('[data-x]')) close(); });
+  document.addEventListener('keydown', function esc(e) { if (!alive) { document.removeEventListener('keydown', esc); return; } if (e.key === 'Escape') { if (inFull) exitFull(); else close(); } });
+  wrap.yr = { frame: (t) => frame(t), slides: () => show?.slides || [] }; // for checking frames while testing
   prepare();
 }
