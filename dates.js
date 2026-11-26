@@ -53,8 +53,11 @@ export function agoText(start, from = today()) {
 
 function fixLeap(s) { return s.endsWith('-02-29') && parse(s).getMonth() !== 1 ? s.replace('-02-29', '-02-28') : s; }
 
+// A birthday or anniversary saved without its year is stored as 1904 (a leap year, so Feb 29 works).
+export const NO_YEAR = '1904';
+export const knownYear = (iso) => !!iso && Number(iso.slice(0, 4)) > Number(NO_YEAR);
 export function yearsSince(ev, onDate) {
-  if (!ev.recurring) return null;
+  if (!ev.recurring || !knownYear(ev.date)) return null;
   const n = Number(onDate.slice(0, 4)) - Number(ev.date.slice(0, 4));
   return n > 0 ? n : null;
 }

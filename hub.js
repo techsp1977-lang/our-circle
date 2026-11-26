@@ -26,7 +26,7 @@ export function mount(root, app) {
     const todays = happeningToday(app).filter((ev) => !isCalendarType(ev) || ev.date === t);
     // Households past their check-in window
     const due = st.households.filter((h) => checkin(app, h.id)?.overdue);
-    const alerts = due.length + todays.length;
+    const alerts = due.length + todays.filter((ev) => !app.seenToday(ev.id)).length;
     // Birthdays & big days: this month and next month only
     const big = byMonth(app, { filter: (ev) => !isCalendarType(ev), months: 2 });
 
@@ -43,7 +43,7 @@ export function mount(root, app) {
       ${planNotice(app)}
       ${familyWords(app, t, sayingShift)}
       ${due.length ? `<section class="block"><div class="card checkin-strip">
-        <div class="cs-head">${icon('bell', 18)}<b>Check in this week</b><small>${due.length} household${due.length === 1 ? '' : 's'}</small></div>
+        <div class="cs-head">${icon('bell', 18)}<b>Check in this week</b><small>${due.length} household${due.length === 1 ? '' : 's'}</small><button class="linkish cs-done" data-act="checkin-done">${icon('check', 15)} Done</button></div>
         <div class="cs-chips">${due.map((h) => { const ppl = app.membersOf(h.id); const single = ppl.length === 1;
           return `<button class="cs-chip" style="${hhVars(h)}" data-act="${single ? 'msg-member' : 'msg-household'}" data-id="${esc(single ? ppl[0].id : h.id)}">${names(h.name)}</button>`; }).join('')}</div>
       </div></section>` : ''}
@@ -134,6 +134,12 @@ export function mount(root, app) {
         break;
       }
       case 'alerts': showAlerts(app); break;
+      case 'checkin-done': {
+        const hids = st.households.filter((h) => checkin(app, h.id)?.overdue).map((h) => h.id);
+        await app.clearNudges({ households: hids });
+        toast(`Cleared. You'll get a new nudge in ${app.checkinDays()} days if you haven't messaged them.`, 5000);
+        render(); break;
+      }
       case 'hh-open': openHousehold(app, id, onClick); break;
       case 'year': import('./yearvideo.js').then((m) => m.openYearVideo(app)); break;
       case 'famview': {
@@ -291,6 +297,7 @@ export function checkin(app, hid) {
     if (c.kind === 'everyone') continue;
     if ((c.memberIds || []).some((id) => ids.includes(id))) last = Math.max(last, c.sent?.[st.me] || 0);
   }
+  last = Math.max(last, app.checkedIn(hid)); // cleared by hand (a call or a visit counts too)
   const days = last ? Math.floor((Date.now() - last) / 864e5) : null;
   return { last, days, overdue: !last || days >= app.checkinDays() };
 }
@@ -314,26 +321,36 @@ async function newGroup(app) {
 function showAlerts(app) {
   const st = app.state;
   const due = st.households.map((h) => ({ h, ci: checkin(app, h.id) })).filter((x) => x.ci?.overdue);
-  const todays = happeningToday(app);
+  const todays = happeningToday(app).filter((ev) => !app.seenToday(ev.id));
+  const done = (attr, id, label) => `<button type="button" class="btn sm ghost" ${attr}="${esc(id)}" aria-label="${esc(label)}">${icon('check', 14)} Done</button>`;
   const rows = [
-    ...todays.map((ev) => `<li>${icon(typeOf(ev.type).icon, 18)}<span>Today: ${esc(headline(app, ev))}</span></li>`),
-    ...due.map(({ h, ci }) => `<li data-hh="${esc(h.id)}">${icon('bell', 18)}<span>Check in with ${names(h.name)}${ci.last ? ` · last messaged ${ci.days} days ago` : ' · not messaged yet'}</span>
-      <button type="button" class="linkish mute" data-mute="${esc(h.id)}" aria-label="Turn off check-in nudges for ${esc(h.name)}">Turn off</button></li>`),
+    ...todays.map((ev) => `<li>${icon(typeOf(ev.type).icon, 18)}<span>Today: ${esc(headline(app, ev))}</span>${done('data-seen', ev.id, 'Clear ' + headline(app, ev))}</li>`),
+    ...due.map(({ h, ci }) => `<li data-hh="${esc(h.id)}">${icon('bell', 18)}<span>Check in with ${names(h.name)}${ci.last ? ` · last messaged ${ci.days} days ago` : ' · not messaged yet'}
+      <button type="button" class="linkish mute" data-mute="${esc(h.id)}" aria-label="Turn off check-in nudges for ${esc(h.name)}">Turn off</button></span>${done('data-ack', h.id, 'Checked in with ' + h.name)}</li>`),
   ];
-  sheet({
+  const r = sheet({
     title: 'Nudges',
-    submit: 'Done',
-    body: rows.length ? `<ul class="alert-list">${rows.join('')}</ul>${due.length ? '<p class="hint">Turn off stops check-in nudges for that household. Change them all on My page → My nudges.</p>' : ''}`
+    submit: rows.length ? 'Clear all' : 'Close',
+    cancel: rows.length ? 'Close' : '',
+    body: rows.length ? `<ul class="alert-list">${rows.join('')}</ul><p class="hint">Done clears a nudge: a check-in you made by phone or in person counts. Turn off stops check-in nudges for that household. Change them all on My page → My nudges.</p>`
       : '<p class="muted">You are all caught up. Nice work staying in touch.</p>',
     fields: [],
   });
-  // The sheet is on screen now: wire up its Turn off buttons.
-  [...document.querySelectorAll('.sheet-wrap')].at(-1)?.addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-mute]');
+  const wrap = [...document.querySelectorAll('.sheet-wrap')].at(-1);
+  r.then(async (v) => {
+    if (!v || !rows.length) return;
+    await app.clearNudges({ households: due.map(({ h }) => h.id), events: todays.map((ev) => ev.id) });
+    toast('All nudges cleared.');
+  });
+  // The sheet is on screen now: wire up its Done and Turn off buttons.
+  wrap?.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-mute], [data-ack], [data-seen]');
     if (!b) return;
     b.disabled = true;
-    await app.setCheckinMuted(b.dataset.mute, true);
+    if (b.dataset.mute) { await app.setCheckinMuted(b.dataset.mute, true); toast('Check-in nudges turned off for that household.'); }
+    else if (b.dataset.ack) await app.clearNudges({ households: [b.dataset.ack] });
+    else await app.clearNudges({ events: [b.dataset.seen] });
     b.closest('li').remove();
-    toast('Check-in nudges turned off for that household.');
+    if (!wrap.querySelector('.alert-list li')) wrap.querySelector('.alert-list').outerHTML = '<p class="muted">All caught up.</p>';
   });
 }

@@ -4,6 +4,7 @@ import { esc, icon, face, sheet, toast, listJoin, safeUrl, confirmBox, why } fro
 import { monShort, dayNum, today, nextOccurrence } from './dates.js';
 import { TYPES, typeOf, editEvent, headline } from './events.js';
 import { inviteLink } from './manage.js';
+import { openBirthdays } from './birthdays.js';
 import { cropFile } from './crop.js';
 import { pushState, prepareKey, turnOnPush, turnOffPush, testPush } from './push.js';
 import { faceAvailable, faceLabel, hasPasskey, lockOn, enableLock, disableLock, setupPasskey, removePasskey, prepared, explain } from './lock.js';
@@ -63,6 +64,7 @@ export function mount(root, app) {
               <span class="li-sub">${esc(typeOf(ev.type).label)}${(ev.memberIds || []).length > 1 ? ' · with ' + esc(listJoin(ev.memberIds.filter((x) => x !== st.me).map((x) => app.member(x)?.name).filter(Boolean))) : ''}${o ? '' : ' · past'}</span></span>
               ${icon('edit', 16)}
             </button>`; }).join('')}
+          <button class="li" data-act="birthdays"><span class="sq soft">${icon('gift')}</span><span class="li-main"><span class="li-title">${app.isAdmin() ? "Everyone's birthdays" : 'Birthdays on one screen'}</span><span class="li-sub">${app.isAdmin() ? 'Add or fix anyone\'s birthday' : 'Yours and the people you look after'}</span></span>${icon('next', 16)}</button>
           <div class="li col">
             <span class="li-title">Add a big day</span>
             <div class="chips">${TYPES.filter((t) => !['trip', 'event'].includes(t.value)).map((t) => `<button class="chip" data-act="add" data-type="${t.value}">${esc(t.label)}</button>`).join('')}</div>
@@ -139,6 +141,7 @@ export function mount(root, app) {
         if (r) await S.update(app.path('members/' + st.me), { name: r.name });
         break;
       }
+      case 'birthdays': await openBirthdays(app); break;
       case 'add': {
         const type = b.dataset.type;
         const spouse = app.membersOf(me.householdId).filter((m) => m.id !== st.me && m.uid).map((m) => m.id);
@@ -237,7 +240,7 @@ async function addKid(app) {
     submit: 'Add',
     fields: [
       { name: 'name', label: 'First name', required: true },
-      { name: 'bday', label: 'Birthday', type: 'date' },
+      { name: 'bday', label: 'Birthday', type: 'mdy', hint: 'The year is optional.' },
       { name: 'photo', label: 'Photo (optional)', type: 'file', accept: 'image/*' },
     ],
   });
