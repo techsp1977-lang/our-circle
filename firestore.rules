@@ -19,6 +19,11 @@ service cloud.firestore {
     function onlyChanges(keys) { return changed().hasOnly(keys); }
     // Document ids end up inside the page's HTML, so only plain letters, digits, _ and - are allowed.
     function okId(id) { return id.matches('^[A-Za-z0-9_-]{1,64}$'); }
+    // A one-person date (like a birthday) for someone I look after: a child I manage, or anyone in a household I run.
+    function looksAfter(cid, ev) {
+      return ev.get('memberIds', []).size() == 1 && exists(/databases/$(database)/documents/circles/$(cid)/members/$(ev.memberIds[0]))
+        && (me(cid) in memberDoc(cid, ev.memberIds[0]).get('managedBy', []) || hhRuns(cid, memberDoc(cid, ev.memberIds[0]).householdId));
+    }
     function memberDoc(cid, mid) { return get(/databases/$(database)/documents/circles/$(cid)/members/$(mid)).data; }
     function invitePath(cid, code) { return /databases/$(database)/documents/circles/$(cid)/invites/$(code); }
     // Household organizers: people an organizer (or a household organizer) named in a household's "managers". They
@@ -167,9 +172,9 @@ service cloud.firestore {
         allow read: if isMember(cid);
         allow create: if isMember(cid) && okId(eid) && request.resource.data.createdBy == me(cid);
         allow update: if isMember(cid) && !changed().hasAny(['createdBy']) && (
-          resource.data.createdBy == me(cid) || isAdmin(cid) || me(cid) in resource.data.memberIds);
+          resource.data.createdBy == me(cid) || isAdmin(cid) || me(cid) in resource.data.memberIds || looksAfter(cid, resource.data));
         allow delete: if isMember(cid) && (
-          resource.data.createdBy == me(cid) || isAdmin(cid) || me(cid) in resource.data.memberIds);
+          resource.data.createdBy == me(cid) || isAdmin(cid) || me(cid) in resource.data.memberIds || looksAfter(cid, resource.data));
       }
 
       // Family album posts.

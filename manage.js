@@ -5,6 +5,8 @@ import { THEMES, theme, applyTheme } from './themes.js';
 import { pickAndCrop } from './crop.js';
 import { listCircles } from './circles.js';
 import { PLANS, planState, fmtGB } from './plans.js';
+import { birthdayOf, saveBirthday, openBirthdays } from './birthdays.js';
+import { shortDate, knownYear } from './dates.js';
 
 export async function inviteLink(app, memberId) {
   const st = app.state;
@@ -129,6 +131,7 @@ export function mount(root, app) {
 
       <section class="block">
         <div class="row-head"><h2>${admin ? 'Households' : 'Your households'}</h2>${admin ? `<button class="linkish" data-act="add-hh">${icon('plus', 16)} Add household</button>` : ''}</div>
+        <p><button class="linkish" data-act="birthdays" style="text-align:left">${icon('gift', 16)} ${admin ? "Everyone's birthdays on one screen" : 'Birthdays for your households'}</button></p>
         ${admin && otherCircles.length ? `<p><button class="linkish" data-act="copy-photos" style="text-align:left">${icon('image', 16)} Copy profile photos from ${otherCircles.length === 1 ? esc(otherCircles[0].name) : 'another circle'}</button></p>` : ''}
         <p class="hint">${admin ? "A household is everyone you'd message together, like a couple and their kids. Each person still gets their own login and private journal." : "You can add and edit people in these households, send their invites, and add households under yours, like a married child's."}</p>
         ${familyTree(st.households).filter(({ h }) => mine(h)).map(({ h, depth }) => `
@@ -139,7 +142,9 @@ export function mount(root, app) {
             ${app.membersOf(h.id).map((m) => {
               const acc = accessRows.find((a) => a.memberId === m.id);
               const lead = (h.managers || []).includes(m.id) ? 'Household manager · ' : '';
-              const status = lead + (m.uid ? (acc?.role === 'admin' ? 'Circle owner · has login' : 'Has login') : (m.managedBy?.length ? 'Managed by parents' : 'Not joined yet'));
+              const bd = birthdayOf(app, m.id)?.date;
+              const status = lead + (m.uid ? (acc?.role === 'admin' ? 'Circle owner · has login' : 'Has login') : (m.managedBy?.length ? 'Managed by parents' : 'Not joined yet'))
+                + (bd ? ` · 🎂 ${shortDate(bd)}${knownYear(bd) ? ', ' + bd.slice(0, 4) : ''}` : ' · no birthday yet');
               return `<div class="li"><button class="face-btn" data-act="photo" data-id="${esc(m.id)}" aria-label="${m.photo ? 'Change' : 'Add'} ${esc(m.name)}'s photo">${face(m)}<span class="face-cam">${icon('camera', 12)}</span></button><span class="li-main"><span class="li-title">${esc(m.name)}</span><span class="li-sub">${status}</span></span>
                 ${!m.uid ? `<button class="btn sm" data-act="invite" data-id="${esc(m.id)}">${icon('link', 14)} Invite</button>` : ''}
                 <button class="icon-btn sm" data-act="edit-m" data-id="${esc(m.id)}" aria-label="Edit ${esc(m.name)}">${icon('edit', 16)}</button></div>`;
@@ -269,7 +274,7 @@ export function mount(root, app) {
         const r = await sheet({ title: 'Add a person', submit: 'Add', fields: [
           { name: 'name', label: 'First name', required: true },
           { name: 'hid', label: 'Household', type: 'select', value: id, options: hhOptions() },
-          { name: 'bday', label: 'Birthday (optional)', type: 'date' },
+          { name: 'bday', label: 'Birthday (optional)', type: 'mdy', hint: 'The year is optional.' },
           { name: 'kid', label: 'Young child without a phone (parents manage the profile)', type: 'checkbox', value: false },
         ] });
         if (!r) return;
@@ -286,6 +291,7 @@ export function mount(root, app) {
         const fields = [
           { name: 'name', label: 'Name', value: m.name, required: true },
           { name: 'hid', label: 'Household', type: 'select', value: m.householdId, options: hhOptions() },
+          { name: 'bday', label: 'Birthday', type: 'mdy', value: birthdayOf(app, id)?.date || '', hint: 'The year is optional. Clear the month to remove it.' },
         ];
         if (admin && m.uid && id !== st.me) fields.push({ name: 'admin', label: 'Circle owner (can change anything in the whole circle)', type: 'checkbox', value: acc?.role === 'admin' });
         // Household organizers can remove only people who haven't joined yet.
@@ -298,11 +304,18 @@ export function mount(root, app) {
           return;
         }
         try { await S.update(app.path('members/' + id), { name: r.name, householdId: r.hid }); } catch (er) { toast(why('That did not save.', er), 9000); break; }
+        if (r.bday !== (birthdayOf(app, id)?.date || '')) {
+          try { await saveBirthday(app, { ...m, name: r.name }, r.bday); } catch (er) { toast(why("The birthday didn't save.", er), 9000); break; }
+        }
+        // A renamed person's birthday keeps a matching title.
+        const bev = birthdayOf(app, id);
+        if (r.name !== m.name && bev && bev.title === `${m.name}'s birthday`) await S.update(app.path('events/' + bev.id), { title: `${r.name}'s birthday` }).catch(() => {});
         if (m.uid && 'admin' in r && acc) await S.update(app.path('access/' + m.uid), { role: r.admin ? 'admin' : 'member' });
         loadAccess();
         break;
       }
       case 'invite': await inviteLink(app, id); loadAccess(); break;
+      case 'birthdays': await openBirthdays(app); break;
       case 'copy-photos': {
         const others = (await listCircles(app).catch(() => [])).filter((c) => !c.current);
         if (!others.length) { toast('You are only in this one circle.'); break; }

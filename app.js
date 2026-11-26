@@ -4,6 +4,7 @@ import { esc, icon, toast, $, sheet, face } from './ui.js';
 import { setBadge, countOpen, pushState, keepPushFresh } from './push.js';
 import { THEMES, theme, applyTheme, DEFAULT_THEME } from './themes.js';
 import { lockGate, webauthnSupported, phoneHasPasskey, prepared, passkeySignIn, explain, faceLabel } from './lock.js';
+import { today } from './dates.js';
 
 // ───────────── shared app state ─────────────
 const state = {
@@ -41,6 +42,18 @@ const app = {
     const list = new Set(state.prefs.noCheckin || []);
     muted ? list.add(hid) : list.delete(hid);
     await S.set(`users/${state.uid}`, { prefs: { ...state.prefs, noCheckin: [...list] } }, true);
+  },
+  // Nudges you've cleared: a check-in you've done some other way (a call, a visit) restarts that household's
+  // clock, and a big day you've seen stops counting on the bell for the rest of the day.
+  checkedIn: (hid) => Number(state.prefs.checkedIn?.[hid]) || 0,
+  seenToday: (evId) => state.prefs.seenDay?.[evId] === today(),
+  async clearNudges({ households = [], events = [] } = {}) {
+    const checkedIn = { ...(state.prefs.checkedIn || {}) }, seenDay = {};
+    for (const [id, d] of Object.entries(state.prefs.seenDay || {})) if (d === today()) seenDay[id] = d;
+    households.forEach((hid) => { checkedIn[hid] = Date.now(); });
+    events.forEach((id) => { seenDay[id] = today(); });
+    state.prefs = { ...state.prefs, checkedIn, seenDay };
+    await S.set(`users/${state.uid}`, { prefs: state.prefs }, true);
   },
   chatList: () => Object.values(state.chats).sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0)),
 
@@ -157,8 +170,22 @@ const TABS = [['family', 'Our Family', 'family'], ['chats', 'Chats', 'chat'], ['
 const MENU = [['me', 'My page', 'user'], ['journal', 'Journal', 'book'], ['album', 'Album', 'album']];
 
 // Where you've been, so a Back arrow returns to the page you came from (scrolled where you left it).
+// The list is saved on this phone too, so Back still works after the phone closed the app in the background
+// (or the app updated itself) and you came back, for example from a notification.
 const pagesBefore = [], scrollAt = {};
-let hereHash = '', goingBack = false;
+let hereHash = '', goingBack = false, navCid = null;
+const NAV = 'oc-nav';
+function saveNav() { try { localStorage.setItem(NAV, JSON.stringify({ cid: state.cid, stack: pagesBefore, here: hereHash, at: Date.now() })); } catch (e) {} }
+function restoreNav() {
+  if (navCid === state.cid) return;
+  navCid = state.cid; pagesBefore.length = 0; hereHash = '';
+  try {
+    const n = JSON.parse(localStorage.getItem(NAV) || 'null');
+    if (!n || n.cid !== state.cid || Date.now() - n.at > 2 * 864e5) return;
+    pagesBefore.push(...(n.stack || []).slice(-30));
+    if (n.here && n.here !== (location.hash || '#/family')) pagesBefore.push(n.here);
+  } catch (e) {}
+}
 app.back = (fallback) => {
   let to = pagesBefore.pop();
   while (to && to === location.hash) to = pagesBefore.pop();
@@ -175,11 +202,13 @@ document.addEventListener('click', (e) => {
 
 async function route() {
   if (!state.ready) return;
+  restoreNav();
   const leaving = hereHash, back = goingBack;
   goingBack = false;
   hereHash = location.hash || '#/family';
   if (leaving) scrollAt[leaving] = window.scrollY;
   if (!back && leaving && leaving !== hereHash) { pagesBefore.push(leaving); if (pagesBefore.length > 30) pagesBefore.shift(); }
+  saveNav();
   const [name = 'family', ...args] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
   const key = VIEWS[name] ? name : 'family';
   const mod = await VIEWS[key]();
@@ -367,6 +396,8 @@ function startCircle(cid, haveSnap, ready) {
     countOpen();
     pushState(state.uid).then(() => app.emit()).catch(() => {});
     keepPushFresh(state.uid);
+    // Owners: quietly fix dates saved as plain events that are really birthdays (once the dates have loaded).
+    setTimeout(() => { if (state.cid === cid) import('./birthdays.js').then((b) => b.fixBirthdays(app)).catch(() => {}); }, 4000);
   };
   const changed = () => { app.emit(); updateBadges(); maybeReady(); };
 

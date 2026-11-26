@@ -389,3 +389,19 @@ test('app: a member uploads a photo marked as theirs and can delete it again', a
 test('app: a member can leave (delete their own access)', async () => {
   await assertSucceeds(deleteDoc(doc(as('uC'), `${C}/access/uC`)));
 });
+
+test('app: a household manager fixes a birthday in their household; others still can\'t', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `${C}/households/h2`), { name: 'B house', order: 1, managers: ['mC'] });
+    await setDoc(doc(db, `${C}/events/eD`), { type: 'birthday', title: "D's birthday", date: '2010-05-05', endDate: null, recurring: true, memberIds: ['mD'], note: '', shared: true, createdBy: 'mA', createdAt: 1 });
+    await setDoc(doc(db, `${C}/events/eK`), { type: 'birthday', title: "Kid's birthday", date: '2015-05-05', endDate: null, recurring: true, memberIds: ['mK'], note: '', shared: true, createdBy: 'mB', createdAt: 1 });
+    await setDoc(doc(db, `${C}/events/eT`), { type: 'trip', title: 'Trip', date: '2027-05-05', endDate: null, recurring: false, memberIds: ['mD', 'mA'], note: '', shared: true, createdBy: 'mA', createdAt: 1 });
+  });
+  await assertSucceeds(updateDoc(doc(as('uC'), `${C}/events/eD`), { date: '2010-05-06' }));   // manager of h2
+  await assertFails(updateDoc(doc(as('uB'), `${C}/events/e1`), { date: '2000-01-03' }));     // not theirs
+  await assertFails(updateDoc(doc(as('uC'), `${C}/events/eT`), { date: '2027-05-06' }));     // two-person date
+  await assertSucceeds(updateDoc(doc(as('uA'), `${C}/events/eK`), { date: '2015-05-06' }));   // parent (also owner)
+  await assertFails(deleteDoc(doc(as('uB'), `${C}/events/e1`)));                            // someone else's birthday
+  await assertSucceeds(deleteDoc(doc(as('uC'), `${C}/events/eD`)));
+});

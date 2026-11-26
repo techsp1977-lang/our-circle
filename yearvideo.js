@@ -30,7 +30,7 @@ async function gather(app, year) {
     if (!ev.recurring && ev.type !== 'birthday' && ev.type !== 'anniversary' && inYear(ev.date)) {
       days.push({ date: ev.date, emoji: EMOJI[ev.type] || '✨', title: ev.title, who });
     } else if (ev.type === 'anniversary' && ev.date) {
-      const yrs = year - Number(ev.date.slice(0, 4));
+      const yrs = Number(ev.date.slice(0, 4)) > 1904 ? year - Number(ev.date.slice(0, 4)) : 0;
       if (yrs > 0 && yrs % 5 === 0) days.push({ date: `${year}${ev.date.slice(4)}`, emoji: EMOJI.anniversary, title: `${who.map((m) => m.name).join(' & ') || ev.title} · ${yrs} years`, who });
     } else if (ev.type === 'birthday' && inYear(ev.date)) {
       who.forEach((m) => days.push({ date: ev.date, emoji: EMOJI.baby, title: `Welcome, ${m.name}!`, who: [m] }));

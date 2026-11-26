@@ -65,13 +65,14 @@ export async function editEvent(app, ev = null, defaults = {}) {
   const st = app.state;
   const people = Object.values(st.members).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const cur = ev || { type: 'event', recurring: false, memberIds: [], ...defaults };
-  const r = await sheet({
+  const p = sheet({
     title: ev ? 'Edit date' : 'Add a date',
     intro: 'Shared with the whole family. Everyone gets a nudge on the day.',
     danger: ev && canEdit(app, ev) ? 'Delete' : null,
     fields: [
       { name: 'type', label: 'What is it?', type: 'select', value: cur.type, options: TYPES.map((t) => ({ value: t.value, label: t.label })) },
       { name: 'title', label: 'Title', value: cur.title || '', placeholder: 'Family trip · Cancún', hint: 'Optional for birthdays and anniversaries.' },
+      { name: 'ymd', label: 'Date', type: 'mdy', value: cur.date || '', hint: 'The year is optional.' },
       { name: 'date', label: 'Date (or first day)', type: 'date', value: cur.date || '', required: true },
       { name: 'endDate', label: 'Last day (for trips and multi-day events)', type: 'date', value: cur.endDate || '' },
       { name: 'recurring', label: 'Repeats every year', type: 'checkbox', value: cur.recurring ?? typeOf(cur.type).yearly },
@@ -79,16 +80,48 @@ export async function editEvent(app, ev = null, defaults = {}) {
       { name: 'note', label: 'Note', type: 'textarea', rows: 2, value: cur.note || '' },
     ],
   });
+  // Birthdays and anniversaries get Month / Day / Year pickers, always repeat, and need no last day.
+  const form = [...document.querySelectorAll('.sheet-wrap')].at(-1)?.querySelector('form');
+  if (form) {
+    const box = (n) => form.querySelector(`[name="${n}"], [name="${n}__m"]`)?.closest('.field, .check');
+    const yearlyType = () => ['birthday', 'anniversary'].includes(form.elements.type.value);
+    const sync = () => {
+      const y = yearlyType();
+      box('ymd').hidden = !y; box('date').hidden = y; box('endDate').hidden = y; box('recurring').hidden = y;
+      form.elements.date.required = !y;
+      form.querySelectorAll('[name="ymd__m"], [name="ymd__d"]').forEach((x) => { x.required = y; });
+    };
+    form.elements.type.addEventListener('change', () => {
+      form.elements.recurring.checked = typeOf(form.elements.type.value).yearly;
+      // Carry the date across when switching between the two kinds of picker.
+      if (yearlyType() && form.elements.date.value && !form.elements.ymd__m.value) {
+        const [y, m, d] = form.elements.date.value.split('-');
+        form.elements.ymd__m.value = String(Number(m)); form.elements.ymd__d.value = String(Number(d)); form.elements.ymd__y.value = y;
+      }
+      sync();
+    });
+    // Typing "birthday" or "anniversary" in the title picks that kind.
+    form.elements.title.addEventListener('change', () => {
+      const t = form.elements.title.value, cur = form.elements.type.value;
+      if (['event', 'other'].includes(cur) && /\b(birthday|bday|b-day)\b/i.test(t)) { form.elements.type.value = 'birthday'; form.elements.type.dispatchEvent(new Event('change')); }
+      else if (['event', 'other'].includes(cur) && /\banniversary\b/i.test(t)) { form.elements.type.value = 'anniversary'; form.elements.type.dispatchEvent(new Event('change')); }
+    });
+    sync();
+  }
+  const r = await p;
   if (!r) return null;
   if (r.__danger) {
     await S.del(app.path('events/' + ev.id));
     toast('Date removed.');
     return null;
   }
+  const yearly = ['birthday', 'anniversary'].includes(r.type);
+  const date = yearly ? r.ymd : r.date;
+  if (!date) { toast('Pick the month and day.'); return null; }
   const data = {
-    type: r.type, title: r.title, date: r.date,
-    endDate: r.endDate && r.endDate > r.date ? r.endDate : null,
-    recurring: !!r.recurring, memberIds: r.memberIds, note: r.note, shared: true,
+    type: r.type, title: r.title, date,
+    endDate: !yearly && r.endDate && r.endDate > date ? r.endDate : null,
+    recurring: yearly || !!r.recurring, memberIds: r.memberIds, note: r.note, shared: true,
   };
   if (!data.title) {
     const names = listJoin(data.memberIds.map((id) => app.member(id)?.name).filter(Boolean));

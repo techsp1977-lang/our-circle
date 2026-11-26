@@ -71,6 +71,8 @@ export function sheet({ title, intro = '', fields = [], submit = 'Save', danger 
         return `<label class="check" for="${id}"><input type="checkbox" id="${id}" name="${f.name}" ${f.value ? 'checked' : ''}> <span>${esc(f.label)}</span></label>`;
       } else if (f.type === 'swatches') {
         return `<fieldset class="swatches"><legend>${esc(f.label)}</legend>${f.options.map((o, j) => `<label class="swatch" for="${id}_${j}" style="--sw:${esc(o.color)}${o.color2 ? `;--sw2:${esc(o.color2)}` : ''}"><input type="radio" id="${id}_${j}" name="${f.name}" value="${esc(o.value)}" ${o.value === f.value ? 'checked' : ''}><span class="sw-dot" aria-hidden="true"></span><span class="sw-name">${esc(o.label)}</span></label>`).join('')}</fieldset>`;
+      } else if (f.type === 'mdy') {
+        return `<fieldset class="field mdy-field"><legend>${esc(f.label)}</legend>${mdyHTML(f.name, f.value, id, f.required)}${f.hint ? `<small>${esc(f.hint)}</small>` : ''}</fieldset>`;
       } else if (f.type === 'checks') {
         return `<fieldset class="checks"><legend>${esc(f.label)}</legend>${f.options.map((o, j) => `<label class="check" for="${id}_${j}"><input type="checkbox" id="${id}_${j}" name="${f.name}" value="${esc(o.value)}" ${(f.value || []).includes(o.value) ? 'checked' : ''}> <span>${esc(o.label)}</span></label>`).join('')}</fieldset>`;
       } else {
@@ -95,12 +97,36 @@ export function sheet({ title, intro = '', fields = [], submit = 'Save', danger 
         if (f.type === 'checks') out[f.name] = $$(`input[name="${f.name}"]:checked`, form).map((x) => x.value);
         else if (f.type === 'checkbox') out[f.name] = form.elements[f.name].checked;
         else if (f.type === 'file') out[f.name] = [...form.elements[f.name].files];
+        else if (f.type === 'mdy') out[f.name] = mdyValue(form, f.name);
         else out[f.name] = form.elements[f.name].value.trim();
       });
       close(out);
     });
     setTimeout(() => form.querySelector('input:not([type=checkbox]),textarea,select')?.focus(), 50);
   });
+}
+
+// Month / Day / Year (optional) pickers for birthdays and anniversaries: much quicker on a phone than scrolling
+// a date wheel back decades. The value is "YYYY-MM-DD"; a date with no year uses 1904 (see dates.js NO_YEAR).
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+export function mdyHTML(name, value = '', id = '', required = false) {
+  const [y, m, d] = String(value || '').split('-');
+  const year = y && Number(y) > 1904 ? y : '';
+  return `<div class="mdy">
+    <select ${id ? `id="${id}"` : ''} name="${name}__m" aria-label="Month" ${required ? 'required' : ''}><option value="">Month</option>${MONTHS.map((n, i) => `<option value="${i + 1}" ${Number(m) === i + 1 ? 'selected' : ''}>${n}</option>`).join('')}</select>
+    <select name="${name}__d" aria-label="Day" ${required ? 'required' : ''}><option value="">Day</option>${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}" ${Number(d) === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select>
+    <input name="${name}__y" aria-label="Year (optional)" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="Year" value="${year}">
+  </div>`;
+}
+// "" when the month or day is missing. Days past the end of the month (Feb 30) move back to its last day.
+export function mdyValue(root, name) {
+  const get = (k) => root.querySelector(`[name="${name}__${k}"]`)?.value.trim() || '';
+  const m = Number(get('m')), d = Number(get('d'));
+  if (!m || !d) return '';
+  let y = Number(get('y'));
+  if (!(y >= 1905 && y <= new Date().getFullYear() + 1)) y = 1904;
+  const last = new Date(y, m, 0).getDate();
+  return `${y}-${String(m).padStart(2, '0')}-${String(Math.min(d, last)).padStart(2, '0')}`;
 }
 
 // A failure message with the reason's code on the end, so a screenshot says what went wrong.
