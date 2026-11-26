@@ -883,3 +883,5 @@ body.switching #main { opacity: 0.45; pointer-events: none; transition: opacity 
 .yr-fullbar button { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; min-width: 44px; justify-content: center; padding: 0 14px; border: 0; border-radius: 999px; background: rgba(30, 30, 32, 0.72); color: #fff; font: 600 15px -apple-system, system-ui, sans-serif; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 /* Video turned sideways on an upright phone: the buttons sit where the top right is for someone watching it. */
 .yr-fullbar.turned { top: auto; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); transform-origin: 100% 100%; transform: rotate(90deg) translateY(100%); }
+.yr-theater .yr-stage canvas { transition: opacity .2s ease-out; }
+.yr-fullbar [hidden] { display: none; }
