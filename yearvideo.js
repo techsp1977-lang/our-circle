@@ -4,7 +4,7 @@
 // milestone anniversaries, each really big one in words) and its albums (every photo shown whole), then everyone's faces. It plays on screen;
 // "Save video" records it into a real video file to keep or share. Optional soft music is generated here too.
 import * as S from './store.js';
-import { icon, toast, safeUrl, mediaKind } from './ui.js';
+import { icon, toast, safeUrl, mediaKind, esc } from './ui.js';
 import { theme } from './themes.js';
 
 let W = 1920, H = 1080, U = 1, WIDE = true; // the video's shape: wide for a TV (default) or tall for a phone
@@ -403,6 +403,26 @@ export function music(ac, out, seconds, style) {
 }
 
 // ───────── the player ─────────
+// ───────── your own song ─────────
+// A song picked from the phone (an MP3 or M4A file, for example from the Files app). It stays on this phone for
+// next time and isn't uploaded anywhere. It plays under the video, repeats if it's shorter, and fades out at the end.
+const SONG_CACHE = 'oc-yr-music', SONG_KEY = './__song';
+async function savedSong() {
+  try { const r = await (await caches.open(SONG_CACHE)).match(SONG_KEY); return r ? { name: decodeURIComponent(r.headers.get('x-name') || 'Your song'), data: await r.arrayBuffer() } : null; } catch (e) { return null; }
+}
+async function keepSong(file) {
+  try { await (await caches.open(SONG_CACHE)).put(SONG_KEY, new Response(file, { headers: { 'x-name': encodeURIComponent(file.name), 'content-type': file.type || 'audio/mpeg' } })); } catch (e) {}
+}
+export function playSong(ac, out, seconds, buf) {
+  const start = ac.currentTime + 0.1, end = start + seconds, g = ac.createGain();
+  g.connect(out);
+  g.gain.setValueAtTime(0.0001, start); g.gain.linearRampToValueAtTime(0.9, start + 1.2);
+  g.gain.setValueAtTime(0.9, Math.max(start + 1.3, end - 3)); g.gain.linearRampToValueAtTime(0.0001, end);
+  const src = ac.createBufferSource(); src.buffer = buf; src.loop = buf.duration < seconds; src.connect(g);
+  src.start(start); src.stop(end + 0.1);
+  return () => { try { g.gain.cancelScheduledValues(ac.currentTime); g.gain.setTargetAtTime(0.0001, ac.currentTime, 0.15); src.stop(ac.currentTime + 0.6); } catch (e) {} };
+}
+
 export async function openYearVideo(app) {
   const st = app.state, now = new Date();
   const years = [now.getFullYear(), now.getFullYear() - 1];
@@ -412,7 +432,8 @@ export async function openYearVideo(app) {
   const saved = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
   const keep = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
   let length = Number(saved('oc-yr-length', '180')), wide = saved('oc-yr-shape', 'tv') === 'tv', style = saved('oc-yr-music', 'calm');
-  if (style !== 'off' && !STYLES[style]) style = 'calm';
+  if (style !== 'off' && style !== 'own' && !STYLES[style]) style = 'calm';
+  let song = null; // { name, data, buf } the song picked from this phone
   let stopMusic = null;
   if (!LENGTHS.includes(length)) length = 180;
   const seg = (name, opts, on) => `<div class="seg yr-seg" role="radiogroup" aria-label="${name}" data-on="${on}" style="--n:${opts.length}">${opts.map(([v, l]) => `<button type="button" role="radio" aria-checked="${String(v) === String(on)}" data-${name.toLowerCase()}="${v}">${l}</button>`).join('')}</div>`;
@@ -424,7 +445,8 @@ export async function openYearVideo(app) {
       <select id="yr-year" class="select-pill">${years.map((y) => `<option value="${y}" ${y === year ? 'selected' : ''}>${y}</option>`).join('')}</select>
       <span class="grow"></span>
       <label class="sr" for="yr-music">Music</label>
-      <select id="yr-music" class="select-pill" aria-label="Music">${[...Object.entries(STYLES).map(([k, v]) => [k, '♪ ' + v.label]), ['off', 'No music']].map(([k, l]) => `<option value="${k}" ${k === style ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <select id="yr-music" class="select-pill" aria-label="Music"></select>
+      <input type="file" accept="audio/*,.mp3,.m4a,.aac,.wav" id="yr-song" hidden>
       <button class="icon-btn" data-x aria-label="Close">${icon('x')}</button>
     </div>
     <div class="yr-opts">
@@ -489,10 +511,12 @@ export async function openYearVideo(app) {
       ctx.save(); ctx.globalAlpha = 1 - local / FADE; drawSlide(ctx, ss[i - 1], ss[i - 1].dur, env); ctx.restore();
     }
   };
-  const play = (onEnd) => new Promise((resolve) => {
+  const play = (onEnd) => new Promise(async (resolve) => {
+    if (style === 'own') await decodeSong().catch(() => null);
     cancelAnimationFrame(raf);
     stopMusic?.(); stopMusic = null;
-    if (style !== 'off') { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); stopMusic = music(ac, recording?.audioOut || ac.destination, show.total, style); }
+    if (style === 'own' && song?.buf) { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); stopMusic = playSong(ac, recording?.audioOut || ac.destination, show.total, song.buf); }
+    else if (style !== 'off' && style !== 'own') { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); stopMusic = music(ac, recording?.audioOut || ac.destination, show.total, style); }
     const t0 = performance.now();
     const tick = () => {
       const t = (performance.now() - t0) / 1000;
@@ -533,10 +557,39 @@ export async function openYearVideo(app) {
   });
   wrap.querySelector('#yr-year').addEventListener('change', (e) => { year = Number(e.target.value); prepare(); });
   // Picking a style plays a few seconds of it, so it can be heard before the video starts.
-  wrap.querySelector('#yr-music').addEventListener('change', (e) => {
-    style = e.target.value; keep('oc-yr-music', style);
+  const musicSel = wrap.querySelector('#yr-music'), songInput = wrap.querySelector('#yr-song');
+  const fillMusic = () => {
+    const opts = [...Object.entries(STYLES).map(([k, v]) => [k, '♪ ' + v.label])];
+    if (song) opts.push(['own', `♪ ${song.name.replace(/\.[a-z0-9]+$/i, '').slice(0, 28)}`]);
+    opts.push(['pick', song ? 'Choose a different song…' : 'Choose your own song…'], ['off', 'No music']);
+    musicSel.innerHTML = opts.map(([k, l]) => `<option value="${k}" ${k === style ? 'selected' : ''}>${esc(l)}</option>`).join('');
+  };
+  const audio = () => { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); return ac; };
+  const decodeSong = async () => { if (song && !song.buf) song.buf = await audio().decodeAudioData(song.data.slice(0)); return song?.buf; };
+  const preview = () => {
     cancelAnimationFrame(raf); stopMusic?.(); stopMusic = null;
-    if (style !== 'off' && !recording) { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); stopMusic = music(ac, ac.destination, 8, style); }
+    if (recording || style === 'off') return;
+    stopMusic = style === 'own' ? (song?.buf ? playSong(audio(), ac.destination, 8, song.buf) : null) : music(audio(), ac.destination, 8, style);
+  };
+  // Picking a style plays a few seconds of it, so it can be heard before the video starts.
+  musicSel.addEventListener('change', () => {
+    if (musicSel.value === 'pick') { audio(); fillMusic(); songInput.value = ''; songInput.click(); return; }
+    style = musicSel.value; keep('oc-yr-music', style); preview();
+  });
+  songInput.addEventListener('change', async () => {
+    const f = songInput.files?.[0]; if (!f) return;
+    try {
+      const data = await f.arrayBuffer();
+      const buf = await audio().decodeAudioData(data.slice(0));
+      song = { name: f.name, data, buf }; style = 'own'; keep('oc-yr-music', style); fillMusic(); preview();
+      keepSong(f);
+      toast(`${f.name.replace(/\.[a-z0-9]+$/i, '')} will play with the video.`, 3500);
+    } catch (e) { toast("That file can't be played here. Try an MP3 or M4A song file.", 6000); }
+  });
+  fillMusic();
+  savedSong().then(async (sv) => {
+    if (sv) { song = { name: sv.name, data: sv.data, buf: null }; fillMusic(); }
+    else if (style === 'own') { style = 'calm'; fillMusic(); }
   });
   wrap.querySelector('.yr-opts').addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b || recording) return;

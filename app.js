@@ -116,9 +116,12 @@ const app = {
   },
   newCircle() { renderOnboarding('', { back: state.cid, myName: app.myMember()?.name || '' }); },
   async openSwitcher() { (await import('./circles.js')).openSwitcher(app); },
+  // The whole-family chat is made once per circle. The copy saved on this phone answers first, so opening the
+  // app never waits on the network for this.
   async ensureEveryone() {
     const p = app.path('chats/everyone');
-    if (!(await S.get(p))) {
+    if (state.chats?.everyone) return 'everyone';
+    if (!(await S.getFast(p))) {
       await S.set(p, { kind: 'everyone', name: 'Everyone', memberIds: [], lastText: '', lastAt: Date.now(), lastBy: null, reads: {}, sent: {} });
     }
     return 'everyone';
@@ -387,8 +390,7 @@ function startCircle(cid, haveSnap, ready) {
     state.ready = true;
     shell();
     document.title = (state.circle?.name || APP_NAME);
-    if (!haveSnap) await app.ensureEveryone().catch(() => {});
-    else app.ensureEveryone().catch(() => {});
+    app.ensureEveryone().catch(() => {}); // in the background: never holds up the first screen
     await route();
     ready?.(); ready = null;
     app.fillMyPhoto().catch(() => {});
