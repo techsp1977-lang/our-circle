@@ -458,7 +458,7 @@ function renderSignIn(msg = '', email = '') {
         <button class="btn wide ghost" type="submit" name="mode" value="up">Create account</button>`}
       </form>
       <button class="linkish" id="forgot">Forgot password?</button>
-      ${webauthnSupported() && !quickFace ? `<p class="muted small center">Want ${esc(faceLabel())}? Sign in with your password once, then go to My page → This phone → Set up. After that, ${esc(faceLabel())} is all you need.</p>
+      ${webauthnSupported() && !quickFace ? `<p class="muted small center">Want ${esc(faceLabel())}? Sign in with your password once, then go to My page → Settings → Set up. After that, ${esc(faceLabel())} is all you need.</p>
       <button class="linkish" id="faceid">I already set up ${esc(faceLabel())} on this phone</button>` : ''}
       <p class="muted small center"><a href="tour.html">New here? Watch the 1½-minute tour</a> · <a href="about.html">Plans, terms and privacy</a></p>
     </div></div>`;
@@ -479,7 +479,7 @@ function renderSignIn(msg = '', email = '') {
     $('#faceid').onclick = async () => {
       markFreshSignIn();
       try { await S.auth.withToken(await passkeySignIn(signInPrep)); }
-      catch (err) { console.warn(err); renderSignIn(err?.name === 'NotAllowedError' ? `${faceLabel()} sign-in was cancelled, or this phone has no Our Circle passkey yet. Sign in with your password once, then go to My page → This phone → Set up.` : explain(err)); }
+      catch (err) { console.warn(err); renderSignIn(err?.name === 'NotAllowedError' ? `${faceLabel()} sign-in was cancelled, or this phone has no Our Circle passkey yet. Sign in with your password once, then go to My page → Settings → Set up.` : explain(err)); }
     };
   }
   $('#google').onclick = async () => { markFreshSignIn(); try { await S.auth.google(); } catch (err) { renderSignIn(friendlyAuth(err)); } };
