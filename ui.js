@@ -44,6 +44,14 @@ export const icon = (name, size = 20) => {
   return `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 };
 
+// Text size on this phone (My page → Settings). All text sizes are relative to the page's base size, so
+// changing it scales every word in the app.
+const TEXT = { large: '112.5%', larger: '125%' };
+export const textSize = () => { try { return localStorage.getItem('oc-text') || ''; } catch (e) { return ''; } };
+export function applyTextSize() { document.documentElement.style.fontSize = TEXT[textSize()] || ''; }
+export function setTextSize(v) { try { v ? localStorage.setItem('oc-text', v) : localStorage.removeItem('oc-text'); } catch (e) {} applyTextSize(); }
+applyTextSize();
+
 export function toast(msg, ms = 2600) {
   let t = $('#toast');
   if (!t) { t = document.createElement('div'); t.id = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }

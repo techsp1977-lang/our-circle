@@ -27,7 +27,7 @@ export function mount(root, app) {
     root.innerHTML = `
       <header class="top"><div><div class="eyebrow">${esc(st.circle?.name || '')}</div><h1 class="display">Calendar</h1></div>
         <button class="btn sm" data-add>${icon('plus', 16)} Add</button></header>
-      <p class="hint pad-x">Birthdays, anniversaries, big days and trips for the next 12 months. Months with nothing planned are left out.</p>
+      <p class="hint pad-x">The next 12 months.</p>
       ${others.length ? `<p class="pad-x"><button class="linkish" data-copy style="text-align:left">${icon('plus', 16)} Copy dates from ${others.length === 1 ? esc(others[0].name) : 'another circle'}</button></p>` : ''}
       ${any ? months.filter(({ items }) => items.length).map(({ ym, items }) => `
         <section class="block year-month">

@@ -104,62 +104,65 @@ export function mount(root, app) {
   let ownerInvites = []; // invites that make someone a circle owner when they join
   let otherCircles = [];
 
+  // Owners see three sections: People (households and people), Circle (name, color, owners) and Plan.
+  // Household managers see only their households.
+  let tab = (() => { try { return localStorage.getItem('oc-manage-tab') || 'people'; } catch (e) { return 'people'; } })();
+  const TABS = [['people', 'People'], ['circle', 'Circle'], ['plan', 'Plan']];
   const render = () => {
     const treeUsed = st.households.some((x) => x.parentId);
-    root.innerHTML = `
-      <header class="top"><a class="icon-btn" href="#/me" aria-label="Back to My page">${icon('back')}</a>
-        <div class="grow"><h1 class="h1">${admin ? 'Family settings' : 'Household settings'}</h1><div class="muted small">${admin ? "You're a circle owner" : "You're a household manager"}</div></div></header>
-      ${admin ? `
+    const show = admin ? tab : 'people';
+    const people = `
+      <section class="block">
+        <div class="row-head"><h2>${admin ? 'Households' : 'Your households'}</h2>${admin ? `<button class="linkish" data-act="add-hh">${icon('plus', 16)} Add household</button>` : ''}</div>
+        <p class="hint">${admin ? "A household is the people you'd message together, like a couple and their kids." : "Add and edit people in these households and send their invites."}</p>
+        <div class="row-links"><button class="linkish" data-act="birthdays">${icon('gift', 16)} Birthdays</button>
+        ${admin && otherCircles.length ? `<button class="linkish" data-act="copy-photos">${icon('image', 16)} Copy photos from ${otherCircles.length === 1 ? esc(otherCircles[0].name) : 'another circle'}</button>` : ''}</div>
+        ${familyTree(st.households).filter(({ h }) => mine(h)).map(({ h, depth }) => `
+          <div class="card list mb" style="margin-left:${Math.min(depth, 3) * 14}px">
+            <div class="li"><span class="hh-swatch" style="${hhVars(h)}" aria-hidden="true"></span><span class="li-main"><span class="li-title">${names(h.name)}</span>${h.parentId && app.household(h.parentId) ? `<span class="li-sub">Under ${esc(app.household(h.parentId).name)}</span>`
+              : treeUsed && !st.households.some((x) => x.parentId === h.id) ? `<span class="li-sub warn-text">Not in the family tree yet. Tap the pencil to place it.</span>` : ''}</span>
+              <button class="icon-btn sm" data-act="edit-hh" data-id="${esc(h.id)}" aria-label="Edit ${esc(h.name)}">${icon('edit', 16)}</button></div>
+            ${app.membersOf(h.id).map((m) => {
+              const acc = accessRows.find((a) => a.memberId === m.id);
+              const lead = (h.managers || []).includes(m.id) ? 'Manager · ' : '';
+              const bd = birthdayOf(app, m.id)?.date;
+              const status = lead + (m.uid ? (acc?.role === 'admin' ? 'Circle owner' : 'Joined') : (m.managedBy?.length ? 'Managed by parents' : 'Not joined yet'))
+                + (bd ? ` · 🎂 ${shortDate(bd)}${knownYear(bd) ? ', ' + bd.slice(0, 4) : ''}` : ' · no birthday yet');
+              return `<div class="li pm-row"><button class="face-btn" data-act="photo" data-id="${esc(m.id)}" aria-label="${m.photo ? 'Change' : 'Add'} ${esc(m.name)}'s photo">${face(m)}<span class="face-cam">${icon('camera', 12)}</span></button><span class="li-main"><span class="li-title">${esc(m.name)}</span><span class="li-sub">${status}</span></span>
+                ${!m.uid ? `<button class="btn sm" data-act="invite" data-id="${esc(m.id)}">${icon('link', 14)} Invite</button>` : ''}
+                <button class="icon-btn sm" data-act="edit-m" data-id="${esc(m.id)}" aria-label="Edit ${esc(m.name)}">${icon('edit', 16)}</button></div>`;
+            }).join('')}
+            <button class="li add-row" data-act="add-in" data-id="${esc(h.id)}">${icon('plus', 16)} Add…</button>
+          </div>`).join('')}
+        <p class="hint">Add everyone with birthdays first, then send each person their invite. Young kids don't need one.</p>
+      </section>`;
+    const circle = `
       <section class="block card list">
         <div class="li"><span class="li-main"><span class="li-sub">Family name</span><span class="li-title">${esc(st.circle?.name || '')}</span></span>
           <button class="icon-btn sm" data-act="circle" aria-label="Rename family">${icon('edit', 16)}</button></div>
         <div class="li"><span class="hh-swatch" style="--hh:${theme(st.circle?.theme).swatch}" aria-hidden="true"></span><span class="li-main"><span class="li-sub">Circle color</span><span class="li-title">${esc(theme(st.circle?.theme).label)}</span></span>
           <button class="icon-btn sm" data-act="color" aria-label="Change circle color">${icon('edit', 16)}</button></div>
       </section>
-
       <section class="block">
-        <div class="row-head"><h2>Circle owners</h2><button class="linkish" data-act="add-owner">${icon('plus', 16)} Add a circle owner</button></div>
-        <p class="hint">Circle owners can change anything in the whole circle: households, people, the family tree, the color and the plan. Household managers (set in each household below) can change things only inside their own family.</p>
+        <div class="row-head"><h2>Circle owners</h2><button class="linkish" data-act="add-owner">${icon('plus', 16)} Add</button></div>
+        <p class="hint">Owners can change anything here. Household managers (set on each household) change only their own family.</p>
         <div class="card list">
           ${accessRows.filter((a) => a.role === 'admin').map((a) => { const m = app.member(a.memberId); return m ? `<div class="li">${face(m)}<span class="li-main"><span class="li-title">${esc(m.name)}${a.id === st.uid ? ' (you)' : ''}</span><span class="li-sub">Circle owner</span></span>
             ${a.id === st.uid ? '' : `<button class="btn sm ghost" data-act="remove-owner" data-id="${esc(a.id)}">Remove</button>`}</div>` : ''; }).join('')}
           ${ownerInvites.map((i) => { const m = app.member(i.memberId); return m && !m.uid ? `<div class="li">${face(m)}<span class="li-main"><span class="li-title">${esc(m.name)}</span><span class="li-sub">Invited as a circle owner · not joined yet</span></span></div>` : ''; }).join('')}
         </div>
       </section>
-
-      ${planSection(st.circle)}` : ''}
-
       <section class="block">
-        <div class="row-head"><h2>${admin ? 'Households' : 'Your households'}</h2>${admin ? `<button class="linkish" data-act="add-hh">${icon('plus', 16)} Add household</button>` : ''}</div>
-        <p><button class="linkish" data-act="birthdays" style="text-align:left">${icon('gift', 16)} ${admin ? "Everyone's birthdays on one screen" : 'Birthdays for your households'}</button></p>
-        ${admin && otherCircles.length ? `<p><button class="linkish" data-act="copy-photos" style="text-align:left">${icon('image', 16)} Copy profile photos from ${otherCircles.length === 1 ? esc(otherCircles[0].name) : 'another circle'}</button></p>` : ''}
-        <p class="hint">${admin ? "A household is everyone you'd message together, like a couple and their kids. Each person still gets their own login and private journal." : "You can add and edit people in these households, send their invites, and add households under yours, like a married child's."}</p>
-        ${familyTree(st.households).filter(({ h }) => mine(h)).map(({ h, depth }) => `
-          <div class="card list mb" style="margin-left:${Math.min(depth, 3) * 14}px">
-            <div class="li"><span class="hh-swatch" style="${hhVars(h)}" aria-hidden="true"></span><span class="li-main"><span class="li-title">${names(h.name)}</span>${h.parentId && app.household(h.parentId) ? `<span class="li-sub">Under ${esc(app.household(h.parentId).name)}</span>`
-              : treeUsed && !st.households.some((x) => x.parentId === h.id) ? `<span class="li-sub warn-text">Not in the family tree yet. Tap the pencil and choose who they're under.</span>` : ''}</span>
-              <button class="icon-btn sm" data-act="edit-hh" data-id="${esc(h.id)}" aria-label="Edit ${esc(h.name)}">${icon('edit', 16)}</button></div>
-            ${app.membersOf(h.id).map((m) => {
-              const acc = accessRows.find((a) => a.memberId === m.id);
-              const lead = (h.managers || []).includes(m.id) ? 'Household manager · ' : '';
-              const bd = birthdayOf(app, m.id)?.date;
-              const status = lead + (m.uid ? (acc?.role === 'admin' ? 'Circle owner · has login' : 'Has login') : (m.managedBy?.length ? 'Managed by parents' : 'Not joined yet'))
-                + (bd ? ` · 🎂 ${shortDate(bd)}${knownYear(bd) ? ', ' + bd.slice(0, 4) : ''}` : ' · no birthday yet');
-              return `<div class="li"><button class="face-btn" data-act="photo" data-id="${esc(m.id)}" aria-label="${m.photo ? 'Change' : 'Add'} ${esc(m.name)}'s photo">${face(m)}<span class="face-cam">${icon('camera', 12)}</span></button><span class="li-main"><span class="li-title">${esc(m.name)}</span><span class="li-sub">${status}</span></span>
-                ${!m.uid ? `<button class="btn sm" data-act="invite" data-id="${esc(m.id)}">${icon('link', 14)} Invite</button>` : ''}
-                <button class="icon-btn sm" data-act="edit-m" data-id="${esc(m.id)}" aria-label="Edit ${esc(m.name)}">${icon('edit', 16)}</button></div>`;
-            }).join('')}
-            <button class="li add-row" data-act="add-m" data-id="${esc(h.id)}">${icon('plus', 16)} Add a person to ${esc(h.name)}</button>
-            <button class="li add-row" data-act="add-under" data-id="${esc(h.id)}">${icon('family', 16)} Add a household under ${esc(h.name)}</button>
-          </div>`).join('')}
-      </section>
-      <p class="hint pad-x">Tip: add everyone first, with birthdays, then send each person their own invite link. Young kids don't need a link; their parents manage them from My page.</p>
-      ${admin ? `<section class="block">
         <h2>Hand the circle over</h2>
-        <p class="hint">Setting this up for someone else? Make them a circle owner (in Circle owners above), then step down here. You stay in the family as a regular member.</p>
+        <p class="hint">Make someone else an owner first, then step down. You stay in the family.</p>
         <div class="card list"><button class="li add-row" data-act="step-down">${icon('users', 16)} Step down as circle owner</button></div>
         ${accessRows.filter((a) => a.role === 'admin' && a.id !== st.uid).length ? '' : '<p class="hint">You are the only circle owner right now.</p>'}
-      </section>` : ''}`;
+      </section>`;
+    root.innerHTML = `
+      <header class="top"><a class="icon-btn" href="#/me" data-back="#/me" aria-label="Back">${icon('back')}</a>
+        <div class="grow"><h1 class="h1">${admin ? 'Family settings' : 'Household settings'}</h1><div class="muted small">${admin ? "You're a circle owner" : "You're a household manager"}</div></div></header>
+      ${admin ? `<section class="block"><div class="seg" role="tablist" aria-label="Settings" data-on="${show}" style="--n:3">${TABS.map(([k, l]) => `<button type="button" role="tab" aria-selected="${k === show}" aria-checked="${k === show}" data-tab="${k}">${l}</button>`).join('')}</div></section>` : ''}
+      ${show === 'people' ? people : show === 'circle' ? circle : planSection(st.circle)}`;
   };
 
   const hhOptions = () => st.households.filter(mine).map((h) => ({ value: h.id, label: h.name }));
@@ -208,7 +211,10 @@ export function mount(root, app) {
   };
 
   const onClick = async (e) => {
-    const b = e.target.closest('[data-act]');
+    const t = e._act ? null : e.target.closest('[data-tab]');
+    if (t) { tab = t.dataset.tab; try { localStorage.setItem('oc-manage-tab', tab); } catch (er) {} render(); window.scrollTo(0, 0); return; }
+    // e._act: an action started from another action (the "Add…" chooser), as [act, id]
+    const b = e._act ? { dataset: { act: e._act[0], id: e._act[1] } } : e.target.closest('[data-act]');
     if (!b) return;
     const id = b.dataset.id;
     switch (b.dataset.act) {
@@ -288,6 +294,18 @@ export function mount(root, app) {
         if (admin) upd.parentId = r.parentId || null;
         if (r.managers) upd.managers = r.managers;
         try { await S.update(app.path('households/' + id), upd); } catch (er) { toast(why('That did not save.', er), 9000); }
+        break;
+      }
+      case 'add-in': { // one "Add…" per household: a person in it, or a household under it
+        const h = app.household(id);
+        let pick = null;
+        const p = sheet({ title: `Add to ${h.name}`, fields: [], submit: 'Cancel', body: `<div class="card list">
+          <button type="button" class="li" data-pick="person">${icon('user', 20)}<span class="li-main"><span class="li-title">A person in ${esc(h.name)}</span><span class="li-sub">A spouse, a child, anyone who lives with them</span></span></button>
+          <button type="button" class="li" data-pick="under">${icon('family', 20)}<span class="li-main"><span class="li-title">A household under ${esc(h.name)}</span><span class="li-sub">A married child, or a grown child on their own</span></span></button></div>` });
+        const w = [...document.querySelectorAll('.sheet-wrap')].at(-1);
+        w?.addEventListener('click', (ev) => { const x = ev.target.closest('[data-pick]'); if (x) { pick = x.dataset.pick; w.querySelector('[data-x]').click(); } });
+        await p;
+        if (pick) await onClick({ _act: [pick === 'person' ? 'add-m' : 'add-under', id] });
         break;
       }
       case 'add-under': {

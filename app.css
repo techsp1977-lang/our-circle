@@ -894,3 +894,37 @@ body.switching #main { opacity: 0.45; pointer-events: none; transition: opacity 
 .alert-list li { align-items: center; }
 .fam-zoom .icon-btn:disabled { opacity: 0.35; }
 .fam-view.zoomed { cursor: grab; }
+
+/* Get set up (new members) */
+.setup-card { padding: 4px 0 6px; }
+.setup-head { display: flex; align-items: center; gap: 10px; padding: 10px 16px 4px; }
+.setup-head b { font-weight: var(--weight-semibold); }
+.setup-head small { color: var(--label-secondary); margin-right: auto; }
+.setup-step { width: 100%; text-align: left; background: none; border: 0; color: inherit; text-decoration: none; }
+.setup-step.done .li-title { color: var(--label-secondary); text-decoration: line-through; }
+.setup-tick { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--separator-opaque, #c7c7cc); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.setup-tick.on { background: var(--tint); border-color: var(--tint); color: var(--on-tint); }
+.fam-switch { margin: -6px 0 4px; }
+/* Family settings sections */
+.seg[role="tablist"] { display: grid; width: 100%; }
+.seg[role="tablist"]::before { width: calc((100% - 6px) / 3); }
+.seg[data-on="circle"]::before { transform: translateX(100%); }
+.seg[data-on="plan"]::before { transform: translateX(200%); }
+.pm-row { flex-wrap: nowrap; }
+.pm-row .li-main { flex: 1; min-width: 0; }
+.pm-row .btn.sm { padding: 0 12px; flex: none; }
+.pm-row .icon-btn { flex: none; }
+/* My page: rarely changed settings, folded away */
+.more-settings > summary { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 14px 16px; border-radius: var(--radius-lg); background: var(--card-bg); box-shadow: var(--shadow-card); cursor: pointer; font-weight: var(--weight-semibold); min-height: 44px; }
+.more-settings > summary::-webkit-details-marker { display: none; }
+.more-settings > summary::after { content: "›"; margin-left: auto; font-size: 22px; color: var(--label-secondary); transition: transform .2s; }
+.more-settings[open] > summary::after { transform: rotate(90deg); }
+.more-settings > summary small { flex-basis: 100%; order: 3; color: var(--label-secondary); font-weight: var(--weight-regular); font-size: var(--text-footnote); }
+.more-settings > section { margin-top: 18px; }
+.share-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 16px 12px; }
+.share-menu[hidden] { display: none; }
+/* Every small button has a full finger-sized (44 px) tap area, even where it looks smaller. */
+.icon-btn.sm, .btn.sm, .select-pill, .linkish.mute { position: relative; }
+.icon-btn.sm::after, .btn.sm::after { content: ""; position: absolute; inset: -2px; min-height: 44px; min-width: 44px; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; height: 100%; }
+.linkish.mute { min-height: 44px; padding: 0 8px; }
+.fam-zoom .icon-btn.sm { width: 44px; height: 44px; }

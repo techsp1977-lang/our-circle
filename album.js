@@ -50,12 +50,15 @@ async function maybeAskUpgrade(app) {
 
 function grid(root, app) {
   const st = app.state;
-  let posts = [];
+  let posts = [], shareOpen = false;
   let render = () => {
     root.innerHTML = `
       <header class="top"><div><div class="eyebrow">${esc(st.circle?.name || '')}</div><h1 class="display">Family Album</h1></div>
-        <button class="btn sm" data-act="share">${icon('plus', 16)} Share</button></header>
-      <p class="pad-x row-links"><button class="linkish" data-act="share-videos">${icon('plus', 16)} Share videos</button><button class="linkish" data-act="year" style="text-align:left">${icon('star', 16)} Year-in-review video</button></p>
+        <button class="btn sm" data-act="share-menu" aria-expanded="${shareOpen}">${icon('plus', 16)} Share</button></header>
+      <div class="share-menu" ${shareOpen ? '' : 'hidden'}>
+        <button class="btn" data-act="share">${icon('image', 18)} Photos</button>
+        <button class="btn ghost" data-act="share-videos">${icon('camera', 18)} Videos</button>
+      </div>
       ${storageBar(app)}
       ${posts.length ? '' : '<p class="hint pad-x">Photos and videos shared here go to the whole family. Originals are kept at full quality.</p>'}
       <section class="block album-grid">
@@ -66,6 +69,8 @@ function grid(root, app) {
       </section>`;
   };
   const onClick = (e) => {
+    if (e.target.closest('[data-act="share-menu"]')) { shareOpen = !shareOpen; render(); return; }
+    if (e.target.closest('[data-act="share"], [data-act="share-videos"]')) { shareOpen = false; root.querySelector('.share-menu')?.setAttribute('hidden', ''); }
     if (e.target.closest('[data-act="upgrade"]')) upgradeStorage(app);
     if (e.target.closest('[data-act="share"]')) sharePhotos(app);
     if (e.target.closest('[data-act="share-videos"]')) sharePhotos(app, 'videos');
