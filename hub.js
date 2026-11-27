@@ -41,39 +41,13 @@ export function mount(root, app) {
         </div>
       </header>
       ${planNotice(app)}
-      ${familyWords(app, t, sayingShift)}
+      ${hasWords(app) ? familyWords(app, t, sayingShift) : ''}
+      ${todays.length ? `<section class="block stack-sm">${todays.map((ev) => todayCard(app, ev)).join('')}</section>` : ''}
       ${due.length ? `<section class="block"><div class="card checkin-strip">
         <div class="cs-head">${icon('bell', 18)}<b>Check in this week</b><small>${due.length} household${due.length === 1 ? '' : 's'}</small><button class="linkish cs-done" data-act="checkin-done">${icon('check', 15)} Done</button></div>
         <div class="cs-chips">${due.map((h) => { const ppl = app.membersOf(h.id); const single = ppl.length === 1;
           return `<button class="cs-chip" style="${hhVars(h)}" data-act="${single ? 'msg-member' : 'msg-household'}" data-id="${esc(single ? ppl[0].id : h.id)}">${names(h.name)}</button>`; }).join('')}</div>
       </div></section>` : ''}
-
-      <section class="block">
-        <div class="row-head"><h2>Coming up</h2><button class="linkish" data-act="add-event">${icon('plus', 16)} Add event</button></div>
-        ${coming.length ? `<div class="card list">${coming.map(({ ev, occ }) => `
-          <div class="li">
-            <span class="datechip trip"><b>${monShort(occ.start)}</b><span>${ev.endDate && ev.endDate !== ev.date ? rangeText(ev).replace(/^[A-Za-z]+ /, '') : dayNum(occ.start)}</span></span>
-            <span class="li-main"><span class="li-title">${esc(ev.title)}</span><span class="li-sub">${esc(ev.note || (ev.memberIds?.length ? listJoin(ev.memberIds.map((id) => app.member(id)?.name).filter(Boolean)) : 'Everyone'))}${ev.endDate ? ` · ${diffDays(ev.date, ev.endDate) + 1} days` : ''}</span></span>
-            <span class="li-when">${occ.start <= t ? 'Now' : esc(whenText(occ.start))}</span>
-            ${canEdit(app, ev) ? `<button class="icon-btn sm" data-act="edit-event" data-id="${esc(ev.id)}" aria-label="Edit ${esc(ev.title)}">${icon('edit', 16)}</button>` : ''}
-          </div>`).join('')}</div>`
-        : `<button class="card empty-card" data-act="add-event">Add a trip, reunion or family event so everyone can see it.</button>`}
-      </section>
-
-      ${todays.length ? `<section class="block stack-sm">${todays.map((ev) => todayCard(app, ev)).join('')}</section>` : ''}
-
-      <section class="block">
-        <div class="row-btns compact">
-          <button class="btn sm" data-act="everyone">${icon('users', 17)} Message everyone</button>
-          <button class="btn sm ghost" data-act="new-group">${icon('plus', 16)} New group</button>
-        </div>
-      </section>
-
-      ${pushCard()}
-      ${(() => { const m = new Date().getMonth(), y = new Date().getFullYear() - (m === 0 ? 1 : 0);
-        return m === 11 || m === 0 ? `<section class="block"><button class="card yr-card" data-act="year">
-          <span class="yr-card-ic" aria-hidden="true">🎬</span><span class="li-main"><span class="li-title">Watch our ${y}</span>
-          <span class="li-sub">A 1, 3 or 5 minute video of the family's year, for the TV at your next gathering</span></span>${icon('next', 18)}</button></section>` : ''; })()}
       <section class="block">
         <div class="seg" role="radiogroup" aria-label="How to show the family" data-on="${famView}">
           <button type="button" role="radio" aria-checked="${famView === 'circles'}" data-act="famview" data-id="circles">${icon('family', 15)} Circles</button>
@@ -85,6 +59,32 @@ export function mount(root, app) {
           || `<div class="card empty-card">${app.isAdmin() ? '<a href="#/manage">Add your family members</a> to see everyone here.' : 'No one else yet.'}</div>`}
       </section>`}
       ${famView === 'list' ? '<p class="hint center">Message goes to the whole household. Tap a photo to message one person.</p>' : ''}
+      <section class="block">
+        <div class="row-btns compact">
+          <button class="btn sm" data-act="everyone">${icon('users', 17)} Message everyone</button>
+          <button class="btn sm ghost" data-act="new-group">${icon('plus', 16)} New group</button>
+        </div>
+      </section>
+      ${pushCard()}
+      <section class="block">
+        <div class="row-head"><h2>Coming up</h2><button class="linkish" data-act="add-event">${icon('plus', 16)} Add event</button></div>
+        ${coming.length ? `<div class="card list">${coming.map(({ ev, occ }) => `
+          <div class="li">
+            <span class="datechip trip"><b>${monShort(occ.start)}</b><span>${ev.endDate && ev.endDate !== ev.date ? rangeText(ev).replace(/^[A-Za-z]+ /, '') : dayNum(occ.start)}</span></span>
+            <span class="li-main"><span class="li-title">${esc(ev.title)}</span><span class="li-sub">${esc(ev.note || (ev.memberIds?.length ? listJoin(ev.memberIds.map((id) => app.member(id)?.name).filter(Boolean)) : 'Everyone'))}${ev.endDate ? ` · ${diffDays(ev.date, ev.endDate) + 1} days` : ''}</span></span>
+            <span class="li-when">${occ.start <= t ? 'Now' : esc(whenText(occ.start))}</span>
+            ${canEdit(app, ev) ? `<button class="icon-btn sm" data-act="edit-event" data-id="${esc(ev.id)}" aria-label="Edit ${esc(ev.title)}">${icon('edit', 16)}</button>` : ''}
+          </div>`).join('')}</div>`
+        : `<button class="card empty-card" data-act="add-event">Add a trip, reunion or family event so everyone can see it.</button>`}
+      </section>
+      ${(() => { const m = new Date().getMonth(), y = new Date().getFullYear() - (m === 0 ? 1 : 0);
+        return m === 11 || m === 0 ? `<section class="block"><button class="card yr-card" data-act="year">
+          <span class="yr-card-ic" aria-hidden="true">🎬</span><span class="li-main"><span class="li-title">Watch our ${y}</span>
+          <span class="li-sub">A 1, 3 or 5 minute video of the family's year, for the TV at your next gathering</span></span>${icon('next', 18)}</button></section>` : ''; })()}
+
+
+
+
 
       <section class="block">
         <div class="row-head"><h2>Birthdays &amp; big days</h2><a class="linkish" href="#/me">My dates</a></div>
@@ -108,7 +108,8 @@ export function mount(root, app) {
           <span class="li-main"><span class="li-title">Today's journal page</span><span class="li-sub">${weekday(t)}, ${shortDate(t)} · ${journalDone ? 'written' : 'not written yet'}</span></span>
           ${icon('next', 18)}
         </a>
-      </section>`;
+      </section>
+      ${hasWords(app) ? '' : familyWords(app, t, sayingShift)}`;
     if (famView === 'circles') drawMap(app, root);
   };
 
@@ -183,6 +184,7 @@ function planNotice(app) {
 }
 
 // The family's motto, a saying (a different one each day) and the family goal, at the top of the Family tab.
+const hasWords = (app) => { const c = app.state.circle || {}; return !!(c.motto || (c.sayings || []).some(Boolean) || c.goal?.title); };
 function familyWords(app, t, shift) {
   const c = app.state.circle || {};
   const sayings = (c.sayings || []).filter(Boolean);
