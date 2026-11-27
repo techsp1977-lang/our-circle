@@ -322,35 +322,47 @@ function showAlerts(app) {
   const st = app.state;
   const due = st.households.map((h) => ({ h, ci: checkin(app, h.id) })).filter((x) => x.ci?.overdue);
   const todays = happeningToday(app).filter((ev) => !app.seenToday(ev.id));
-  const done = (attr, id, label) => `<button type="button" class="btn sm ghost" ${attr}="${esc(id)}" aria-label="${esc(label)}">${icon('check', 14)} Done</button>`;
+  // Each nudge has a checkbox: tick some (or Select all) and Clear selected clears them together.
+  const box = (kind, id, label) => `<input type="checkbox" class="nudge-pick" data-kind="${kind}" value="${esc(id)}" aria-label="${esc(label)}">`;
   const rows = [
-    ...todays.map((ev) => `<li>${icon(typeOf(ev.type).icon, 18)}<span>Today: ${esc(headline(app, ev))}</span>${done('data-seen', ev.id, 'Clear ' + headline(app, ev))}</li>`),
-    ...due.map(({ h, ci }) => `<li data-hh="${esc(h.id)}">${icon('bell', 18)}<span>Check in with ${names(h.name)}${ci.last ? ` · last messaged ${ci.days} days ago` : ' · not messaged yet'}
-      <button type="button" class="linkish mute" data-mute="${esc(h.id)}" aria-label="Turn off check-in nudges for ${esc(h.name)}">Turn off</button></span>${done('data-ack', h.id, 'Checked in with ' + h.name)}</li>`),
+    ...todays.map((ev) => `<li><label class="nudge-row">${box('ev', ev.id, 'Select ' + headline(app, ev))}${icon(typeOf(ev.type).icon, 18)}<span>Today: ${esc(headline(app, ev))}</span></label></li>`),
+    ...due.map(({ h, ci }) => `<li data-hh="${esc(h.id)}"><label class="nudge-row">${box('hh', h.id, 'Select check in with ' + h.name)}${icon('bell', 18)}<span>Check in with ${names(h.name)}${ci.last ? ` · last messaged ${ci.days} days ago` : ' · not messaged yet'}</span></label>
+      <button type="button" class="linkish mute" data-mute="${esc(h.id)}" aria-label="Turn off check-in nudges for ${esc(h.name)}">Turn off</button></li>`),
   ];
-  const r = sheet({
+  const p = sheet({
     title: 'Nudges',
-    submit: rows.length ? 'Clear all' : 'Close',
+    submit: rows.length ? 'Clear selected' : 'Close',
     cancel: rows.length ? 'Close' : '',
-    body: rows.length ? `<ul class="alert-list">${rows.join('')}</ul><p class="hint">Done clears a nudge: a check-in you made by phone or in person counts. Turn off stops check-in nudges for that household. Change them all on My page → My nudges.</p>`
+    body: rows.length ? `<div class="nudge-tools"><button type="button" class="btn sm ghost" data-all>${icon('check', 14)} Select all</button><span class="muted small" data-count>None selected</span></div>
+      <ul class="alert-list">${rows.join('')}</ul><p class="hint">Clearing a check-in counts a call or visit as checking in; you'll get a new nudge if you go the full time without a message. Turn off stops check-in nudges for that household. Change them all on My page → My nudges.</p>`
       : '<p class="muted">You are all caught up. Nice work staying in touch.</p>',
     fields: [],
   });
   const wrap = [...document.querySelectorAll('.sheet-wrap')].at(-1);
-  r.then(async (v) => {
-    if (!v || !rows.length) return;
-    await app.clearNudges({ households: due.map(({ h }) => h.id), events: todays.map((ev) => ev.id) });
-    toast('All nudges cleared.');
-  });
-  // The sheet is on screen now: wire up its Done and Turn off buttons.
+  const picks = () => [...(wrap?.querySelectorAll('.nudge-pick') || [])];
+  const submit = wrap?.querySelector('button[type=submit]');
+  const sync = () => {
+    const n = picks().filter((x) => x.checked).length, all = picks().length && n === picks().length;
+    const c = wrap?.querySelector('[data-count]'); if (c) c.textContent = n ? `${n} selected` : 'None selected';
+    const a = wrap?.querySelector('[data-all]'); if (a) a.innerHTML = `${icon('check', 14)} ${all ? 'Select none' : 'Select all'}`;
+    if (submit && rows.length) { submit.disabled = !n; submit.textContent = n ? `Clear selected (${n})` : 'Clear selected'; }
+  };
+  sync();
+  wrap?.addEventListener('change', (e) => { if (e.target.closest('.nudge-pick')) sync(); });
   wrap?.addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-mute], [data-ack], [data-seen]');
+    if (e.target.closest('[data-all]')) { const on = !picks().every((x) => x.checked); picks().forEach((x) => { x.checked = on; }); sync(); return; }
+    const b = e.target.closest('[data-mute]');
     if (!b) return;
     b.disabled = true;
-    if (b.dataset.mute) { await app.setCheckinMuted(b.dataset.mute, true); toast('Check-in nudges turned off for that household.'); }
-    else if (b.dataset.ack) await app.clearNudges({ households: [b.dataset.ack] });
-    else await app.clearNudges({ events: [b.dataset.seen] });
-    b.closest('li').remove();
-    if (!wrap.querySelector('.alert-list li')) wrap.querySelector('.alert-list').outerHTML = '<p class="muted">All caught up.</p>';
+    await app.setCheckinMuted(b.dataset.mute, true); toast('Check-in nudges turned off for that household.');
+    b.closest('li').remove(); sync();
+  });
+  // Read the ticks before the sheet closes (the sheet removes itself as it answers).
+  let chosen = null;
+  submit?.addEventListener('click', () => { chosen = picks().filter((x) => x.checked).map((x) => [x.dataset.kind, x.value]); }, true);
+  p.then(async (v) => {
+    if (!v || !chosen?.length) return;
+    await app.clearNudges({ households: chosen.filter(([k]) => k === 'hh').map(([, id]) => id), events: chosen.filter(([k]) => k === 'ev').map(([, id]) => id) });
+    toast(chosen.length === 1 ? 'Nudge cleared.' : `${chosen.length} nudges cleared.`);
   });
 }

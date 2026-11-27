@@ -8,9 +8,9 @@ import { PLANS, planState, fmtGB } from './plans.js';
 import { birthdayOf, saveBirthday, openBirthdays } from './birthdays.js';
 import { shortDate, knownYear } from './dates.js';
 
-export async function inviteLink(app, memberId) {
+export async function inviteLink(app, memberId, justAdded = null) {
   const st = app.state;
-  const m = app.member(memberId);
+  const m = app.member(memberId) || justAdded; // someone added a moment ago may not be in the list yet
   const code = S.newSecret();
   await S.set(app.path('invites/' + code), {
     memberId, memberName: m.name, circleName: st.circle?.name || '', used: false, createdBy: st.me, createdAt: Date.now(),
@@ -175,6 +175,38 @@ export function mount(root, app) {
   const parentField = (id, value) => ({ name: 'parentId', label: 'Under which household? (for the family tree)', type: 'select', value: value || '', options: parentOptions(id),
     hint: 'For example, put a married child\'s household under their parents\' household.' });
 
+  // Adding a household: either a family ("Leah & McKay", then add the people), or just one person, who is added
+  // in the same step with their invite ready to send.
+  const soloFields = [
+    { name: 'solo', label: "It's just one person: add them now and get their invite ready", type: 'checkbox', value: false },
+    { name: 'bday', label: 'Their birthday (optional, for one person)', type: 'mdy', hint: 'The year is optional.' },
+  ];
+  const wireSolo = () => { // the birthday only shows for one person
+    const f = [...document.querySelectorAll('.sheet-wrap')].at(-1)?.querySelector('form'); if (!f) return;
+    const nameLabel = f.querySelector('[name="name"]').closest('.field').querySelector('span'), bd = f.querySelector('[name="bday__m"]').closest('.field');
+    const sync = () => { const one = f.elements.solo.checked; bd.hidden = !one; nameLabel.textContent = one ? 'Their name' : 'Household name'; };
+    f.elements.solo.addEventListener('change', sync); sync();
+  };
+  const addHousehold = async ({ title, intro, parentId, withParent }) => {
+    const p = sheet({ title, intro, submit: 'Add', fields: [{ name: 'name', label: 'Household name', required: true }, soloFields[0], ...(withParent ? [parentField(null, '')] : []), soloFields[1]] });
+    wireSolo();
+    const r = await p;
+    if (!r) return;
+    const parent = withParent ? (r.parentId || null) : parentId;
+    let hid;
+    try { hid = await S.add(app.path('households'), { name: r.name, order: parent ? st.households.filter((x) => x.parentId === parent).length : st.households.length, parentId: parent }); }
+    catch (er) { toast(why('That household did not save.', er), 9000); return; }
+    if (!r.solo) { toast(`${r.name} added${parent ? ` under ${app.household(parent)?.name || ''}` : ''}. Now add the people in it.`); return; }
+    const mid = S.newId(), person = { id: mid, name: r.name, householdId: hid, order: Object.keys(st.members).length, photo: null, uid: null, claimed: false, managedBy: [], createdAt: Date.now() };
+    try {
+      const { id: _, ...data } = person;
+      await S.set(app.path('members/' + mid), data);
+      if (r.bday) await S.add(app.path('events'), { type: 'birthday', title: `${r.name}'s birthday`, date: r.bday, endDate: null, recurring: true, memberIds: [mid], note: '', shared: true, createdBy: st.me, createdAt: Date.now() });
+    } catch (er) { toast(why(`${r.name}'s household was added, but ${r.name} wasn't.`, er), 9000); return; }
+    await inviteLink(app, mid, person);
+    loadAccess();
+  };
+
   const onClick = async (e) => {
     const b = e.target.closest('[data-act]');
     if (!b) return;
@@ -235,11 +267,7 @@ export function mount(root, app) {
         catch (er) { toast('That did not work. Try again.'); }
         break;
       }
-      case 'add-hh': {
-        const r = await sheet({ title: 'Add household', intro: 'For example "Ethan, Olivia & Henry", or one person living on their own.', fields: [{ name: 'name', label: 'Household name', required: true }, parentField(null, '')] });
-        if (r) await S.add(app.path('households'), { name: r.name, order: st.households.length, parentId: r.parentId || null });
-        break;
-      }
+      case 'add-hh': await addHousehold({ title: 'Add household', intro: 'A family, like "Ethan, Olivia & Henry", or one person living on their own.', withParent: true }); break;
       case 'edit-hh': {
         const h = app.household(id);
         const r = await sheet({ title: 'Edit household', danger: admin && !app.membersOf(id).length ? 'Delete household' : null, fields: [
@@ -264,10 +292,7 @@ export function mount(root, app) {
       }
       case 'add-under': {
         const p = app.household(id);
-        const r = await sheet({ title: `Add a household under ${p.name}`, intro: 'For example a married child and their spouse, or a grown child living on their own.', submit: 'Add', fields: [{ name: 'name', label: 'Household name', required: true }] });
-        if (!r) break;
-        try { await S.add(app.path('households'), { name: r.name, order: st.households.filter((x) => x.parentId === id).length, parentId: id }); toast(`${r.name} added under ${p.name}. Now add the people in it.`); }
-        catch (er) { toast(why('That household did not save.', er), 9000); }
+        await addHousehold({ title: `Add a household under ${p.name}`, intro: 'A married child and their spouse, or a grown child living on their own.', parentId: id });
         break;
       }
       case 'add-m': {

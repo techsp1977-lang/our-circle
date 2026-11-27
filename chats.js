@@ -24,8 +24,10 @@ function list(root, app) {
   const st = app.state;
   const render = () => {
     const rows = app.chatList();
+    const unreadIds = rows.filter((c) => c.lastBy && c.lastBy !== st.me && (c.lastAt || 0) > (c.reads?.[st.me] || 0)).map((c) => c.id);
     root.innerHTML = `
-      <header class="top"><div><div class="eyebrow">${esc(st.circle?.name || '')}</div><h1 class="display">Chats</h1></div></header>
+      <header class="top"><div><div class="eyebrow">${esc(st.circle?.name || '')}</div><h1 class="display">Chats</h1></div>
+        ${unreadIds.length > 1 ? `<button class="btn sm ghost" data-act="read-all">${icon('check', 15)} Mark all read</button>` : ''}</header>
       ${pushCard()}
       <section class="block"><div class="card list">
         ${rows.map((c) => {
@@ -43,7 +45,18 @@ function list(root, app) {
       </div></section>
       <p class="hint center">Start a household or one-on-one chat from the Family tab.</p>`;
   };
-  const onClick = (e) => { pushCardClick(e, st.uid, render, toast); };
+  const onClick = async (e) => {
+    if (e.target.closest('[data-act="read-all"]')) {
+      // Clears every unread dot (and the number on the Home Screen icon) in one tap.
+      const now = Date.now(), ids = app.chatList().filter((c) => c.lastBy && c.lastBy !== st.me && (c.lastAt || 0) > (c.reads?.[st.me] || 0)).map((c) => c.id);
+      ids.forEach((id) => { st.chats[id].reads = { ...(st.chats[id].reads || {}), [st.me]: now }; });
+      render(); app.emit();
+      await Promise.all(ids.map((id) => S.update(app.path('chats/' + id), { ['reads.' + st.me]: now }).catch(() => {})));
+      toast(`${ids.length} chats marked read.`);
+      return;
+    }
+    pushCardClick(e, st.uid, render, toast);
+  };
   root.addEventListener('click', onClick);
   const off = app.on(render);
   render();
