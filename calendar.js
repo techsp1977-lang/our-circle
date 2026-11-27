@@ -27,13 +27,12 @@ export function mount(root, app) {
     root.innerHTML = `
       <header class="top"><div><div class="eyebrow">${esc(st.circle?.name || '')}</div><h1 class="display">Calendar</h1></div>
         <button class="btn sm" data-add>${icon('plus', 16)} Add</button></header>
-      <p class="hint pad-x">Birthdays, anniversaries, big days and trips for the next 12 months.</p>
+      <p class="hint pad-x">Birthdays, anniversaries, big days and trips for the next 12 months. Months with nothing planned are left out.</p>
       ${others.length ? `<p class="pad-x"><button class="linkish" data-copy style="text-align:left">${icon('plus', 16)} Copy dates from ${others.length === 1 ? esc(others[0].name) : 'another circle'}</button></p>` : ''}
-      ${any ? months.map(({ ym, items }) => `
+      ${any ? months.filter(({ items }) => items.length).map(({ ym, items }) => `
         <section class="block year-month">
           <h2 class="month-head">${esc(monthName(ym))}${ym.slice(0, 4) !== t.slice(0, 4) ? ' ' + ym.slice(0, 4) : ''}</h2>
-          ${items.length ? `<div class="card list">${items.map(({ ev, occ }) => itemHTML(app, ev, occ.start, t)).join('')}</div>`
-            : '<p class="year-empty">Nothing yet</p>'}
+          <div class="card list">${items.map(({ ev, occ }) => itemHTML(app, ev, occ.start, t)).join('')}</div>
         </section>`).join('')
       : '<section class="block"><button class="card empty-card" data-add>Nothing on the calendar yet. Add a trip or family event, and add birthdays and anniversaries on My page.</button></section>'}`;
   };

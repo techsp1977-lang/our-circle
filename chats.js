@@ -27,7 +27,8 @@ function list(root, app) {
     const unreadIds = rows.filter((c) => c.lastBy && c.lastBy !== st.me && (c.lastAt || 0) > (c.reads?.[st.me] || 0)).map((c) => c.id);
     root.innerHTML = `
       <header class="top"><div><div class="eyebrow">${esc(st.circle?.name || '')}</div><h1 class="display">Chats</h1></div>
-        ${unreadIds.length > 1 ? `<button class="btn sm ghost" data-act="read-all">${icon('check', 15)} Mark all read</button>` : ''}</header>
+        <div class="top-btns">${unreadIds.length > 1 ? `<button class="btn sm ghost" data-act="read-all">${icon('check', 15)} Mark all read</button>` : ''}
+        <button class="btn sm" data-act="new-chat">${icon('plus', 15)} New</button></div></header>
       ${pushCard()}
       <section class="block"><div class="card list">
         ${rows.map((c) => {
@@ -43,9 +44,21 @@ function list(root, app) {
           </a>`;
         }).join('')}
       </div></section>
-      <p class="hint center">Start a household or one-on-one chat from the Family tab.</p>`;
+      <p class="hint center">Tap New to message one person or start a group. You can also tap a circle on the Family tab.</p>`;
   };
   const onClick = async (e) => {
+    if (e.target.closest('[data-act="new-chat"]')) {
+      // Pick one person for a private chat, or several for a group (a name is asked for only then).
+      const people = Object.values(st.members).filter((m) => m.id !== st.me).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      const r = await sheet({ title: 'New message', submit: 'Start', fields: [
+        { name: 'ids', label: 'Who to message?', type: 'checks', value: [], options: people.map((m) => ({ value: m.id, label: m.name })) },
+        { name: 'name', label: 'Group name (if you picked more than one person)', placeholder: 'Siblings' },
+      ] });
+      if (!r || !r.ids.length) return;
+      try { app.go('#/chat/' + encodeURIComponent(await app.chatFor(r.ids, r.ids.length > 1 ? { name: r.name || listJoin(r.ids.map((id) => app.member(id)?.name).filter(Boolean)), kind: 'group' } : {}))); }
+      catch (er) { toast(why("That chat couldn't be started.", er), 8000); }
+      return;
+    }
     if (e.target.closest('[data-act="read-all"]')) {
       // Clears every unread dot (and the number on the Home Screen icon) in one tap.
       const now = Date.now(), ids = app.chatList().filter((c) => c.lastBy && c.lastBy !== st.me && (c.lastAt || 0) > (c.reads?.[st.me] || 0)).map((c) => c.id);
