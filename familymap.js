@@ -210,29 +210,46 @@ export function drawMap(app, root) {
     views.set(key, v);
   }
   viewEl.style.height = Math.round(Math.max(H * fitScale() + 16, 260)) + 'px';
-  const apply = () => {
-    const minS = Math.min(0.25, fitScale()), maxS = 2.2;
-    v.s = Math.min(maxS, Math.max(minS, v.s));
-    const h = viewEl.clientHeight, w = vw();
-    v.x = Math.min(w - 60, Math.max(60 - W * v.s, v.x));
-    v.y = Math.min(h - 60, Math.max(60 - H * v.s, v.y));
+  // Zoom stays between "the whole family fits" and about twice that, and the family can't be pushed off the
+  // screen: when it's smaller than the view it stays centered, when bigger its edges stop at the view's edges.
+  const PAD = 12;
+  const limits = () => { const minS = fitScale(); return { minS, maxS: Math.max(minS * 1.01, Math.min(2.2, minS * 4, 2)) }; };
+  const clampTo = (o) => {
+    const { minS, maxS } = limits(), w = vw(), h = viewEl.clientHeight;
+    o.s = Math.min(maxS, Math.max(minS, o.s));
+    const cw = W * o.s, ch = H * o.s;
+    o.x = cw <= w ? (w - cw) / 2 : Math.min(PAD, Math.max(w - cw - PAD, o.x));
+    o.y = ch <= h ? (h - ch) / 2 : Math.min(PAD, Math.max(h - ch - PAD, o.y));
+    return o;
+  };
+  const zoomed = () => v.s > limits().minS * 1.02;
+  const apply = (smooth) => {
+    clampTo(v);
+    map.style.transition = smooth && !matchMedia('(prefers-reduced-motion: reduce)').matches ? 'transform .25s ease-out' : '';
     map.style.transform = `translate(${v.x}px, ${v.y}px) scale(${v.s})`;
+    // Zoomed in, one finger moves the family; zoomed all the way out, one finger scrolls the page as usual.
+    viewEl.style.touchAction = zoomed() ? 'none' : 'pan-y';
+    viewEl.classList.toggle('zoomed', zoomed());
+    const { minS, maxS } = limits();
+    viewEl.querySelector('[data-zoom="out"]')?.toggleAttribute('disabled', v.s <= minS * 1.001);
+    viewEl.querySelector('[data-zoom="in"]')?.toggleAttribute('disabled', v.s >= maxS * 0.999);
+    viewEl.querySelector('[data-zoom="fit"]')?.toggleAttribute('disabled', !zoomed());
   };
   apply();
   if (viewEl.dataset.wired) return;
   viewEl.dataset.wired = '1';
 
-  const zoomAt = (s, cx, cy) => { const k = s / v.s; v.x = cx - (cx - v.x) * k; v.y = cy - (cy - v.y) * k; v.s = s; apply(); };
+  const zoomAt = (s, cx, cy, smooth) => { const k = s / v.s; v.x = cx - (cx - v.x) * k; v.y = cy - (cy - v.y) * k; v.s = s; apply(smooth); };
+  const fit = () => { v.s = 0; apply(true); };
   viewEl.addEventListener('click', (e) => {
     const z = e.target.closest('[data-zoom]');
     if (!z) return;
     e.stopPropagation();
-    const w = vw(), h = viewEl.clientHeight;
-    if (z.dataset.zoom === 'fit') { const s = fitScale(); v.s = s; v.x = (w - W * s) / 2; v.y = 8; apply(); }
-    else zoomAt(v.s * (z.dataset.zoom === 'in' ? 1.35 : 1 / 1.35), w / 2, h / 2);
+    if (z.dataset.zoom === 'fit') fit();
+    else zoomAt(v.s * (z.dataset.zoom === 'in' ? 1.5 : 1 / 1.5), vw() / 2, viewEl.clientHeight / 2, true);
   });
-  // Gestures, like a map in an app: two fingers zoom and move the family (the page holds still); one finger up or
-  // down scrolls the page as usual; one finger sideways slides the family. Changes are drawn once per frame.
+  // Touch: two fingers zoom around the spot between them; once zoomed in, one finger moves the family in any
+  // direction (the page holds still). A pinch that ends nearly all the way out settles back to the whole family.
   let moved = false, frame = 0;
   const draw = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; apply(); }); };
   const rel = (x, y) => { const r = viewEl.getBoundingClientRect(); return { x: x - r.left, y: y - r.top }; };
@@ -241,12 +258,12 @@ export function drawMap(app, root) {
     const a = rel(t[0].clientX, t[0].clientY), b = rel(t[1].clientX, t[1].clientY);
     g = { two: true, d: Math.hypot(a.x - b.x, a.y - b.y) || 1, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, s: v.s, x: v.x, y: v.y };
   };
+  const startOne = (t) => { const p = rel(t.clientX, t.clientY); g = { two: false, px: p.x, py: p.y, x: v.x, y: v.y, pan: zoomed() }; };
   viewEl.addEventListener('touchstart', (e) => {
     if (e.target.closest('.fam-zoom')) return;
+    map.style.transition = '';
     if (e.touches.length >= 2) { e.preventDefault(); startTwo(e.touches); moved = true; return; }
-    const p = rel(e.touches[0].clientX, e.touches[0].clientY);
-    g = { two: false, px: p.x, py: p.y, x: v.x, y: v.y, axis: null };
-    moved = false;
+    startOne(e.touches[0]); moved = false;
   }, { passive: false });
   viewEl.addEventListener('touchmove', (e) => {
     if (!g) return;
@@ -255,21 +272,25 @@ export function drawMap(app, root) {
       if (!g.two) startTwo(e.touches);
       const a = rel(e.touches[0].clientX, e.touches[0].clientY), b = rel(e.touches[1].clientX, e.touches[1].clientY);
       const d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-      const k = (g.s * d / g.d) / g.s;
-      v.s = g.s * k; v.x = mx - (g.mx - g.x) * k; v.y = my - (g.my - g.y) * k;
+      const { minS, maxS } = limits(), s = Math.min(maxS, Math.max(minS, g.s * d / g.d)), k = s / g.s;
+      v.s = s; v.x = mx - (g.mx - g.x) * k; v.y = my - (g.my - g.y) * k;
       draw(); return;
     }
-    if (g.two) return; // one finger left after a pinch: wait until it lifts
+    if (g.two) { startOne(e.touches[0]); g.pan = zoomed(); } // one finger left after a pinch: carry on moving from here
+    if (!g.pan) return; // not zoomed in: the page scrolls
+    e.preventDefault();
     const p = rel(e.touches[0].clientX, e.touches[0].clientY), dx = p.x - g.px, dy = p.y - g.py;
-    if (!g.axis && Math.abs(dx) + Math.abs(dy) > 8) g.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
-    if (g.axis !== 'x') return; // up or down: the page scrolls
-    e.preventDefault(); moved = true;
+    if (Math.abs(dx) + Math.abs(dy) > 6) moved = true;
     v.x = g.x + dx; v.y = g.y + dy; draw();
   }, { passive: false });
-  viewEl.addEventListener('touchend', (e) => { if (!e.touches.length) g = null; else if (g?.two && e.touches.length === 1) g = { two: true, done: true }; });
+  const settle = () => { if (v.s < limits().minS * 1.12) fit(); };
+  viewEl.addEventListener('touchend', (e) => {
+    if (!e.touches.length) { if (g?.two) settle(); g = null; }
+    else if (g?.two && e.touches.length === 1) startOne(e.touches[0]);
+  });
   viewEl.addEventListener('touchcancel', () => { g = null; });
   // Safari's own page zoom stays out of the family view.
-  ['gesturestart', 'gesturechange'].forEach((t) => viewEl.addEventListener(t, (e) => e.preventDefault()));
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach((t) => viewEl.addEventListener(t, (e) => e.preventDefault()));
   // A mouse drags in any direction.
   let m = null;
   viewEl.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse' || e.button || e.target.closest('.fam-zoom')) return; const p = rel(e.clientX, e.clientY); m = { px: p.x, py: p.y, x: v.x, y: v.y }; moved = false; });
@@ -282,7 +303,10 @@ export function drawMap(app, root) {
   });
   ['pointerup', 'pointercancel'].forEach((t) => viewEl.addEventListener(t, () => { m = null; }));
   viewEl.addEventListener('click', (e) => { if (moved && !e.target.closest('[data-zoom]')) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
-  viewEl.addEventListener('wheel', (e) => { e.preventDefault(); const r = rel(e.clientX, e.clientY); zoomAt(v.s * Math.exp(-e.deltaY * 0.0025), r.x, r.y); }, { passive: false });
+  // A trackpad or mouse wheel zooms only with Ctrl/pinch; plain scrolling scrolls the page.
+  viewEl.addEventListener('wheel', (e) => { if (!e.ctrlKey && !zoomed()) return; e.preventDefault(); const r = rel(e.clientX, e.clientY); if (e.ctrlKey) zoomAt(v.s * Math.exp(-e.deltaY * 0.01), r.x, r.y); else { v.x -= e.deltaX; v.y -= e.deltaY; draw(); } }, { passive: false });
+  // Turning the phone or resizing the window: keep the family in view.
+  addEventListener('resize', () => { if (document.body.contains(viewEl)) apply(); });
 }
 
 // Tapping a circle: everyone in that household, with ways to reach them.
