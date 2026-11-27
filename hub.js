@@ -2,7 +2,8 @@
 import * as S from './store.js';
 import { planState, fmtGB, pausedText } from './plans.js';
 import { mapHTML, drawMap, openHousehold } from './familymap.js';
-import { pushCard, pushCardClick } from './push.js';
+import { pushCard, pushCardClick, cachedPush } from './push.js';
+import { birthdayOf } from './birthdays.js';
 import { esc, icon, face, toast, sheet, listJoin, names, hhColor, hhVars, hhLight, why, familyTree } from './ui.js';
 import { pickAndCrop } from './crop.js';
 import { today, monShort, dayNum, whenText, rangeText, diffDays, weekday, shortDate, monthName, agoText, dayOfYear } from './dates.js';
@@ -21,14 +22,16 @@ export function mount(root, app) {
     const t = today();
 
     // Coming up: trips and family events
-    const coming = upcoming(app, { filter: isCalendarType, days: 730 }).slice(0, 4);
+    // The next three things coming up, of any kind (the Calendar tab has the full list). Today's big days
+    // already have their own card above, so they aren't repeated.
+    const shownToday = new Set(happeningToday(app).map((ev) => ev.id));
+    const next = upcoming(app, { days: 400 }).filter(({ ev }) => !shownToday.has(ev.id)).slice(0, 3);
+    const setup = setupSteps(app);
     // Today's big days
     const todays = happeningToday(app).filter((ev) => !isCalendarType(ev) || ev.date === t);
     // Households past their check-in window
     const due = st.households.filter((h) => checkin(app, h.id)?.overdue);
-    const alerts = due.length + todays.filter((ev) => !app.seenToday(ev.id)).length;
     // Birthdays & big days: this month and next month only
-    const big = byMonth(app, { filter: (ev) => !isCalendarType(ev), months: 2 });
 
 
     root.innerHTML = `
@@ -36,72 +39,44 @@ export function mount(root, app) {
         <div><div class="eyebrow">${esc(me.name)}'s circle</div>
           <h1 class="display"><button class="circle-switch" data-act="switch" aria-label="${esc(st.circle?.name || 'Our family')}. Switch circles">${esc(st.circle?.name || 'Our family')}<span class="chev" aria-hidden="true">${icon('next', 18)}</span></button></h1></div>
         <div class="top-btns">
-          <button class="icon-btn bell" data-act="alerts" aria-label="${alerts ? alerts + ' nudge' + (alerts === 1 ? '' : 's') : 'No nudges right now'}">${icon('bell')}${alerts ? `<span class="badge">${alerts}</span>` : ''}</button>
           ${app.isAdmin() || app.runsAny() ? `<a class="icon-btn" href="#/manage" aria-label="${app.isAdmin() ? 'Family' : 'Household'} settings">${icon('gear')}</a>` : ''}
         </div>
       </header>
       ${planNotice(app)}
+      ${setup ? setupCard(setup) : ''}
       ${hasWords(app) ? familyWords(app, t, sayingShift) : ''}
       ${todays.length ? `<section class="block stack-sm">${todays.map((ev) => todayCard(app, ev)).join('')}</section>` : ''}
       ${due.length ? `<section class="block"><div class="card checkin-strip">
-        <div class="cs-head">${icon('bell', 18)}<b>Check in this week</b><small>${due.length} household${due.length === 1 ? '' : 's'}</small><button class="linkish cs-done" data-act="checkin-done">${icon('check', 15)} Done</button></div>
+        <div class="cs-head">${icon('bell', 18)}<b>Time to check in</b><button class="linkish cs-done" data-act="checkin-done">${icon('check', 15)} ${due.length > 1 ? 'Clear…' : 'Done'}</button></div>
         <div class="cs-chips">${due.map((h) => { const ppl = app.membersOf(h.id); const single = ppl.length === 1;
           return `<button class="cs-chip" style="${hhVars(h)}" data-act="${single ? 'msg-member' : 'msg-household'}" data-id="${esc(single ? ppl[0].id : h.id)}">${names(h.name)}</button>`; }).join('')}</div>
       </div></section>` : ''}
-      <section class="block">
-        <div class="seg" role="radiogroup" aria-label="How to show the family" data-on="${famView}">
-          <button type="button" role="radio" aria-checked="${famView === 'circles'}" data-act="famview" data-id="circles">${icon('family', 15)} Circles</button>
-          <button type="button" role="radio" aria-checked="${famView === 'list'}" data-act="famview" data-id="list">${icon('users', 15)} Cards</button>
-        </div>
-      </section>
       ${famView === 'circles' ? `<section class="block fam-wrap" aria-label="Family circles">${mapHTML()}</section>` : `<section class="block tree" aria-label="Family tree">
         ${familyTree(st.households).map(({ h, depth }) => `<div class="tree-row" style="--depth:${Math.min(depth, 3)}">${householdCard(app, h, h.id === me.householdId)}</div>`).join('')
           || `<div class="card empty-card">${app.isAdmin() ? '<a href="#/manage">Add your family members</a> to see everyone here.' : 'No one else yet.'}</div>`}
       </section>`}
-      ${famView === 'list' ? '<p class="hint center">Message goes to the whole household. Tap a photo to message one person.</p>' : ''}
+      <p class="center fam-switch"><button class="linkish" data-act="famview" data-id="${famView === 'circles' ? 'list' : 'circles'}">${famView === 'circles' ? `${icon('users', 15)} Show as a list` : `${icon('family', 15)} Show as circles`}</button></p>
       <section class="block">
         <div class="row-btns compact">
           <button class="btn sm" data-act="everyone">${icon('users', 17)} Message everyone</button>
           <button class="btn sm ghost" data-act="new-group">${icon('plus', 16)} New group</button>
         </div>
       </section>
-      ${pushCard()}
+      ${setup ? '' : pushCard()}
       <section class="block">
-        <div class="row-head"><h2>Coming up</h2><button class="linkish" data-act="add-event">${icon('plus', 16)} Add event</button></div>
-        ${coming.length ? `<div class="card list">${coming.map(({ ev, occ }) => `
-          <div class="li">
-            <span class="datechip trip"><b>${monShort(occ.start)}</b><span>${ev.endDate && ev.endDate !== ev.date ? rangeText(ev).replace(/^[A-Za-z]+ /, '') : dayNum(occ.start)}</span></span>
-            <span class="li-main"><span class="li-title">${esc(ev.title)}</span><span class="li-sub">${esc(ev.note || (ev.memberIds?.length ? listJoin(ev.memberIds.map((id) => app.member(id)?.name).filter(Boolean)) : 'Everyone'))}${ev.endDate ? ` · ${diffDays(ev.date, ev.endDate) + 1} days` : ''}</span></span>
+        <div class="row-head"><h2>Next up</h2><a class="linkish" href="#/calendar">See calendar</a></div>
+        ${next.length ? `<div class="card list">${next.map(({ ev, occ }) => `
+          <button class="li" data-act="${canEdit(app, ev) ? 'edit-event' : 'noop'}" data-id="${esc(ev.id)}">
+            <span class="datechip ${occ.start === t ? 'gold' : isCalendarType(ev) ? 'trip' : ''}"><b>${monShort(occ.start)}</b><span>${ev.endDate && ev.endDate !== ev.date ? rangeText(ev).replace(/^[A-Za-z]+ /, '') : dayNum(occ.start)}</span></span>
+            <span class="li-main"><span class="li-title">${esc(isCalendarType(ev) ? ev.title : headline(app, ev, occ.start))}</span><span class="li-sub">${esc(typeOf(ev.type).label)}${ev.endDate ? ` · ${diffDays(ev.date, ev.endDate) + 1} days` : ''}</span></span>
             <span class="li-when">${occ.start <= t ? 'Now' : esc(whenText(occ.start))}</span>
-            ${canEdit(app, ev) ? `<button class="icon-btn sm" data-act="edit-event" data-id="${esc(ev.id)}" aria-label="Edit ${esc(ev.title)}">${icon('edit', 16)}</button>` : ''}
-          </div>`).join('')}</div>`
+          </button>`).join('')}</div>`
         : `<button class="card empty-card" data-act="add-event">Add a trip, reunion or family event so everyone can see it.</button>`}
       </section>
       ${(() => { const m = new Date().getMonth(), y = new Date().getFullYear() - (m === 0 ? 1 : 0);
         return m === 11 || m === 0 ? `<section class="block"><button class="card yr-card" data-act="year">
           <span class="yr-card-ic" aria-hidden="true">🎬</span><span class="li-main"><span class="li-title">Watch our ${y}</span>
           <span class="li-sub">A 1, 3 or 5 minute video of the family's year, for the TV at your next gathering</span></span>${icon('next', 18)}</button></section>` : ''; })()}
-
-
-
-
-
-      <section class="block">
-        <div class="row-head"><h2>Birthdays &amp; big days</h2><a class="linkish" href="#/me">My dates</a></div>
-        ${big.map(({ ym, items }) => `
-          <div class="month-head">${esc(monthName(ym))}</div>
-          ${items.length ? `<div class="card list">${items.map(({ ev, occ }) => {
-            const past = occ.start < t, now = occ.start === t;
-            return `
-          <button class="li ${past ? 'past' : ''}" data-act="${canEdit(app, ev) ? 'edit-event' : 'noop'}" data-id="${esc(ev.id)}">
-            <span class="datechip ${now ? 'gold' : ''}"><b>${monShort(occ.start)}</b><span>${dayNum(occ.start)}</span></span>
-            <span class="li-main"><span class="li-title">${esc(headline(app, ev, occ.start))}</span><span class="li-sub">${esc(typeOf(ev.type).label)}${ev.createdBy && app.member(ev.createdBy) ? ' · added by ' + esc(app.member(ev.createdBy).name) : ''}</span></span>
-            <span class="li-when ${now ? 'warm' : ''}">${esc(past ? agoText(occ.start) : whenText(occ.start))}</span>
-          </button>`; }).join('')}</div>`
-          : `<div class="card empty-card muted">No birthdays or big days in ${esc(monthName(ym))}.</div>`}`).join('')}
-        ${st.events.some((ev) => !isCalendarType(ev)) ? '' : `<p class="hint">Add birthdays and anniversaries on <a href="#/me">My page</a>.</p>`}
-      </section>
-
       <section class="block">
         <a class="card link-card" href="#/journal">
           <span class="sq">${icon('book', 22)}</span>
@@ -115,6 +90,14 @@ export function mount(root, app) {
 
   const onClick = async (e) => {
     if (await pushCardClick(e, st.uid, render, toast)) return;
+    const sb = e.target.closest('[data-setup]');
+    if (sb) {
+      const step = sb.dataset.setup;
+      if (step === 'hide') { try { localStorage.setItem('oc-setup-hide-' + st.cid, '1'); } catch (er) {} render(); return; }
+      if (step === 'bday') { await editEvent(app, null, { type: 'birthday', recurring: true, memberIds: [st.me] }); return; }
+      if (step === 'hi') { app.go('#/chat/everyone'); return; }
+      if (step === 'push') { app.go('#/me'); return; }
+    }
     const b = e.target.closest('[data-act]');
     if (!b) return;
     const id = b.dataset.id;
@@ -136,6 +119,7 @@ export function mount(root, app) {
       }
       case 'alerts': showAlerts(app); break;
       case 'checkin-done': {
+        if (st.households.filter((h) => checkin(app, h.id)?.overdue).length > 1) { showAlerts(app); break; }
         const hids = st.households.filter((h) => checkin(app, h.id)?.overdue).map((h) => h.id);
         await app.clearNudges({ households: hids });
         toast(`Cleared. You'll get a new nudge in ${app.checkinDays()} days if you haven't messaged them.`, 5000);
@@ -146,8 +130,7 @@ export function mount(root, app) {
       case 'famview': {
         if (famView === id) break;
         famView = id; try { localStorage.setItem('oc-famview', id); } catch (er) {}
-        b.closest('.seg')?.setAttribute('data-on', id);
-        setTimeout(render, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220);
+        render();
         break;
       }
       case 'msg-household': app.go('#/chat/' + (await app.chatForHousehold(id))); break;
@@ -184,6 +167,35 @@ function planNotice(app) {
 }
 
 // The family's motto, a saying (a different one each day) and the family goal, at the top of the Family tab.
+// ───────── getting set up ─────────
+// A short checklist for new members (and anyone who hasn't done these yet): each step ticks itself off once
+// done, and the card goes away when all four are done, or when hidden.
+function setupSteps(app) {
+  const st = app.state, me = app.myMember();
+  try { if (localStorage.getItem('oc-setup-hide-' + st.cid)) return null; } catch (e) {}
+  if (!me) return null;
+  const push = cachedPush();
+  const steps = [
+    { key: 'photo', act: 'data-act="photo"', label: 'Add your photo', done: !!me.photo },
+    { key: 'bday', act: 'data-setup="bday"', label: 'Add your birthday', done: !!birthdayOf(app, me.id) },
+    push === 'install' ? { key: 'home', act: 'href="welcome.html"', label: 'Put Our Circle on your Home Screen', done: false, link: true }
+      : { key: 'push', act: 'data-setup="push"', label: 'Turn on notifications', done: push === 'on' || push === 'unsupported' || push === null },
+    { key: 'hi', act: 'data-setup="hi"', label: 'Say hi in the family chat', done: !!st.chats.everyone?.sent?.[me.id] },
+  ];
+  return steps.every((x) => x.done) ? null : steps;
+}
+function setupCard(steps) {
+  const done = steps.filter((x) => x.done).length;
+  return `<section class="block"><div class="card setup-card">
+    <div class="setup-head"><b>Get set up</b><small>${done} of ${steps.length} done</small><button class="linkish" data-setup="hide">Hide</button></div>
+    ${steps.map((x) => {
+      const inner = `<span class="setup-tick ${x.done ? 'on' : ''}" aria-hidden="true">${x.done ? icon('check', 14) : ''}</span><span class="li-main"><span class="li-title">${esc(x.label)}</span></span>${x.done ? '' : icon('next', 16)}`;
+      return x.done ? `<div class="li setup-step done">${inner}</div>`
+        : x.link ? `<a class="li setup-step" ${x.act}>${inner}</a>` : `<button class="li setup-step" ${x.act}>${inner}</button>`;
+    }).join('')}
+  </div></section>`;
+}
+
 const hasWords = (app) => { const c = app.state.circle || {}; return !!(c.motto || (c.sayings || []).some(Boolean) || c.goal?.title); };
 function familyWords(app, t, shift) {
   const c = app.state.circle || {};
@@ -270,7 +282,7 @@ function householdCard(app, h, mine = false) {
   return `<div class="hh-row ${mine ? 'is-mine' : ''}" style="${hhVars(h)}">
     <div class="card hh">
       <div class="hh-head">
-        <span class="hh-title">${mine ? '<small class="hh-you">Your household</small>' : ''}<b>${names(h.name)}</b>${people.length > 1 ? `<small>${people.length} people</small>` : ''}</span>
+        <span class="hh-title">${mine ? '<small class="hh-you">Your family</small>' : ''}<b>${names(h.name)}</b>${people.length > 1 ? `<small>${people.length} people</small>` : ''}</span>
         <button class="icon-btn sm msg-btn" data-act="${act}" data-id="${esc(target)}" aria-label="Message ${esc(h.name)}${single ? '' : ' together'}">${icon('chat', 17)}</button>
       </div>
       <div class="hh-tiles">${people.map((m) => m.id === me ? `
@@ -336,7 +348,7 @@ function showAlerts(app) {
     submit: rows.length ? 'Clear selected' : 'Close',
     cancel: rows.length ? 'Close' : '',
     body: rows.length ? `<div class="nudge-tools"><button type="button" class="btn sm ghost" data-all>${icon('check', 14)} Select all</button><span class="muted small" data-count>None selected</span></div>
-      <ul class="alert-list">${rows.join('')}</ul><p class="hint">Clearing a check-in counts a call or visit as checking in; you'll get a new nudge if you go the full time without a message. Turn off stops check-in nudges for that household. Change them all on My page → My nudges.</p>`
+      <ul class="alert-list">${rows.join('')}</ul><p class="hint">Clear one after a call or visit. Turn off stops reminders for that family.</p>`
       : '<p class="muted">You are all caught up. Nice work staying in touch.</p>',
     fields: [],
   });
@@ -356,7 +368,7 @@ function showAlerts(app) {
     const b = e.target.closest('[data-mute]');
     if (!b) return;
     b.disabled = true;
-    await app.setCheckinMuted(b.dataset.mute, true); toast('Check-in nudges turned off for that household.');
+    await app.setCheckinMuted(b.dataset.mute, true); toast('Check-in reminders turned off for that family.');
     b.closest('li').remove(); sync();
   });
   // Read the ticks before the sheet closes (the sheet removes itself as it answers).

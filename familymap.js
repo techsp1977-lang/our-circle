@@ -164,7 +164,7 @@ function bubbleHTML(app, n, cel) {
   const sparks = c ? (c.kind === 'bday' ? ['🎈', '🎂', '🎉', '🎈', '🎁'] : c.kind === 'anniv' ? ['💕', '💗', '💞', '💖', '💕'] : c.kind === 'new' ? ['✨', '👶', '🍼', '✨', '💫'] : ['🎉', '✨', '🎊', '🎓', '✨']) : [];
   return `<button type="button" class="fam-bub ${hhLight(h) ? 'light' : ''} ${mine ? 'mine' : ''} ${c ? 'cel cel-' + c.kind : ''}" data-act="hh-open" data-id="${esc(h.id)}"
       style="left:${Math.round(n.x - n.d / 2)}px;top:${Math.round(n.y)}px;width:${n.d}px;height:${n.d}px;${hhVars(h)}"
-      aria-label="${esc(h.name)}${mine ? ', your household' : ''}${c ? ', ' + esc(c.text) : ''}${due ? ', time to check in' : ''}. Open">
+      aria-label="${esc(h.name)}${mine ? ', your family' : ''}${c ? ', ' + esc(c.text) : ''}${due ? ', time to check in' : ''}. Open">
       ${c ? '<span class="bub-halo" aria-hidden="true"></span>' : ''}
       <span class="bub-fill" aria-hidden="true"></span>
       ${c ? `<span class="bub-sparks" aria-hidden="true">${sparks.map((e, j) => `<i style="--j:${j}">${e}</i>`).join('')}</span>` : ''}
@@ -186,7 +186,7 @@ export function mapHTML() {
         <button type="button" class="icon-btn sm" data-zoom="in" aria-label="Zoom in">+</button>
       </div>
     </div>
-    <p class="hint center">Pinch with two fingers to zoom and move around. Tap a circle to message them.</p>`;
+    <p class="hint center">Tap a circle to message them. Pinch to zoom.</p>`;
 }
 
 // Fill in the map and hook up zooming. Call after mapHTML() is on the page.
@@ -325,7 +325,7 @@ export function openHousehold(app, hid, act) {
     ${ci ? `<p class="muted small">${ci.overdue ? (ci.last ? `Last messaged ${ci.days} days ago. Time to check in.` : 'Not messaged yet. Time to check in.') : `Checked in ${ci.days === 0 ? 'today' : ci.days + ' days ago'}.`}</p>` : ''}
     <div class="card list">${people.map((m) => `<div class="li">${face(m)}<span class="li-main"><span class="li-title">${esc(m.name)}${m.id === st.me ? ' (you)' : ''}</span></span>
       ${m.id === st.me ? `<button class="btn sm ghost" data-act="photo">${icon('camera', 14)} ${m.photo ? 'Change photo' : 'Add photo'}</button>` : `<button class="btn sm ghost" data-act="msg-member" data-id="${esc(m.id)}">${icon('chat', 14)} Message</button>`}</div>`).join('')}</div>
-    ${people.length > 1 || (people.length === 1 && people[0].id !== st.me) ? `<button class="btn wide" data-act="${people.length > 1 ? 'msg-household' : 'msg-member'}" data-id="${esc(people.length > 1 ? hid : people[0].id)}">${icon('chat', 16)} Message ${people.length > 1 ? 'the whole household' : esc(people[0].name)}</button>` : ''}
+    ${people.length > 1 || (people.length === 1 && people[0].id !== st.me) ? `<button class="btn wide" data-act="${people.length > 1 ? 'msg-household' : 'msg-member'}" data-id="${esc(people.length > 1 ? hid : people[0].id)}">${icon('chat', 16)} Message ${people.length > 1 ? esc(h.name) : esc(people[0].name)}</button>` : ''}
   </div>`;
   document.body.appendChild(wrap);
   const close = () => wrap.remove();

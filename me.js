@@ -1,6 +1,6 @@
 // My page: my photo and name, my shared dates, profiles I manage, my nudge settings.
 import * as S from './store.js';
-import { esc, icon, face, sheet, toast, listJoin, safeUrl, confirmBox, why } from './ui.js';
+import { esc, icon, face, sheet, toast, listJoin, safeUrl, confirmBox, why, textSize, setTextSize } from './ui.js';
 import { monShort, dayNum, today, nextOccurrence } from './dates.js';
 import { TYPES, typeOf, editEvent, headline } from './events.js';
 import { inviteLink } from './manage.js';
@@ -21,6 +21,7 @@ export function mount(root, app) {
   const st = app.state;
   let canLock = false;
   let pushSt = null; // phone notifications on this device: on | off | blocked | install | unsupported
+  let moreOpen = false; // the Settings section stays open across redraws once opened
   let prep = null; // the server's half of "Set up Face ID", fetched before the tap
   const render = () => {
     const me = app.myMember();
@@ -38,7 +39,7 @@ export function mount(root, app) {
       <header class="top"><div><div class="eyebrow">${esc(st.circle?.name || '')}</div><h1 class="display">My page</h1></div>
         ${app.isAdmin() ? `<a class="btn ghost sm" href="#/manage">${icon('gear', 16)} Family settings</a>` : app.runsAny() ? `<a class="btn ghost sm" href="#/manage">${icon('gear', 16)} Household settings</a>` : ''}</header>
 
-      <div class="privacy">${icon('lock', 18)}<span><b>Private page.</b> Only you see this page and your journal. Your photo, name and the dates below marked <b>Shared</b> are the only things the family sees.</span></div>
+      <div class="privacy">${icon('lock', 18)}<span><b>Only you see this page.</b> The family sees your photo, name and Shared dates.</span></div>
 
       <section class="block profile">
         <label class="photo-pick" for="photo" aria-label="Change my photo">
@@ -52,9 +53,22 @@ export function mount(root, app) {
         </div>
       </section>
 
+      ${pushSt ? `<section class="block">
+        <div class="row-head"><h2>Notifications</h2></div>
+        <div class="card list">
+          <div class="li"><span class="li-main"><span class="li-title">New messages on this phone</span><span class="li-sub">${esc(PUSH_TEXT[pushSt])}</span></span>
+            ${pushSt === 'on' ? '<button class="btn sm ghost" data-act="push-off">Turn off</button>' : pushSt === 'off' ? '<button class="btn sm" data-act="push-on">Turn on</button>' : ''}</div>
+          ${pushSt === 'on' ? `<div class="li"><span class="li-main"><span class="li-title">Check it works</span><span class="li-sub">Sends a notification to your phones. Close the app or lock your phone to see it arrive.</span></span>
+            <button class="btn sm ghost" data-act="push-test">Send a test</button></div>` : ''}
+          <div class="li"><span class="li-main"><span class="li-title">Alerts inside the app</span><span class="li-sub">A banner when a message arrives while you're on another screen</span></span>
+            <label class="sr" for="inapp">Alerts inside the app</label>
+            <select id="inapp" class="select-pill"><option value="on" ${st.prefs.inAppAlerts === false ? '' : 'selected'}>On</option><option value="off" ${st.prefs.inAppAlerts === false ? 'selected' : ''}>Off</option></select></div>
+        </div>
+      </section>` : ''}
+
       <section class="block">
         <div class="row-head"><h2>My important dates</h2></div>
-        <p class="hint">Each date here is shared on the family calendar, and everyone gets a nudge on the day.</p>
+        <p class="hint">These show on the family calendar.</p>
         <div class="card list">
           ${!hasBday ? `<button class="li" data-act="add" data-type="birthday"><span class="sq soft">${icon('gift')}</span><span class="li-main"><span class="li-title">My birthday</span><span class="li-sub">Add it so the family remembers</span></span><span class="btn sm ghost">Add date</span></button>` : ''}
           ${myDates.map((ev) => { const o = nextOccurrence(ev); return `
@@ -72,21 +86,14 @@ export function mount(root, app) {
         </div>
       </section>
 
-      <section class="block">
-        <div class="row-head"><h2>Profiles I manage</h2></div>
-        <div class="card list">
-          ${managed.map((m) => `<div class="li">
-            ${face(m)}
-            <span class="li-main"><span class="li-title">${esc(m.name)}</span><span class="li-sub">${m.uid ? 'Has their own login now' : 'Managed by you'}</span></span>
-            <button class="btn sm ghost" data-act="kid" data-id="${esc(m.id)}">Edit</button>
-            ${!m.uid ? `<button class="btn sm ghost" data-act="invite" data-id="${esc(m.id)}">${icon('link', 14)} Invite</button>` : ''}
-          </div>`).join('')}
-          <button class="li" data-act="add-kid"><span class="sq soft">${icon('plus')}</span><span class="li-main"><span class="li-title">Add a child's profile</span><span class="li-sub">Name, photo and birthday. When they get a phone, send an invite and the profile becomes theirs.</span></span></button>
-        </div>
-      </section>
 
+
+
+
+      <details class="block more-settings" ${moreOpen ? 'open' : ''}>
+        <summary>${icon('gear', 18)} <span>Settings</span><small>Check-in reminders, children's profiles, Face ID, text size</small></summary>
       <section class="block">
-        <div class="row-head"><h2>My nudges</h2></div>
+        <div class="row-head"><h2>Check-in reminders</h2></div>
         <div class="card list">
           <div class="li"><span class="li-main"><span class="li-title">Check in with each household</span><span class="li-sub">A nudge on the Family tab when it's been this long</span></span>
             <label class="sr" for="ci">Check-in frequency</label>
@@ -98,20 +105,18 @@ export function mount(root, app) {
             <button class="btn sm" data-act="ics">Add</button></div>
         </div>
       </section>
-
-      ${pushSt ? `<section class="block">
-        <div class="row-head"><h2>Notifications</h2></div>
+      <section class="block">
+        <div class="row-head"><h2>Children's profiles</h2></div>
         <div class="card list">
-          <div class="li"><span class="li-main"><span class="li-title">New messages on this phone</span><span class="li-sub">${esc(PUSH_TEXT[pushSt])}</span></span>
-            ${pushSt === 'on' ? '<button class="btn sm ghost" data-act="push-off">Turn off</button>' : pushSt === 'off' ? '<button class="btn sm" data-act="push-on">Turn on</button>' : ''}</div>
-          ${pushSt === 'on' ? `<div class="li"><span class="li-main"><span class="li-title">Check it works</span><span class="li-sub">Sends a notification to your phones. Close the app or lock your phone to see it arrive.</span></span>
-            <button class="btn sm ghost" data-act="push-test">Send a test</button></div>` : ''}
-          <div class="li"><span class="li-main"><span class="li-title">Alerts inside the app</span><span class="li-sub">A banner when a message arrives while you're on another screen</span></span>
-            <label class="sr" for="inapp">Alerts inside the app</label>
-            <select id="inapp" class="select-pill"><option value="on" ${st.prefs.inAppAlerts === false ? '' : 'selected'}>On</option><option value="off" ${st.prefs.inAppAlerts === false ? 'selected' : ''}>Off</option></select></div>
+          ${managed.map((m) => `<div class="li">
+            ${face(m)}
+            <span class="li-main"><span class="li-title">${esc(m.name)}</span><span class="li-sub">${m.uid ? 'Has their own login now' : 'Managed by you'}</span></span>
+            <button class="btn sm ghost" data-act="kid" data-id="${esc(m.id)}">Edit</button>
+            ${!m.uid ? `<button class="btn sm ghost" data-act="invite" data-id="${esc(m.id)}">${icon('link', 14)} Invite</button>` : ''}
+          </div>`).join('')}
+          <button class="li" data-act="add-kid"><span class="sq soft">${icon('plus')}</span><span class="li-main"><span class="li-title">Add a child's profile</span><span class="li-sub">When they get a phone, send an invite and it becomes theirs.</span></span></button>
         </div>
-      </section>` : ''}
-
+      </section>
       ${canLock ? `<section class="block">
         <div class="row-head"><h2>This phone</h2></div>
         <div class="card list">
@@ -121,6 +126,13 @@ export function mount(root, app) {
             <button class="btn sm ghost" data-act="${lockOn(st.uid) ? 'lock-off' : 'lock-on'}">${lockOn(st.uid) ? 'Turn off' : 'Turn on'}</button></div>` : ''}
         </div>
       </section>` : ''}
+      <section class="block">
+        <div class="row-head"><h2>Text size</h2></div>
+        <div class="card list"><div class="li"><span class="li-main"><span class="li-title">Text size on this phone</span><span class="li-sub">Makes words bigger across the app</span></span>
+          <label class="sr" for="ts">Text size</label>
+          <select id="ts" class="select-pill">${[['', 'Standard'], ['large', 'Large'], ['larger', 'Larger']].map(([v, l]) => `<option value="${v}" ${v === textSize() ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
+      </section>
+      </details>
 
       ${(() => { try { return localStorage.getItem('oc-owner') ? `<section class="block"><a class="card link-card" href="#/admin"><span class="sq">${icon('gear', 22)}</span><span class="li-main"><span class="li-title">Admin</span><span class="li-sub">Circles, payments and revenue</span></span>${icon('next', 18)}</a></section>` : ''; } catch (e) { return ''; } })()}
 
@@ -202,6 +214,7 @@ export function mount(root, app) {
         toast('Photo updated in all your circles.');
       } catch (er) { toast(why('Photo did not upload.', er), 9000); }
     }
+    if (e.target.id === 'ts') { setTextSize(e.target.value); return; }
     if (e.target.id === 'inapp') {
       await S.set(`users/${st.uid}`, { prefs: { ...st.prefs, inAppAlerts: e.target.value === 'on' } }, true);
       toast(e.target.value === 'on' ? 'In-app alerts are on.' : 'In-app alerts are off.');
@@ -217,6 +230,7 @@ export function mount(root, app) {
   };
   root.addEventListener('click', onClick);
   root.addEventListener('change', onChange);
+  root.addEventListener('toggle', (e) => { if (e.target.classList?.contains('more-settings')) moreOpen = e.target.open; }, true);
   const off = app.on(render);
   render();
   pushState(st.uid).then((s) => { pushSt = s; if (s === 'off') prepareKey(); render(); });
@@ -236,7 +250,7 @@ async function addKid(app) {
   const me = app.myMember();
   const r = await sheet({
     title: "Add a child's profile",
-    intro: 'They will appear in your household and in family chats. You manage it until they have their own login.',
+    intro: 'You look after this profile until they have their own phone.',
     submit: 'Add',
     fields: [
       { name: 'name', label: 'First name', required: true },

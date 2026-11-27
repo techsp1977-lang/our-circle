@@ -67,7 +67,7 @@ export async function editEvent(app, ev = null, defaults = {}) {
   const cur = ev || { type: 'event', recurring: false, memberIds: [], ...defaults };
   const p = sheet({
     title: ev ? 'Edit date' : 'Add a date',
-    intro: 'Shared with the whole family. Everyone gets a nudge on the day.',
+    intro: 'The whole family sees it.',
     danger: ev && canEdit(app, ev) ? 'Delete' : null,
     fields: [
       { name: 'type', label: 'What is it?', type: 'select', value: cur.type, options: TYPES.map((t) => ({ value: t.value, label: t.label })) },
